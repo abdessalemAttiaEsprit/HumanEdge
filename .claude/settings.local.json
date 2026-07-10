@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Bash(./mvnw.cmd -q -o compile)",
+      "Bash(./mvnw.cmd -q compile)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(./mvnw.cmd -q -o test -Dtest=BackendApplicationTests)",
+      "Bash(powershell -Command \"Test-NetConnection -ComputerName localhost -Port 3306 -WarningAction SilentlyContinue | Select-Object TcpTestSucceeded\")",
+      "Bash(powershell -Command 'Get-Service | Where-Object {$_.Name -like '\\\\''*mysql*'\\\\'' -or $_.DisplayName -like '\\\\''*mysql*'\\\\''} | Select-Object Name,Status,DisplayName')",
+      "Bash(powershell -Command 'Get-Process | Where-Object {$_.ProcessName -like '\\\\''*mysql*'\\\\''} | Select-Object ProcessName,Id')",
+      "Bash(kill 124)",
+      "Bash(taskkill //F //IM java.exe //T)",
+      "Bash(powershell -Command 'Get-Process | Where-Object {$_.ProcessName -like '\\\\''*mysql*'\\\\''} | Select-Object ProcessName,Id,StartTime')",
+      "Bash(./mvnw.cmd -q -o clean package -DskipTests)"
+    ]
+  }
+}
