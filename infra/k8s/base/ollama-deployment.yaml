@@ -28,6 +28,9 @@ spec:
           # L'image ollama/ollama ne contient aucun modèle au démarrage : on le télécharge
           # une fois le serveur prêt (persisté ensuite dans le PVC /root/.ollama, donc pas
           # re-téléchargé aux redémarrages suivants tant que le modèle ne change pas).
+          # Utilise le binaire `ollama` (client intégré) plutôt que curl/wget : les images
+          # récentes ollama/ollama ne les embarquent plus, ce qui faisait échouer le hook
+          # (FailedPostStartHook après 120s) et bouclait le pod en CrashLoopBackOff.
           lifecycle:
             postStart:
               exec:
@@ -36,10 +39,10 @@ spec:
                   - -c
                   - |
                     for i in $(seq 1 60); do
-                      curl -sf http://localhost:11434/api/tags >/dev/null && break
+                      ollama list >/dev/null 2>&1 && break
                       sleep 2
                     done
-                    curl -s http://localhost:11434/api/pull -d "{\"name\": \"${OLLAMA_MODEL}\"}"
+                    ollama pull "${OLLAMA_MODEL}"
           resources:
             requests:
               cpu: 500m
