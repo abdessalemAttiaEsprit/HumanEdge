@@ -10,11 +10,11 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - hr.example.com
-        - api.hr.example.com
+        - hr.human-edge.dev
+        - api.hr.human-edge.dev
       secretName: hr-tls
   rules:
-    - host: hr.example.com
+    - host: hr.human-edge.dev
       http:
         paths:
           - path: /
@@ -24,7 +24,7 @@ spec:
                 name: hr-frontend
                 port:
                   number: 80
-    - host: api.hr.example.com
+    - host: api.hr.human-edge.dev
       http:
         paths:
           - path: /
