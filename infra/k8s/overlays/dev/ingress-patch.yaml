@@ -1,0 +1,10 @@
+- op: replace
+  path: /spec/rules/0/host
+  value: dev.hr.example.com
+- op: replace
+  path: /spec/rules/1/host
+  value: api-dev.hr.example.com
+- op: remove
+  path: /spec/tls
+- op: remove
+  path: /metadata/annotations/cert-manager.io~1cluster-issuer

@@ -1,0 +1,13 @@
+# Copier en terraform.tfvars (déjà ignoré par git) et adapter.
+# NE JAMAIS commiter de terraform.tfvars contenant un vrai mot de passe.
+
+project_id = "hrapp-<suffixe-unique>" # ID du projet GCP créé en 2.1, PAS le nom affiché
+region     = "europe-west1"
+zone       = "europe-west1-b"
+prefix     = "hrapp"
+
+mysql_admin_username = "hradmin"
+
+# mysql_admin_password volontairement absent d'ici : fournir via
+#   $env:TF_VAR_mysql_admin_password = "un-mot-de-passe-fort"
+# (PowerShell) avant `terraform plan`/`apply`, voir docs/deployment/02-terraform-gke.md.

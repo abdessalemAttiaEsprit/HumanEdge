@@ -1,0 +1,55 @@
+# Values Helm allégées pour le chart "kube-prometheus-stack", pensées pour tenir sur un
+# nœud Standard_B2s (2 vCPU/4 Go) partagé avec backend/frontend/Argo CD. Installation :
+#
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm repo update
+#   helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+#     --namespace monitoring --create-namespace \
+#     -f infra/monitoring/prometheus-grafana-values.yaml
+#
+# Voir docs/deployment/06-monitoring.md pour la suite (vérifier les targets, importer les
+# dashboards Grafana, appliquer servicemonitor-backend.yaml).
+
+alertmanager:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    retention: 3d
+    # Sans ça, seuls les ServiceMonitor portant le label de la release Helm seraient
+    # découverts - on simplifie pour un cluster mono-tenant : tous les ServiceMonitor du
+    # cluster sont scrappés, y compris infra/monitoring/servicemonitor-backend.yaml.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 300m
+        memory: 384Mi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+
+grafana:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  persistence:
+    enabled: true
+    size: 1Gi
+  defaultDashboardsEnabled: true
+
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true

@@ -1,0 +1,23 @@
+# Application "racine" (pattern App-of-Apps) : surveille infra/argocd/applications/ et
+# applique automatiquement chaque Application qui s'y trouve. À appliquer une seule fois
+# manuellement (kubectl apply -f), tout le reste est ensuite piloté par Argo CD lui-même.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hr-root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/abdessalemAttiaEsprit/HumanEdge.git
+    targetRevision: main
+    path: infra/argocd/applications
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

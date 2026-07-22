@@ -1,0 +1,22 @@
+# À appliquer manuellement APRÈS l'installation du stack kube-prometheus-stack (le CRD
+# ServiceMonitor n'existe pas avant) : kubectl apply -f infra/monitoring/servicemonitor-backend.yaml
+# Volontairement hors de infra/k8s/ (géré par Argo CD) pour éviter un échec d'apply si Argo CD
+# synchronise avant que le stack monitoring ne soit installé.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: hr-backend
+  namespace: hr
+  labels:
+    app: hr-backend
+spec:
+  selector:
+    matchLabels:
+      app: hr-backend
+  namespaceSelector:
+    matchNames:
+      - hr
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 30s

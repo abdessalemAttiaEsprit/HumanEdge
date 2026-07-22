@@ -12,6 +12,9 @@ frontend/.env.*.local
 # Backend
 backend/target/
 
+# Docker Compose secrets (SMTP credentials, etc.)
+.env
+
 # IDE
 .idea/
 .vscode/
@@ -19,3 +22,12 @@ backend/target/
 # OS
 .DS_Store
 Thumbs.db
+
+# Terraform (le .terraform.lock.hcl, lui, doit être commité)
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/terraform.tfvars
+infra/terraform/backend.hcl
+infra/terraform/crash.log
+infra/terraform/tfplan*

@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hr-frontend
+  namespace: hr
+  labels:
+    app: hr-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hr-frontend
+  template:
+    metadata:
+      labels:
+        app: hr-frontend
+    spec:
+      containers:
+        - name: frontend
+          # Remplacé par overlay (images: dans kustomization.yaml) puis par la CI (tag = SHA du commit)
+          image: docker.io/CHANGE_ME/hr-frontend:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15

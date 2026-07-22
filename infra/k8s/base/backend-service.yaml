@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hr-backend
+  namespace: hr
+  labels:
+    app: hr-backend
+spec:
+  selector:
+    app: hr-backend
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081

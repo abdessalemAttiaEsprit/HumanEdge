@@ -1,0 +1,6 @@
+# Copier en backend.hcl (déjà ignoré par git) après avoir bootstrappé le bucket GCS de state
+# (commandes dans docs/deployment/02-terraform-gke.md), puis :
+#   terraform init -backend-config=backend.hcl
+
+bucket = "tfstate-hrapp-471203"
+prefix = "hr-gke" # équivalent du "key" Azure : sous-dossier du bucket pour ce state

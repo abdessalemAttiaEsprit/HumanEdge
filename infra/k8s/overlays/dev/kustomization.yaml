@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Overlay "dev" : pensé pour un cluster séparé (kind/minikube local, ou un 2e cluster si le
+# budget le permet un jour) - PAS pour tourner en même temps que overlays/prod sur l'unique
+# nœud GKE du plan budget étudiant. Voir docs/deployment/00-overview.md.
+
+resources:
+  - ../../base
+  # Après avoir généré le secret chiffré (voir docs/deployment/03-secrets.md), ajoute :
+  #   - sealed-secret.yaml
+
+patchesStrategicMerge:
+  - patch-configmap.yaml
+  - patch-backend-resources.yaml
+
+patches:
+  - path: ingress-patch.yaml
+    target:
+      kind: Ingress
+      name: hr-ingress
+
+images:
+  - name: docker.io/CHANGE_ME/hr-backend
+    newName: docker.io/abdessalem123/hr-backend
+    newTag: dev
+  - name: docker.io/CHANGE_ME/hr-frontend
+    newName: docker.io/abdessalem123/hr-frontend
+    newTag: dev
