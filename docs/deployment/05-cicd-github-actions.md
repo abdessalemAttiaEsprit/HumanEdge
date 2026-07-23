@@ -23,7 +23,7 @@ Repo GitHub > Settings > Secrets and variables > Actions :
 **Variables** (onglet "Variables", pas un secret - c'est juste une URL publique) :
 | Nom | Valeur |
 |---|---|
-| `VITE_API_BASE_URL` | `https://api.hr.example.com` (ou ton URL nip.io/domaine réel) |
+| `VITE_API_BASE_URL` | `https://api.hr.human-edge.dev` |
 
 ## 5.3 Ce que font les workflows
 
