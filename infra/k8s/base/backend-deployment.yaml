@@ -19,6 +19,12 @@ spec:
         prometheus.io/path: "/actuator/prometheus"
         prometheus.io/port: "8081"
     spec:
+      # Le conteneur tourne en non-root (uid/gid 999, voir backend/Dockerfile) - fsGroup force
+      # Kubernetes à chown le volume PVC monté (/app/uploads) au groupe 999 au montage, sinon
+      # le PVC est monté root:root par défaut et le process n'a pas le droit d'écrire dessus
+      # (AccessDeniedException à l'upload de CV).
+      securityContext:
+        fsGroup: 999
       containers:
         - name: backend
           # Remplacé par overlay (images: dans kustomization.yaml) puis par la CI (tag = SHA du commit)
