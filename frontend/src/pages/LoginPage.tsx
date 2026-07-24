@@ -158,6 +158,10 @@ export function LoginPage() {
           </label>
         </div>
 
+        <p className="auth-shell__forgot">
+          <Link to="/forgot-password">Forgot password?</Link>
+        </p>
+
         <button className="btn btn--primary btn--block" type="submit" disabled={loading}>
           {loading ? 'Signing in…' : 'Sign in'}
         </button>

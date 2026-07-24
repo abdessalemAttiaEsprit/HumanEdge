@@ -3,6 +3,8 @@ import { ProtectedRoute } from '@/auth/ProtectedRoute';
 import { Layout } from '@/components/Layout';
 import { HomePage } from '@/pages/HomePage';
 import { LoginPage } from '@/pages/LoginPage';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { RegisterChooserPage } from '@/pages/RegisterChooserPage';
 import { RegisterCompanyPage } from '@/pages/RegisterCompanyPage';
 import { RegisterCandidatePage } from '@/pages/RegisterCandidatePage';
@@ -46,6 +48,8 @@ export function App() {
       {/* Public showcase */}
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/register" element={<RegisterChooserPage />} />
       <Route path="/register/company" element={<RegisterCompanyPage />} />
       <Route path="/register/candidate" element={<RegisterCandidatePage />} />

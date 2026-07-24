@@ -132,6 +132,15 @@ export interface ResendOtpRequest {
   email: string;
 }
 
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
 // PUT /api/account/password — self-service, any authenticated role.
 export interface ChangePasswordRequest {
   currentPassword: string;

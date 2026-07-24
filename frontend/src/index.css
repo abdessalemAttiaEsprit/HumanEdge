@@ -329,6 +329,12 @@ h3 {
   color: var(--text-muted);
 }
 
+.auth-shell__forgot {
+  margin: -8px 0 20px;
+  text-align: right;
+  font-size: 0.85rem;
+}
+
 .auth-fields {
   border: 1px solid var(--border);
   border-radius: var(--radius);

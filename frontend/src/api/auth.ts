@@ -1,10 +1,12 @@
 import { api } from './axios';
 import type {
   AuthResponse,
+  ForgotPasswordRequest,
   LoginRequest,
   LoginResponse,
   RegisterRequest,
   ResendOtpRequest,
+  ResetPasswordRequest,
   SubscriptionPlan,
   VerifyOtpRequest,
 } from '@/types';
@@ -31,6 +33,14 @@ export const authApi = {
 
   resendOtp(payload: ResendOtpRequest): Promise<void> {
     return api.post('/api/auth/resend-otp', payload).then(() => undefined);
+  },
+
+  forgotPassword(payload: ForgotPasswordRequest): Promise<void> {
+    return api.post('/api/auth/forgot-password', payload).then(() => undefined);
+  },
+
+  resetPassword(payload: ResetPasswordRequest): Promise<void> {
+    return api.post('/api/auth/reset-password', payload).then(() => undefined);
   },
 
   // Plain JSON when there are no files (multipart isn't needed); switches to
