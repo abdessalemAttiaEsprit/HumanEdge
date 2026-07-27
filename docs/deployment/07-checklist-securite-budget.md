@@ -53,6 +53,14 @@
 - [x] **Timeout RestTemplate** : `RestTemplateConfig` fixe désormais 5s de connexion / 90s
   de lecture pour les appels à Ollama, pour ne pas bloquer indéfiniment un thread de
   requête backend si Ollama est lent ou indisponible.
+- [x] **Timeout ingress trop court pour l'évaluation IA** : le flux `evaluate-ai` enchaîne
+  2 appels séquentiels à Ollama (validation du CV puis notation), jusqu'à 90s chacun sur le
+  nœud CPU-only - jusqu'à ~180s au total. Le défaut `ingress-nginx` (60s) coupait la réponse
+  avant la fin : le navigateur recevait une 504 alors que le backend terminait et
+  enregistrait le score juste après (score invisible sans rafraîchir). Corrigé en ajoutant
+  `nginx.ingress.kubernetes.io/proxy-read-timeout`/`proxy-send-timeout: "240"` sur
+  `infra/k8s/base/ingress.yaml`. Vérifié en conditions réelles : requête `POST
+  /api/application/{id}/evaluate-ai` terminée en ~98s avec HTTP 200.
 
 ## Budget
 
