@@ -13,22 +13,16 @@
   peut modifier le schéma automatiquement au démarrage. Acceptable pour un labo/démo ; pour
   un vrai usage, passer à `validate` + un outil de migration (Flyway/Liquibase) est
   recommandé, mais hors périmètre de cette phase infra.
-- [ ] **Cloud SQL en accès public** (`google_sql_database_instance.this` dans
-  `infra/terraform/cloudsql.tf`, réseau autorisé `0.0.0.0/0`) : simplifie le setup (pas de
-  VPC privé/Private Service Connect à gérer) mais ouvre l'instance à toute IP sur Internet
-  (protégée uniquement par le login/mot de passe MySQL). Pour resserrer, une fois l'IP de
-  sortie du cluster connue :
-  ```bash
-  # Trouver l'IP externe (éphémère) du nœud - change si le nœud est recréé
-  kubectl get nodes -o wide
-  gcloud compute instances describe <nom-de-la-vm> --zone=europe-west1-b \
-    --format="value(networkInterfaces[0].accessConfigs[0].natIP)"
-
-  gcloud sql instances patch hrapp-mysql \
-    --authorized-networks=<IP-trouvée-ci-dessus>/32
-  ```
-  Solution plus robuste mais plus lourde (hors périmètre ici) : réserver une IP statique
-  pour le nœud, ou passer par le Cloud SQL Auth Proxy en side-car.
+- [x] **Cloud SQL en accès public** — résolu via **Cloud SQL Auth Proxy en side-car +
+  Workload Identity** plutôt qu'une IP autorisée (qui ne survivait pas au redimensionnement
+  quotidien du node pool - nouvelle IP à chaque fois). Le pod `hr-backend` s'authentifie
+  désormais par IAM (`infra/terraform/workload-identity.tf` : GSA `hr-backend-sql` +
+  bindings `cloudsql.client`/`workloadIdentityUser`), via un tunnel chiffré local
+  (`infra/k8s/base/backend-deployment.yaml`, conteneur `cloud-sql-proxy` sur
+  `127.0.0.1:3306`). `authorized_networks` a été entièrement retiré de
+  `infra/terraform/cloudsql.tf` - plus aucune IP ne peut se connecter directement sur le
+  port MySQL. Nécessite `workload_identity_config` sur le cluster et
+  `workload_metadata_config { mode = "GKE_METADATA" }` sur le node pool (voir `gke.tf`).
 - [ ] **Rotation des secrets** : pour changer `JWT_SECRET`, `DB_PASSWORD`, `MAIL_PASSWORD`,
   refaire la procédure de [03-secrets.md](03-secrets.md) (nouveau `kubectl create secret
   --dry-run=client` → `kubeseal` → commit), puis forcer un redémarrage des pods pour
@@ -62,7 +56,9 @@
 
 ## Budget
 
-- [ ] **Alerte de budget GCP** : configure une alerte avant de te rapprocher des 300$ de
+- [x] **Alerte de budget GCP** (créée via la Console - l'API Billing Budgets a refusé la
+  création en CLI, limitation connue des comptes de facturation d'essai gratuit) : configure
+  une alerte avant de te rapprocher des 300$ de
   crédit d'essai (large marge prévue, voir [00-overview.md](00-overview.md#budget), mais
   une alerte reste un filet de sécurité gratuit) :
   ```bash
