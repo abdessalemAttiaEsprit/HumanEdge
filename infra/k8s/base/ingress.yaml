@@ -6,6 +6,13 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # L'évaluation IA (POST /api/application/{id}/evaluate-ai) enchaîne 2 appels séquentiels
+    # à Ollama (validation du CV puis notation), chacun pouvant aller jusqu'à 90s (timeout
+    # RestTemplate, voir RestTemplateConfig) sur le nœud CPU-only - jusqu'à ~180s au total.
+    # Le défaut ingress-nginx (60s) coupait la réponse avant la fin : le navigateur recevait
+    # une 504 alors que le backend terminait et enregistrait le score juste après.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "240"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "240"
 spec:
   ingressClassName: nginx
   tls:
