@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - configmap.yaml
+  - backend-serviceaccount.yaml
   - backend-uploads-pvc.yaml
   - backend-deployment.yaml
   - backend-service.yaml

@@ -30,6 +30,14 @@ resource "google_container_cluster" "this" {
 
   resource_labels = var.labels
 
+  # Nécessaire pour que le pod backend s'authentifie auprès de Cloud SQL via IAM (Cloud SQL
+  # Auth Proxy en side-car, voir backend-deployment.yaml) plutôt que par IP autorisée - cette
+  # dernière ne survit pas au redimensionnement quotidien du node pool (nouvelle IP à chaque
+  # fois). Voir docs/deployment/07-checklist-securite-budget.md.
+  workload_identity_config {
+    workload_pool = "${var.project_id}.svc.id.goog"
+  }
+
   depends_on = [google_project_service.container]
 }
 
@@ -48,5 +56,12 @@ resource "google_container_node_pool" "system" {
     disk_type    = "pd-standard"
     oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
     labels       = var.labels
+
+    # Expose le serveur de métadonnées GKE nécessaire à Workload Identity (voir
+    # workload_identity_config sur le cluster ci-dessus) - sans ça, les pods du nœud ne
+    # peuvent pas échanger leur identité Kubernetes contre un jeton IAM.
+    workload_metadata_config {
+      mode = "GKE_METADATA"
+    }
   }
 }

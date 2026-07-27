@@ -25,6 +25,10 @@ spec:
       # (AccessDeniedException à l'upload de CV).
       securityContext:
         fsGroup: 999
+      # Lié par Workload Identity au GSA hr-backend-sql (infra/terraform/workload-identity.tf)
+      # - c'est ce qui permet au side-car cloud-sql-proxy ci-dessous de s'authentifier sans
+      # clé JSON ni IP autorisée.
+      serviceAccountName: hr-backend-ksa
       containers:
         - name: backend
           # Remplacé par overlay (images: dans kustomization.yaml) puis par la CI (tag = SHA du commit)
@@ -60,6 +64,25 @@ spec:
           volumeMounts:
             - name: uploads
               mountPath: /app/uploads
+        # Tunnel authentifié par IAM vers Cloud SQL (voir 07-checklist-securite-budget.md) -
+        # DB_URL (secret hr-backend-secrets) pointe vers 127.0.0.1:3306, plus jamais l'IP
+        # publique directe. Écoute par défaut uniquement sur localhost (--address non fourni),
+        # donc inaccessible depuis l'extérieur du pod.
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.0
+          args:
+            - "--structured-logs"
+            - "--port=3306"
+            - "hrapp-471203:europe-west1:hrapp-mysql"
+          securityContext:
+            runAsNonRoot: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
       volumes:
         - name: uploads
           persistentVolumeClaim:

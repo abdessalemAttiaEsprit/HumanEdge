@@ -25,3 +25,8 @@ output "mysql_database_name" {
 
 # Utilisé pour construire DB_URL (voir docs/deployment/03-secrets.md):
 # jdbc:mysql://<mysql_public_ip>:3306/<mysql_database_name>?useSSL=true&serverTimezone=UTC
+
+output "hr_backend_sql_service_account_email" {
+  description = "Email du GSA utilisé par le side-car cloud-sql-proxy - doit correspondre à l'annotation iam.gke.io/gcp-service-account de infra/k8s/base/backend-serviceaccount.yaml"
+  value       = google_service_account.hr_backend_sql.email
+}
