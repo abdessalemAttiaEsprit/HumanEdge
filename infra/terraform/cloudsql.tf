@@ -3,10 +3,12 @@
 # comme il en existait un pour Azure for Students). Remplace un pod MySQL en cluster : géré
 # (backups automatiques), et libère la RAM du nœud GKE pour backend/frontend/monitoring.
 #
-# Accès public + réseau autorisé "0.0.0.0/0" plutôt qu'une intégration VPC privée (Private
-# Service Connect) : plus simple à opérer soi-même le temps d'un déploiement de 2 semaines.
-# Compromis sécurité documenté dans docs/deployment/07-checklist-securite-budget.md
-# (alternative : restreindre à l'IP de sortie du cluster une fois connue).
+# IP publique conservée (pas d'intégration VPC privée/Private Service Connect - hors
+# périmètre) mais plus aucun réseau autorisé : le pod hr-backend s'authentifie désormais via
+# le Cloud SQL Auth Proxy + Workload Identity (infra/terraform/workload-identity.tf,
+# infra/k8s/base/backend-deployment.yaml) - un tunnel chiffré authentifié par IAM, qui ne
+# passe pas par la liste authorized_networks. Voir
+# docs/deployment/07-checklist-securite-budget.md.
 
 resource "google_sql_database_instance" "this" {
   name             = "${var.prefix}-mysql"
@@ -26,10 +28,8 @@ resource "google_sql_database_instance" "this" {
 
     ip_configuration {
       ipv4_enabled = true
-      authorized_networks {
-        name  = "allow-all-temporary"
-        value = "0.0.0.0/0"
-      }
+      # Pas de bloc authorized_networks : plus aucune IP ne peut se connecter directement
+      # sur le port MySQL brut, seul le Cloud SQL Auth Proxy (authentifié via IAM) le peut.
     }
   }
 
