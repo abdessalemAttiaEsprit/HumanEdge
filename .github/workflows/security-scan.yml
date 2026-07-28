@@ -39,8 +39,11 @@ jobs:
           sarif_file: trivy-iac-results.sarif
           category: trivy-iac
 
+      # `secrets` n'est pas utilisable dans un `if:` (erreur GitHub Actions "Unrecognized
+      # named-value: 'secrets'") - continue-on-error fait le même travail : tant que
+      # SNYK_TOKEN n'existe pas, l'étape échoue (token vide) mais le job continue sans
+      # bloquer le pipeline. Voir docs/deployment/10-qualite-securite-code.md.
       - name: Snyk (IaC Terraform)
-        if: ${{ secrets.SNYK_TOKEN != '' }}
         uses: snyk/actions/iac@master
         continue-on-error: true
         with:

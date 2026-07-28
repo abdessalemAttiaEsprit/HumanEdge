@@ -3,10 +3,19 @@
 > **Statut : implémenté, en mode "rapport seul" (semaine 1 de la stratégie §10.5).** Trivy
 > (image + IaC) tourne sur chaque push sans rien exiger de plus - les résultats apparaissent
 > dans l'onglet **Security** du repo GitHub. SonarCloud et Snyk sont câblés dans les 3
-> workflows (`backend-ci-cd.yml`/`frontend-ci-cd.yml`/`security-scan.yml`) mais **restent
-> inactifs** (`if: secrets.SONAR_TOKEN/SNYK_TOKEN != ''`) tant que les comptes et tokens
-> décrits en 10.2/10.3 n'ont pas été créés - rien à modifier dans le code une fois les
-> secrets GitHub ajoutés, les steps s'activent automatiquement au push suivant.
+> workflows (`backend-ci-cd.yml`/`frontend-ci-cd.yml`/`security-scan.yml`) mais échouent
+> sans effet de bord (`continue-on-error: true`) tant que les comptes et tokens décrits en
+> 10.2/10.3 n'ont pas été créés - rien à modifier dans le code une fois les secrets GitHub
+> ajoutés, les steps réussissent automatiquement au push suivant.
+>
+> ⚠️ **Piège rencontré à l'implémentation** : la première version gardait ces steps
+> derrière `if: ${{ secrets.SONAR_TOKEN != '' }}` pour un rendu "skipped" plus propre dans
+> l'UI GitHub tant que le token n'existe pas - mais `secrets` n'est **pas** une context
+> utilisable dans un `if:` (erreur `Unrecognized named-value: 'secrets'`), ce qui a fait
+> échouer les 3 workflows au démarrage (0 job exécuté, aucun rapport à l'onglet Actions).
+> Retiré partout ; `continue-on-error: true` (déjà nécessaire de toute façon pour le mode
+> rapport, §10.5) suffit à obtenir le même résultat fonctionnel, au prix d'un badge "failed"
+> au lieu de "skipped" tant que le secret n'est pas ajouté.
 
 ## 10.0 Pourquoi ces 3 outils, et pourquoi pas un seul
 
@@ -104,8 +113,9 @@ sous tension, voir [06-monitoring.md §6.7](06-monitoring.md#67-effet-de-bord-v�
 Le code est déjà en place (`jacoco-maven-plugin` dans `backend/pom.xml`, propriétés
 `sonar.projectKey`/`sonar.organization` avec des placeholders `TON_ORG_SONARCLOUD` à
 remplacer, `frontend/sonar-project.properties` idem, et les steps `SonarCloud` dans
-`backend-ci-cd.yml`/`frontend-ci-cd.yml` gardées par `if: secrets.SONAR_TOKEN != ''` -
-elles ne tournent pas tant que ce secret n'existe pas). **Ce qui reste à faire côté compte** :
+`backend-ci-cd.yml`/`frontend-ci-cd.yml`, protégées par `continue-on-error: true` - elles
+échouent proprement (badge "failed" sans bloquer le job) tant que ce secret n'existe pas).
+**Ce qui reste à faire côté compte** :
 
 1. Se connecter sur [sonarcloud.io](https://sonarcloud.io) avec le compte GitHub, importer le
    repo `HumanEdge`. SonarCloud propose de créer 1 projet par langage détecté - garder
@@ -117,7 +127,7 @@ elles ne tournent pas tant que ce secret n'existe pas). **Ce qui reste à faire 
 3. Générer un token (My Account > Security) → secret GitHub `SONAR_TOKEN`
    (Settings > Secrets and variables > Actions, même écran que `DOCKERHUB_TOKEN`).
 4. Commit/push les 2 fichiers modifiés à l'étape 2 - le prochain push déclenchera
-   automatiquement l'analyse (le job n'est plus skippé une fois `SONAR_TOKEN` présent).
+   automatiquement une analyse réussie une fois `SONAR_TOKEN` présent.
 
 Le "Quality Gate" par défaut de SonarCloud (couverture, duplication, bugs bloquants) peut être
 configuré pour ne pas faire échouer la CI dans un premier temps - voir 10.5. Les steps
@@ -129,8 +139,9 @@ utilisent déjà `continue-on-error: true` de toute façon, le temps de ce premi
 (`backend/pom.xml`, `frontend/package.json`) et l'IaC (`infra/terraform/**`).
 
 Le code est déjà en place (steps `Snyk` dans `backend-ci-cd.yml`, `frontend-ci-cd.yml` et
-`security-scan.yml`, gardées par `if: secrets.SNYK_TOKEN != ''` + `continue-on-error: true`
-le temps du premier tri, voir §10.5). **Ce qui reste à faire côté compte** :
+`security-scan.yml`, protégées par `continue-on-error: true` - échouent proprement sans
+bloquer le job tant que le secret n'existe pas, voir §10.5). **Ce qui reste à faire côté
+compte** :
 1. Créer un compte gratuit sur [snyk.io](https://snyk.io) (login GitHub possible), lier le repo.
 2. Récupérer le token (Account Settings > API Token) → secret GitHub `SNYK_TOKEN`
    (Settings > Secrets and variables > Actions, même écran que `DOCKERHUB_TOKEN`/`SONAR_TOKEN`).

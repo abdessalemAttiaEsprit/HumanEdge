@@ -86,8 +86,11 @@ jobs:
           sarif_file: trivy-image-results.sarif
           category: trivy-image-frontend
 
+      # `secrets` n'est pas utilisable dans un `if:` (erreur GitHub Actions "Unrecognized
+      # named-value: 'secrets'") - continue-on-error fait le même travail : tant que
+      # SNYK_TOKEN/SONAR_TOKEN n'existent pas, l'étape échoue (token vide) mais le job
+      # continue sans bloquer le pipeline. Voir docs/deployment/10-qualite-securite-code.md.
       - name: Snyk (dépendances npm)
-        if: ${{ secrets.SNYK_TOKEN != '' }}
         uses: snyk/actions/node@master
         continue-on-error: true
         with:
@@ -96,7 +99,6 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
       - name: SonarCloud
-        if: ${{ secrets.SONAR_TOKEN != '' }}
         uses: SonarSource/sonarcloud-github-action@v3
         continue-on-error: true
         with:
