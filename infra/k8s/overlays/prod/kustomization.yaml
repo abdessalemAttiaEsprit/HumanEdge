@@ -14,4 +14,4 @@ images:
   newTag: b5be923
 - name: docker.io/CHANGE_ME/hr-frontend
   newName: docker.io/abdessalem123/hr-frontend
-  newTag: b5be923
+  newTag: 41ba4dd
