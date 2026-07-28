@@ -1,9 +1,12 @@
 # 10. Qualité de code & sécurité (SonarQube, Snyk, Trivy)
 
-> **Statut : plan, rien n'est encore implémenté.** Ce chapitre documente ce qui sera fait
-> ensuite - contrairement aux chapitres précédents (00-09), il ne décrit pas des commandes
-> déjà exécutées mais une proposition d'intégration, à valider avant de toucher aux workflows
-> GitHub Actions existants (`.github/workflows/backend-ci-cd.yml`/`frontend-ci-cd.yml`).
+> **Statut : implémenté, en mode "rapport seul" (semaine 1 de la stratégie §10.5).** Trivy
+> (image + IaC) tourne sur chaque push sans rien exiger de plus - les résultats apparaissent
+> dans l'onglet **Security** du repo GitHub. SonarCloud et Snyk sont câblés dans les 3
+> workflows (`backend-ci-cd.yml`/`frontend-ci-cd.yml`/`security-scan.yml`) mais **restent
+> inactifs** (`if: secrets.SONAR_TOKEN/SNYK_TOKEN != ''`) tant que les comptes et tokens
+> décrits en 10.2/10.3 n'ont pas été créés - rien à modifier dans le code une fois les
+> secrets GitHub ajoutés, les steps s'activent automatiquement au push suivant.
 
 ## 10.0 Pourquoi ces 3 outils, et pourquoi pas un seul
 
@@ -33,56 +36,63 @@ aucune inscription ni secret GitHub, et scanne 3 choses utiles ici :
    aurait détecté l'accès public `0.0.0.0/0` sur Cloud SQL avant qu'il ne soit corrigé
    manuellement, voir [07-checklist-securite-budget.md](07-checklist-securite-budget.md)).
 
-Intégration proposée (`aquasecurity/trivy-action`), ajoutée comme étape dans
-`build-test-push` de chaque workflow, **après** le build de l'image et **avant** le push :
+Intégration réelle (`aquasecurity/trivy-action`) : étape ajoutée dans `build-test-push` de
+`backend-ci-cd.yml`/`frontend-ci-cd.yml`, juste après le push de l'image (scan après coup,
+pas avant - plus simple à brancher sur un pipeline existant sans le restructurer ; à
+resserrer plus tard en "scan avant push" si on passe en mode bloquant, voir §10.5) :
 
 ```yaml
-      - name: Build image (sans push, pour le scanner d'abord)
-        uses: docker/build-push-action@v6
-        with:
-          context: backend
-          push: false
-          load: true
-          tags: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
-
-      - name: Scan image (Trivy)
+      - name: Trivy (scan de l'image)
         uses: aquasecurity/trivy-action@0.24.0
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
-          severity: CRITICAL
-          exit-code: '1'   # fait échouer le job si une faille CRITICAL est trouvée
+          format: sarif
+          output: trivy-image-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'   # mode rapport - voir §10.5 sur le passage progressif en bloquant
 
-      - name: Push image (si le scan est passé)
-        uses: docker/build-push-action@v6
+      - name: Trivy - publier les résultats dans l'onglet Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
         with:
-          context: backend
-          push: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
-            ${{ env.IMAGE_NAME }}:latest
+          sarif_file: trivy-image-results.sarif
+          category: trivy-image-backend   # trivy-image-frontend dans l'autre workflow
 ```
 
-Scan IaC (Terraform + Kubernetes), en job séparé, indépendant du build d'image :
+Le job `build-test-push` a aussi reçu `permissions: security-events: write` (requis pour
+que `upload-sarif` puisse écrire dans l'onglet Security).
+
+Scan IaC (Terraform + Kubernetes) : nouveau workflow dédié
+`.github/workflows/security-scan.yml`, déclenché sur push touchant `infra/**` (indépendant
+des workflows backend/frontend, pas besoin de builder une image pour ce scan) :
 
 ```yaml
   scan-iac:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
-      - name: Scan Terraform + Kubernetes (Trivy config)
+      - name: Trivy (config Terraform + Kubernetes)
         uses: aquasecurity/trivy-action@0.24.0
         with:
           scan-type: config
           scan-ref: infra
+          format: sarif
+          output: trivy-iac-results.sarif
           severity: CRITICAL,HIGH
-          exit-code: '0'   # ne bloque pas au début - voir 10.5 sur la stratégie de gate
+          exit-code: '0'
+      - name: Trivy - publier les résultats dans l'onglet Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-iac-results.sarif
+          category: trivy-iac
 ```
 
-**Recommandation** : commencer avec `severity: CRITICAL` uniquement et `exit-code: '1'`
-seulement sur le scan d'image (bloquant), et `exit-code: '0'` (rapport seul, non bloquant) sur
-le scan IaC le temps de faire le tri sur les résultats existants - un premier scan sur un
-projet jamais scanné remonte presque toujours des dizaines de findings `HIGH` historiques,
-et un `exit-code: '1'` immédiat bloquerait la CI dès le premier commit après l'intégration.
+Résultats consultables dans l'onglet **Security > Code scanning** du repo GitHub, sans rien
+configurer de plus - `exit-code: '0'` partout pour l'instant (mode rapport, §10.5).
 
 ## 10.2 SonarQube (via SonarCloud, pas d'hébergement à gérer)
 
@@ -91,75 +101,42 @@ récapitulatif). [SonarCloud](https://sonarcloud.io) est **gratuit pour les repo
 pas besoin d'auto-héberger un serveur SonarQube (qui coûterait de la RAM sur le nœud GKE déjà
 sous tension, voir [06-monitoring.md §6.7](06-monitoring.md#67-effet-de-bord-vécu--capacité-cpu-chroniquement-tendue)).
 
-Mise en place :
+Le code est déjà en place (`jacoco-maven-plugin` dans `backend/pom.xml`, propriétés
+`sonar.projectKey`/`sonar.organization` avec des placeholders `TON_ORG_SONARCLOUD` à
+remplacer, `frontend/sonar-project.properties` idem, et les steps `SonarCloud` dans
+`backend-ci-cd.yml`/`frontend-ci-cd.yml` gardées par `if: secrets.SONAR_TOKEN != ''` -
+elles ne tournent pas tant que ce secret n'existe pas). **Ce qui reste à faire côté compte** :
+
 1. Se connecter sur [sonarcloud.io](https://sonarcloud.io) avec le compte GitHub, importer le
    repo `HumanEdge`. SonarCloud propose de créer 1 projet par langage détecté - garder
    **2 projets séparés** (`hr-backend`, `hr-frontend`), pas un seul, vu que Java et TS ont des
    analyseurs et des règles différentes.
-2. Générer un token (My Account > Security) → secret GitHub `SONAR_TOKEN`.
-3. Backend (Maven, plugin officiel) :
-```yaml
-      - name: SonarCloud (backend)
-        working-directory: backend
-        run: ./mvnw -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        # nécessite sonar.projectKey/sonar.organization dans backend/pom.xml
-        # (<properties><sonar.projectKey>...</sonar.projectKey></properties>)
-```
-`verify` (pas juste `test`) est nécessaire pour que JaCoCo génère le rapport de couverture
-que Sonar peut ensuite lire - à ajouter dans `backend/pom.xml` si pas déjà présent
-(plugin `jacoco-maven-plugin`).
-
-4. Frontend (scanner CLI générique, pas de build Maven ici) :
-```yaml
-      - name: SonarCloud (frontend)
-        uses: SonarSource/sonarcloud-github-action@v3
-        with:
-          projectBaseDir: frontend
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-```
+2. Noter la clé d'organisation et les clés de projet que SonarCloud affiche à l'import, et
+   les reporter dans `backend/pom.xml` (`<sonar.organization>`/`<sonar.projectKey>`) et
+   `frontend/sonar-project.properties` à la place de `TON_ORG_SONARCLOUD`.
+3. Générer un token (My Account > Security) → secret GitHub `SONAR_TOKEN`
+   (Settings > Secrets and variables > Actions, même écran que `DOCKERHUB_TOKEN`).
+4. Commit/push les 2 fichiers modifiés à l'étape 2 - le prochain push déclenchera
+   automatiquement l'analyse (le job n'est plus skippé une fois `SONAR_TOKEN` présent).
 
 Le "Quality Gate" par défaut de SonarCloud (couverture, duplication, bugs bloquants) peut être
-configuré pour ne pas faire échouer la CI dans un premier temps - voir 10.5.
+configuré pour ne pas faire échouer la CI dans un premier temps - voir 10.5. Les steps
+utilisent déjà `continue-on-error: true` de toute façon, le temps de ce premier tri.
 
 ## 10.3 Snyk (compte gratuit, token requis)
 
 [Snyk](https://snyk.io) a un tier gratuit pour projets open source. Couvre les dépendances
 (`backend/pom.xml`, `frontend/package.json`) et l'IaC (`infra/terraform/**`).
 
-Mise en place :
+Le code est déjà en place (steps `Snyk` dans `backend-ci-cd.yml`, `frontend-ci-cd.yml` et
+`security-scan.yml`, gardées par `if: secrets.SNYK_TOKEN != ''` + `continue-on-error: true`
+le temps du premier tri, voir §10.5). **Ce qui reste à faire côté compte** :
 1. Créer un compte gratuit sur [snyk.io](https://snyk.io) (login GitHub possible), lier le repo.
-2. Récupérer le token (Account Settings > API Token) → secret GitHub `SNYK_TOKEN`.
-3. Backend :
-```yaml
-      - name: Snyk (dépendances backend)
-        uses: snyk/actions/maven@master
-        with:
-          args: --file=backend/pom.xml --severity-threshold=high
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-```
-4. Frontend :
-```yaml
-      - name: Snyk (dépendances frontend)
-        uses: snyk/actions/node@master
-        with:
-          args: --file=frontend/package.json --severity-threshold=high
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-```
-5. IaC (Terraform), en complément du scan de config Trivy (10.1) - Snyk a une base de règles
-   différente et un tableau de bord web pour suivre l'évolution dans le temps :
-```yaml
-      - name: Snyk (Terraform)
-        uses: snyk/actions/iac@master
-        with:
-          args: infra/terraform --severity-threshold=high
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-```
+2. Récupérer le token (Account Settings > API Token) → secret GitHub `SNYK_TOKEN`
+   (Settings > Secrets and variables > Actions, même écran que `DOCKERHUB_TOKEN`/`SONAR_TOKEN`).
+
+Rien d'autre à faire : les 3 scans (backend, frontend, Terraform) s'activent automatiquement
+au push suivant une fois ce secret présent.
 
 ## 10.4 Où ça s'insère dans les workflows existants
 

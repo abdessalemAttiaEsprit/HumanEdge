@@ -14,6 +14,9 @@ env:
 jobs:
   build-test-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # requis pour publier les résultats Trivy dans l'onglet Security
     outputs:
       image_tag: ${{ steps.meta.outputs.tag }}
     steps:
@@ -55,6 +58,43 @@ jobs:
             ${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # --- Qualité & sécurité (voir docs/deployment/10-qualite-securite-code.md) ---
+      # Mode "rapport" (exit-code 0) le temps de trier les findings existants - voir §10.5
+      # de ce même chapitre pour la stratégie de passage en mode bloquant.
+      - name: Trivy (scan de l'image)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+          format: sarif
+          output: trivy-image-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+
+      - name: Trivy - publier les résultats dans l'onglet Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-image-results.sarif
+          category: trivy-image-backend
+
+      - name: Snyk (dépendances Maven)
+        if: ${{ secrets.SNYK_TOKEN != '' }}
+        uses: snyk/actions/maven@master
+        continue-on-error: true
+        with:
+          args: --file=backend/pom.xml --severity-threshold=high
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: SonarCloud
+        if: ${{ secrets.SONAR_TOKEN != '' }}
+        working-directory: backend
+        continue-on-error: true
+        run: ./mvnw -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   update-gitops-manifest:
     needs: build-test-push

@@ -1,0 +1,49 @@
+name: Security scan (IaC)
+
+# Scan de configuration (pas de build d'image ici) - Terraform + manifestes Kubernetes.
+# Voir docs/deployment/10-qualite-securite-code.md pour le détail des outils et la
+# stratégie de gate (mode "rapport" tant que les findings existants n'ont pas été triés).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/security-scan.yml'
+  workflow_dispatch:
+
+jobs:
+  scan-iac:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy (config Terraform + Kubernetes)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: config
+          scan-ref: infra
+          format: sarif
+          output: trivy-iac-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+
+      - name: Trivy - publier les résultats dans l'onglet Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-iac-results.sarif
+          category: trivy-iac
+
+      - name: Snyk (IaC Terraform)
+        if: ${{ secrets.SNYK_TOKEN != '' }}
+        uses: snyk/actions/iac@master
+        continue-on-error: true
+        with:
+          args: infra/terraform --severity-threshold=high
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
