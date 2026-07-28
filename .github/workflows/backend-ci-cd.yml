@@ -64,6 +64,7 @@ jobs:
       # de ce même chapitre pour la stratégie de passage en mode bloquant.
       - name: Trivy (scan de l'image)
         uses: aquasecurity/trivy-action@v0.32.0
+        continue-on-error: true   # une panne du scanner (DB, registry...) ne doit jamais bloquer le déploiement
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
           format: sarif
@@ -73,6 +74,7 @@ jobs:
 
       - name: Trivy - publier les résultats dans l'onglet Security
         if: always()
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-image-results.sarif
