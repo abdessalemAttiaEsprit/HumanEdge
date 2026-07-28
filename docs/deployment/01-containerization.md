@@ -76,11 +76,27 @@ docker compose down -v
 
 ## Premier push manuel vers Docker Hub
 
+> ⚠️ **Piège réel rencontré en prod** : `hr-frontend:local` (buildé plus haut avec
+> `VITE_API_BASE_URL=http://localhost:8081` pour les tests locaux) ne doit **jamais** être
+> retaggé tel quel comme image de prod - `VITE_API_BASE_URL` est une variable **build-time**
+> Vite, gravée en dur dans les fichiers JS générés (contrairement à une variable d'env
+> classique, elle n'est pas relisible/modifiable au runtime du conteneur). La retagger
+> directement produit un frontend qui appelle `http://localhost:8081` depuis le navigateur
+> de n'importe quel visiteur - exactement le bug qui est arrivé ici avant que ce chapitre ne
+> soit corrigé. Le backend n'a pas ce problème (`hr-backend:local` peut être retaggé sans
+> risque, sa config est 100% par variables d'env lues au démarrage).
+
 ```bash
 docker login
-docker tag hr-backend:local  docker.io/<TON_USER_DOCKERHUB>/hr-backend:latest
-docker tag hr-frontend:local docker.io/<TON_USER_DOCKERHUB>/hr-frontend:latest
+
+# Backend : l'image de test peut être retaggée directement, aucune valeur n'y est gravée en dur.
+docker tag hr-backend:local docker.io/<TON_USER_DOCKERHUB>/hr-backend:latest
 docker push docker.io/<TON_USER_DOCKERHUB>/hr-backend:latest
+
+# Frontend : reconstruire avec la VRAIE URL publique de l'API, jamais retagger hr-frontend:local.
+docker build -t docker.io/<TON_USER_DOCKERHUB>/hr-frontend:latest \
+  --build-arg VITE_API_BASE_URL=https://api.<TON_DOMAINE> \
+  ./frontend
 docker push docker.io/<TON_USER_DOCKERHUB>/hr-frontend:latest
 ```
 
@@ -92,4 +108,8 @@ Ensuite seulement, remplace `<TON_USER_DOCKERHUB>` dans :
 - `infra/k8s/overlays/dev/kustomization.yaml`
 - `infra/argocd/applications/backend-frontend.yaml` et `infra/argocd/app-of-apps.yaml`
   (remplace aussi `<TON_USER_GITHUB>` par ton compte/organisation GitHub)
-²
+
+> Une fois la CI en place ([05-cicd-github-actions.md](05-cicd-github-actions.md)), ce push
+> manuel ne sert plus qu'au tout premier déploiement : chaque commit ultérieur reconstruit
+> automatiquement le frontend avec la bonne `VITE_API_BASE_URL` (Variable GitHub Actions),
+> donc ce piège ne peut plus se reproduire une fois la CI branchée.

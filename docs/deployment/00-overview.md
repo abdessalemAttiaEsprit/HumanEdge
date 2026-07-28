@@ -141,3 +141,14 @@ tourner en même temps que `prod` sur les node pools payants.
 5. [05-cicd-github-actions.md](05-cicd-github-actions.md) — brancher la CI (Docker Hub, GitOps)
 6. [06-monitoring.md](06-monitoring.md) — Prometheus + Grafana
 7. [07-checklist-securite-budget.md](07-checklist-securite-budget.md) — à lire avant de considérer que c'est "en prod"
+8. [08-domaine-reel.md](08-domaine-reel.md) — migration vers un vrai nom de domaine
+9. [09-commandes-operationnelles.md](09-commandes-operationnelles.md) — quelles commandes
+   lancer après chaque type de modification, et comment éteindre/rallumer le cluster
+10. [10-qualite-securite-code.md](10-qualite-securite-code.md) — plan (pas encore mis en
+    œuvre) d'intégration SonarQube/Snyk/Trivy à la CI
+
+> **État réel vs architecture cible** : le Terraform actuellement déployé correspond à la
+> **config de base** (1 seul node pool `e2-standard-2`) décrite dans le tableau de budget
+> ci-dessus, pas encore à l'architecture cible à 2 node pools schématisée plus haut - voir le
+> récapitulatif [../recap-deploiement-gke.md](../recap-deploiement-gke.md) pour l'état exact
+> de ce qui est implémenté vs prévu à chaque étape.

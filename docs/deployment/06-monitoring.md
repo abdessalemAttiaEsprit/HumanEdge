@@ -104,3 +104,41 @@ Utile pour savoir si le budget de 8 Go du nœud est tenu une fois backend + fron
 Ollama + Argo CD + monitoring tous démarrés en même temps - Ollama est le plus gros
 consommateur de mémoire du lot, voir [07-checklist-securite-budget.md](07-checklist-securite-budget.md)
 si `kubectl top pods -A` montre une pression mémoire.
+
+## 6.7 Effet de bord vécu : capacité CPU chroniquement tendue
+
+Une fois `kube-prometheus-stack` installé, le nœud unique `e2-standard-2` (2 vCPU) tourne à
+**~86% de CPU réservée** (`requests`), même sans le pod backend démarré - Prometheus,
+Grafana, node-exporter, kube-state-metrics et Argo CD suffisent à eux seuls à consommer la
+quasi-totalité de la capacité. Conséquence concrète : **chaque rolling update du backend
+échoue en `Insufficient cpu`**, car un `Deployment` a besoin de la capacité de l'ancien ET
+du nouveau pod en même temps le temps de la bascule, et il n'y a plus assez de place.
+
+```bash
+kubectl -n hr get rs
+# repérer l'ancien ReplicaSet (celui à 0 pods Ready qui bloque le nouveau)
+kubectl -n hr scale rs <ancien-replicaset> --replicas=0
+```
+Libère immédiatement la capacité de l'ancien pod, permettant au nouveau de devenir `Ready`.
+C'est arrivé 2 fois de suite pendant cette phase (déploiement du "mot de passe oublié", puis
+du Cloud SQL Auth Proxy) - **à prévoir pour chaque futur déploiement backend** tant que le
+node pool Ollama dédié (`e2-standard-4`, amélioration "Retenu" du budget, voir
+[ressources-budget-gcp.md](ressources-budget-gcp.md)) n'est pas implémenté. Autre levier déjà
+utilisé : réduire au minimum les `requests` des nouveaux conteneurs ajoutés (ex. le side-car
+`cloud-sql-proxy` a été descendu à `10m`/`32Mi`, voir
+[07-checklist-securite-budget.md](07-checklist-securite-budget.md)).
+
+## 6.8 Piège vécu : dashboard communautaire incompatible cgroup v2
+
+Le dashboard Grafana communautaire **ID 315** ("Kubernetes cluster monitoring (via
+Prometheus)"), souvent recommandé dans les tutoriels, affiche tous ses panneaux en **N/A**
+sur ce cluster. Cause : il dépend de métriques cgroup v1 qui n'existent plus telles quelles
+sur les nœuds GKE modernes (cgroup v2) - par exemple l'agrégat racine
+`container_memory_working_set_bytes{id="/"}` n'est plus exposé de la même façon, et
+`machine_memory_bytes{kubernetes_io_hostname=~...}` ne matche plus le format de label actuel.
+
+**Ne pas importer ce dashboard.** Utiliser à la place les dashboards **intégrés au chart**
+(`defaultDashboardsEnabled: true`, déjà actif dans
+`infra/monitoring/prometheus-grafana-values.yaml`), en particulier "Kubernetes / Compute
+Resources / Cluster" - déjà présents dans Grafana sans rien importer, et maintenus à jour
+avec les conventions de métriques actuelles de `kube-state-metrics`/`node-exporter`.

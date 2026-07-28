@@ -209,6 +209,22 @@ gcloud sql instances patch hrapp-mysql --activation-policy=ALWAYS
   backend ne pourra plus se connecter tant qu'elle n'est pas rallumée.
 - `--activation-policy=ALWAYS` : la redémarre (retour à l'état par défaut après création).
 
+### Vérifier qu'un `resize` a bien pris effet
+
+```bash
+kubectl get nodes
+# aucune ligne affichée = 0 nœud actif, c'est la vérification la plus simple et la plus fiable
+gcloud container clusters describe hrapp-gke --zone=europe-west1-b --format="value(currentNodeCount)"
+```
+
+> ⚠️ **Piège** : `gcloud container node-pools describe system --cluster=hrapp-gke
+> --zone=europe-west1-b --format="value(initialNodeCount)"` ne renvoie **pas** le nombre de
+> nœuds actuel - `initialNodeCount` fige la taille du pool **à sa création** (`1` ici, voir
+> `gke.tf`) et ne se met jamais à jour après un `resize`. Pour connaître le nombre de nœuds
+> réellement actifs à cet instant, utiliser `currentNodeCount` sur la ressource **cluster**
+> (`gcloud container clusters describe`, pas `node-pools describe`), ou plus simplement
+> `kubectl get nodes` une fois authentifié sur le cluster.
+
 Compte tenu de la marge budgétaire confortable sur 2 semaines (voir
 [00-overview.md](00-overview.md#budget)), cette discipline d'arrêt est **optionnelle** ici -
 utile si tu préfères garder un maximum de marge, pas strictement nécessaire pour tenir le
