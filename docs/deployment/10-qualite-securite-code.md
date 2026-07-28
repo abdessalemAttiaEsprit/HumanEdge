@@ -52,7 +52,7 @@ resserrer plus tard en "scan avant push" si on passe en mode bloquant, voir §10
 
 ```yaml
       - name: Trivy (scan de l'image)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.32.0
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
           format: sarif
@@ -84,7 +84,7 @@ des workflows backend/frontend, pas besoin de builder une image pour ce scan) :
     steps:
       - uses: actions/checkout@v4
       - name: Trivy (config Terraform + Kubernetes)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.32.0
         with:
           scan-type: config
           scan-ref: infra
