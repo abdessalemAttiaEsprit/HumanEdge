@@ -359,6 +359,9 @@ function ManagePayroll() {
           <p className="page__subtitle">Record and validate employee payments.</p>
         </div>
         <div className="page__header-actions">
+          <button className="btn btn--ghost" onClick={() => paymentsApi.exportCsv()}>
+            ⬇️ Export CSV
+          </button>
           <button className="btn btn--ghost" onClick={openGenerateModal}>
             🧮 Generate payroll
           </button>

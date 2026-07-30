@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
 import { navItemsForRole } from '@/config/navigation';
 import { fileUrl } from '@/api/axios';
+import { NotificationBell } from './NotificationBell';
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Administrator',
@@ -51,6 +52,7 @@ export function Layout() {
         <header className="topbar">
           <div className="topbar__role">{ROLE_LABEL[user.role] ?? user.role}</div>
           <div className="topbar__user">
+            <NotificationBell />
             <Link to="/profile" className="topbar__user-link" title="My profile">
               {avatar ? (
                 <img className="avatar" src={avatar} alt={user.firstname} />

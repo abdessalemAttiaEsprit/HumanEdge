@@ -33,6 +33,7 @@ public class CompanyService {
     private final PaymentRepo paymentRepo;
     private final JobPostingRepo jobPostingRepo;
     private final OwnershipGuard ownershipGuard;
+    private final NotificationService notificationService;
     private final FileStorageService fileStorageService;
 
     public Company createCompany(Company company) {
@@ -164,7 +165,11 @@ public class CompanyService {
     public Company verifyCompany(Long id) {
         Company company = findCompanyOrThrow(id);
         company.setVerified(true);
-        return companyRepository.save(company);
+        Company saved = companyRepository.save(company);
+        userRepository.findByCompany_IdCompany(id).stream()
+                .filter(u -> u.getRole() == tn.esprit.backend.entities.Enum.Role.COMPANY)
+                .forEach(u -> notificationService.notify(u, "Your company \"" + saved.getCompanyName() + "\" has been verified."));
+        return saved;
     }
 
     public Company activateCompany(Long id) {

@@ -43,4 +43,15 @@ export const applicationsApi = {
   remove(id: number): Promise<void> {
     return api.delete(`/api/application/${id}`).then(() => undefined);
   },
+
+  /** Candidatures visibles par l'appelant (voir ApplicationService#getAllApplications) en CSV. */
+  async exportCsv(): Promise<void> {
+    const res = await api.get('/api/application/export.csv', { responseType: 'blob' });
+    const url = window.URL.createObjectURL(res.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'applications-export.csv';
+    link.click();
+    window.URL.revokeObjectURL(url);
+  },
 };

@@ -485,6 +485,14 @@ export interface Interview {
   createdAt?: string;
 }
 
+// GET /api/notifications/me — cloche du header.
+export interface AppNotification {
+  id: number;
+  message: string;
+  createdAt: string;
+  read: boolean;
+}
+
 // GET /api/absences/quota/{personnelId} — AbsenceQuotaCalculator.QuotaSnapshot.
 export interface QuotaSnapshot {
   monthlyQuotaDays: number;

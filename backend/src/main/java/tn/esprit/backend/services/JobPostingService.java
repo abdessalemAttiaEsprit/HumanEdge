@@ -41,6 +41,19 @@ public class JobPostingService {
     /** Offres ouvertes à la navigation de tous les rôles authentifiés : pas de filtrage par propriétaire. */
     public List<JobPosting> getAllJobs() { return jobPostingRepository.findAll(); }
 
+    /**
+     * Scopé à l'entreprise de l'appelant (COMPANY) - évite de télécharger les offres de
+     * toute la plateforme pour ensuite les filtrer côté client (le cas d'usage de la page de
+     * gestion des offres, contrairement à {@link #getAllJobs()} qui sert la navigation).
+     */
+    public List<JobPosting> getMyCompanyJobs() {
+        var company = ownershipGuard.currentUser().getCompany();
+        if (company == null) {
+            return List.of();
+        }
+        return jobPostingRepository.findByCreatedByCompany_IdCompany(company.getIdCompany());
+    }
+
     public JobPosting getJobById(Long id) {
         return jobPostingRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Job posting not found with id: " + id));

@@ -7,7 +7,9 @@ import tn.esprit.backend.entities.Candidate;
 import tn.esprit.backend.entities.JobPosting;
 import tn.esprit.backend.exceptions.BadRequestException;
 import tn.esprit.backend.exceptions.ResourceNotFoundException;
+import tn.esprit.backend.entities.Enum.Role;
 import tn.esprit.backend.repositories.ApplicationRepo;
+import tn.esprit.backend.repositories.UserRepository;
 import tn.esprit.backend.security.OwnershipGuard;
 
 import java.io.IOException;
@@ -25,6 +27,8 @@ public class ApplicationService {
     private final OwnershipGuard ownershipGuard;
     private final FileStorageService fileStorageService;
     private final RecruitingIAService recruitingIAService;
+    private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public Application applyToJob(Long candidateId, Long jobPostingId, String coverLetter) {
         // getCandidateById vérifie déjà qu'un GUEST ne postule qu'avec son propre profil candidat.
@@ -39,7 +43,21 @@ public class ApplicationService {
                 .appliedDate(LocalDateTime.now())
                 .build();
 
-        return applicationRepository.save(application);
+        Application saved = applicationRepository.save(application);
+        notifyCompanyOfNewApplication(job, candidate);
+        return saved;
+    }
+
+    /** Même pattern que CompanyService#verifyCompany : notifie tous les comptes COMPANY de l'entreprise propriétaire de l'offre. */
+    private void notifyCompanyOfNewApplication(JobPosting job, Candidate candidate) {
+        if (job.getCreatedByCompany() == null) {
+            return;
+        }
+        String candidateName = (candidate.getFirstName() + " " + candidate.getLastName()).trim();
+        userRepository.findByCompany_IdCompany(job.getCreatedByCompany().getIdCompany()).stream()
+                .filter(u -> u.getRole() == Role.COMPANY)
+                .forEach(u -> notificationService.notify(u,
+                        candidateName + " applied to \"" + job.getTitle() + "\"."));
     }
 
     public Application getApplicationById(Long id) {

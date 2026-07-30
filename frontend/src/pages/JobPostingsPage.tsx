@@ -10,6 +10,8 @@ import { applicationsApi } from '@/api/applications';
 import { useAuth } from '@/auth/useAuth';
 import { getErrorMessage } from '@/lib/errors';
 import { IconButton } from '@/components/IconButton';
+import { Pagination } from '@/components/Pagination';
+import { usePagination } from '@/lib/usePagination';
 import type { Company, JobPosting, JobPostingCreateRequest, PublicJobResponse, TypeContrat } from '@/types';
 
 const TYPE_LABEL: Record<TypeContrat, string> = {
@@ -208,9 +210,12 @@ function ManageJobPostings() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // ADMIN voit toutes les offres de la plateforme (navigation) ; COMPANY récupère
+  // directement les siennes via un endpoint scopé côté serveur plutôt que de télécharger
+  // celles de toutes les entreprises pour les filtrer côté client.
   const { data: jobs, isLoading, isError } = useQuery({
-    queryKey: ['job-postings'],
-    queryFn: jobPostingsApi.list,
+    queryKey: ['job-postings', isAdmin ? 'all' : 'mine'],
+    queryFn: isAdmin ? jobPostingsApi.list : jobPostingsApi.myCompanyList,
   });
 
   const { data: companies } = useQuery({
@@ -219,22 +224,16 @@ function ManageJobPostings() {
     enabled: isAdmin && showAddModal,
   });
 
-  // Backend returns every company's postings unfiltered for authenticated reads — a
-  // COMPANY user should only manage (and mainly see) their own, since edit/delete on
-  // another company's posting would 403 anyway.
-  const visibleJobs = useMemo(() => {
-    if (!jobs) return [];
-    if (isAdmin) return jobs;
-    return jobs.filter((j) => j.createdByCompany?.idCompany === user?.companyId);
-  }, [jobs, isAdmin, user?.companyId]);
-
   const filtered = useMemo(() => {
+    const list = jobs ?? [];
     const q = search.trim().toLowerCase();
-    if (!q) return visibleJobs;
-    return visibleJobs.filter((j) =>
+    if (!q) return list;
+    return list.filter((j) =>
       [j.title, j.department, j.createdByCompany?.companyName].filter(Boolean).join(' ').toLowerCase().includes(q),
     );
-  }, [visibleJobs, search]);
+  }, [jobs, search]);
+
+  const { page, setPage, pageCount, pageItems } = usePagination(filtered, 10);
 
   const createMutation = useMutation({
     mutationFn: jobPostingsApi.create,
@@ -367,7 +366,7 @@ function ManageJobPostings() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((job) => (
+              {pageItems.map((job) => (
                 <tr key={job.id}>
                   <td>{job.title}</td>
                   <td>{job.department || '—'}</td>
@@ -403,6 +402,8 @@ function ManageJobPostings() {
           </table>
         </div>
       )}
+
+      <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />
 
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>

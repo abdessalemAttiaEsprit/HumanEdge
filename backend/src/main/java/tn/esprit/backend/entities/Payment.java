@@ -21,8 +21,15 @@ public class Payment {
 
     private LocalDate paymentDate;
 
+    // "month"/"year" sont des mots réservés H2 (littéraux de date type EXTRACT(MONTH FROM ...))
+    // - les noms de colonne par défaut faisaient échouer le CREATE TABLE sous le profil de
+    // test H2 (silencieux, Hibernate logue et continue), sans affecter MySQL où ils ne sont
+    // pas réservés.
     @Enumerated(EnumType.STRING)
+    @Column(name = "pay_month")
     private Month month;
+
+    @Column(name = "pay_year")
     private int year;
 
     @OneToMany(mappedBy = "payment")

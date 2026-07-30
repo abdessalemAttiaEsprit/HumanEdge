@@ -1,14 +1,18 @@
 package tn.esprit.backend.controllers;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import tn.esprit.backend.entities.Application;
 import tn.esprit.backend.services.ApplicationService;
+import tn.esprit.backend.services.CsvExportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -17,6 +21,7 @@ import java.util.List;
 public class ApplicationController {
 
     private final ApplicationService applicationService;
+    private final CsvExportService csvExportService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY')")
@@ -96,6 +101,35 @@ public class ApplicationController {
     public ResponseEntity<Application> evaluateApplicationWithAi(@PathVariable Long id) throws IOException {
         Application updated = applicationService.evaluateApplicationWithAi(id);
         return ResponseEntity.ok(updated);
+    }
+
+    /** Candidatures visibles par l'appelant (voir ApplicationService#getAllApplications) en CSV. */
+    @GetMapping("/export.csv")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY')")
+    public ResponseEntity<byte[]> exportApplicationsCsv() {
+        List<String> headers = List.of(
+                "Candidate", "Email", "Job", "Company", "Applied date", "AI score", "AI feedback", "Status");
+        List<List<String>> rows = new ArrayList<>();
+        for (Application a : applicationService.getAllApplications()) {
+            String candidateName = a.getCandidate() != null
+                    ? (a.getCandidate().getFirstName() + " " + a.getCandidate().getLastName()).trim()
+                    : "";
+            rows.add(List.of(
+                    candidateName,
+                    a.getCandidate() != null && a.getCandidate().getEmail() != null ? a.getCandidate().getEmail() : "",
+                    a.getJobPosting() != null && a.getJobPosting().getTitle() != null ? a.getJobPosting().getTitle() : "",
+                    a.getJobPosting() != null && a.getJobPosting().getCreatedByCompany() != null
+                            ? String.valueOf(a.getJobPosting().getCreatedByCompany().getCompanyName()) : "",
+                    a.getAppliedDate() != null ? a.getAppliedDate().toString() : "",
+                    a.getAiScore() != null ? String.valueOf(a.getAiScore()) : "",
+                    a.getAiFeedback() != null ? a.getAiFeedback() : "",
+                    a.getStatus() != null ? a.getStatus() : ""));
+        }
+        byte[] csv = csvExportService.toCsv(headers, rows);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"applications-export.csv\"")
+                .body(csv);
     }
 
     @DeleteMapping("/{id}")

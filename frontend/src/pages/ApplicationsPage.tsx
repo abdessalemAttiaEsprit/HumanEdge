@@ -163,6 +163,36 @@ function ManageApplications() {
     onError: (err) => toast.showError(getErrorMessage(err, 'AI evaluation failed')),
   });
 
+  // Séquentiel, jamais en parallèle : un seul pod Ollama CPU-only derrière (voir
+  // docs/deployment/06-monitoring.md) - des appels concurrents ne feraient que mettre les
+  // requêtes en file d'attente sans rien accélérer, en risquant en plus de multiplier les
+  // 504 d'ingress sur des requêtes déjà lentes individuellement (~30-90s chacune).
+  const [batchEvaluating, setBatchEvaluating] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
+
+  const handleEvaluateAll = async () => {
+    const pending = filtered.filter((a) => a.aiScore == null);
+    if (pending.length === 0) return;
+    setBatchEvaluating(true);
+    setBatchProgress({ done: 0, total: pending.length });
+    let failures = 0;
+    for (const application of pending) {
+      try {
+        await applicationsApi.evaluateWithAi(application.id);
+      } catch {
+        failures += 1;
+      }
+      setBatchProgress((p) => ({ ...p, done: p.done + 1 }));
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+    }
+    setBatchEvaluating(false);
+    if (failures > 0) {
+      toast.showError(`${pending.length - failures} evaluated, ${failures} failed.`);
+    } else {
+      toast.showSuccess(`${pending.length} application(s) evaluated.`);
+    }
+  };
+
   const deleteMutation = useMutation({
     mutationFn: applicationsApi.remove,
     onSuccess: () => {
@@ -224,9 +254,32 @@ function ManageApplications() {
 
   return (
     <div>
-      <div className="page__header">
-        <h1>Applications</h1>
-        <p className="page__subtitle">Review candidates, evaluate with AI, and schedule interviews.</p>
+      <div className="page__header page__header--row">
+        <div>
+          <h1>Applications</h1>
+          <p className="page__subtitle">Review candidates, evaluate with AI, and schedule interviews.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => applicationsApi.exportCsv()}
+            title="Export the visible applications to a CSV file"
+          >
+            ⬇️ Export CSV
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            disabled={batchEvaluating || filtered.filter((a) => a.aiScore == null).length === 0}
+            onClick={handleEvaluateAll}
+            title="Evaluate every application below without a score yet"
+          >
+            {batchEvaluating
+              ? `Evaluating… (${batchProgress.done}/${batchProgress.total})`
+              : `🤖 Evaluate all (${filtered.filter((a) => a.aiScore == null).length})`}
+          </button>
+        </div>
       </div>
 
       <div className="toolbar">

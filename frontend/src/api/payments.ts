@@ -50,4 +50,15 @@ export const paymentsApi = {
     link.click();
     window.URL.revokeObjectURL(url);
   },
+
+  /** Registre de paie complet (toutes les fiches visibles par l'appelant) en CSV. */
+  async exportCsv(): Promise<void> {
+    const res = await api.get('/api/payments/export.csv', { responseType: 'blob' });
+    const url = window.URL.createObjectURL(res.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'payroll-export.csv';
+    link.click();
+    window.URL.revokeObjectURL(url);
+  },
 };

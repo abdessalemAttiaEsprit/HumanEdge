@@ -576,6 +576,93 @@ h3 {
   color: var(--text-muted);
   font-size: 0.78rem;
 }
+
+.notification-bell {
+  position: relative;
+}
+.notification-bell__trigger {
+  position: relative;
+}
+.notification-bell__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+.notification-bell__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 340px;
+  max-height: 420px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md, var(--shadow-sm));
+  z-index: 50;
+}
+.notification-bell__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.notification-bell__mark-all {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+}
+.notification-bell__list {
+  display: flex;
+  flex-direction: column;
+}
+.notification-bell__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.notification-bell__item:hover {
+  background: var(--bg);
+}
+.notification-bell__item--unread {
+  background: var(--primary-soft, rgba(59, 91, 219, 0.06));
+  font-weight: 600;
+}
+.notification-bell__message {
+  line-height: 1.35;
+}
+.notification-bell__time {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 400;
+}
+.notification-bell__list .jobs__status {
+  padding: 14px;
+}
 .avatar {
   width: 38px;
   height: 38px;

@@ -8,11 +8,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import tn.esprit.backend.entities.Payment;
+import tn.esprit.backend.entities.Personnel;
+import tn.esprit.backend.services.CsvExportService;
 import tn.esprit.backend.services.PaymentService;
 import tn.esprit.backend.services.PaymentSuggestionService;
 import tn.esprit.backend.services.PdfService;
 
 import java.time.Month;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -24,6 +27,7 @@ public class PaymentController {
     private final PaymentService paymentService;
     private final PdfService pdfService;
     private final PaymentSuggestionService paymentSuggestionService;
+    private final CsvExportService csvExportService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY')")
@@ -92,6 +96,36 @@ public class PaymentController {
             @RequestParam String categorie,
             @RequestParam int anneesExperience) {
         return ResponseEntity.ok(paymentSuggestionService.suggererProfilRH(categorie, anneesExperience));
+    }
+
+    /** Registre de paie (toutes les fiches visibles par l'appelant) en CSV, ouvrable dans Excel. */
+    @GetMapping("/export.csv")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY')")
+    public ResponseEntity<byte[]> exportPaymentsCsv() {
+        List<String> headers = List.of(
+                "Employee", "Matricule", "Company", "Month", "Year", "Net pay", "CNSS", "IRPP", "Status");
+        List<List<String>> rows = new ArrayList<>();
+        for (Payment p : paymentService.getAllPayments()) {
+            Personnel personnel = p.getPersonnel();
+            String employeeName = personnel != null && personnel.getUser() != null
+                    ? (personnel.getUser().getFirstname() + " " + personnel.getUser().getLastname()).trim()
+                    : "";
+            rows.add(List.of(
+                    employeeName,
+                    personnel != null && personnel.getMatricule() != null ? personnel.getMatricule() : "",
+                    p.getCompany() != null ? String.valueOf(p.getCompany().getCompanyName()) : "",
+                    p.getMonth() != null ? p.getMonth().name() : "",
+                    String.valueOf(p.getYear()),
+                    p.getPayed() != null ? String.valueOf(p.getPayed()) : "",
+                    p.getMontantCnss() != null ? String.valueOf(p.getMontantCnss()) : "",
+                    p.getMontantIrpp() != null ? String.valueOf(p.getMontantIrpp()) : "",
+                    p.getStatus() != null ? p.getStatus() : ""));
+        }
+        byte[] csv = csvExportService.toCsv(headers, rows);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"payroll-export.csv\"")
+                .body(csv);
     }
 
     @GetMapping("/{id}/fiche-paie-pdf")

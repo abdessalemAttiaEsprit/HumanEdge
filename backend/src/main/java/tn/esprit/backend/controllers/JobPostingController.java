@@ -41,6 +41,13 @@ public class JobPostingController {
         return ResponseEntity.ok(jobPostingService.getAllJobs());
     }
 
+    /** Scopé à l'entreprise de l'appelant - voir {@link JobPostingService#getMyCompanyJobs()}. */
+    @GetMapping("/my-company")
+    @PreAuthorize("hasRole('COMPANY')")
+    public ResponseEntity<List<JobPosting>> getMyCompanyJobs() {
+        return ResponseEntity.ok(jobPostingService.getMyCompanyJobs());
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY', 'EMPLOYE', 'GUEST')")
     public ResponseEntity<JobPosting> getJobById(@PathVariable Long id) {

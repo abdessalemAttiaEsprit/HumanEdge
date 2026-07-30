@@ -248,27 +248,33 @@ function planLabel(code: string): string {
 // subscriptions (MRR, plan breakdown). See SubscriptionController for the global endpoint.
 // ============================================================================
 function AdminDashboard({ firstname }: { firstname: string }) {
-  const { data: companies, isLoading: companiesLoading } = useQuery({
+  const { data: companies, isLoading: companiesLoading, isError: companiesError } = useQuery({
     queryKey: ['companies'],
     queryFn: companiesApi.list,
   });
 
-  const { data: personnelList, isLoading: personnelLoading } = useQuery({
+  const { data: personnelList, isLoading: personnelLoading, isError: personnelError } = useQuery({
     queryKey: ['personnel'],
     queryFn: personnelApi.list,
   });
 
-  const { data: payments, isLoading: paymentsLoading } = useQuery({
+  const { data: payments, isLoading: paymentsLoading, isError: paymentsError } = useQuery({
     queryKey: ['payments'],
     queryFn: paymentsApi.list,
   });
 
-  const { data: subscriptions, isLoading: subscriptionsLoading } = useQuery({
+  const { data: subscriptions, isLoading: subscriptionsLoading, isError: subscriptionsError } = useQuery({
     queryKey: ['subscriptions'],
     queryFn: subscriptionsApi.list,
   });
 
-  const loading = companiesLoading || personnelLoading || paymentsLoading || subscriptionsLoading;
+  // Le tableau Companies n'a besoin que de companies/personnel/subscriptions (staff count +
+  // plan par ligne) - le coupler à `payments` (utilisé seulement par le graphique payroll)
+  // le bloquait inutilement en "Loading companies…" si les payments étaient lents/en erreur.
+  const companiesSectionLoading = companiesLoading || personnelLoading || subscriptionsLoading;
+  const companiesSectionError = companiesError || personnelError || subscriptionsError;
+  const chartsLoading = paymentsLoading || subscriptionsLoading;
+  const chartsError = paymentsError || subscriptionsError;
 
   const activeSubscriptions = useMemo(
     () => (subscriptions ?? []).filter((s) => s.status === 'ACTIVE'),
@@ -340,13 +346,19 @@ function AdminDashboard({ firstname }: { firstname: string }) {
       <div className="dashboard-grid">
         <div className="chart-card">
           <h2 className="chart-card__title">Active subscriptions by plan</h2>
-          {!loading && planBreakdown.length > 0 && <BarChart data={planBreakdown} formatValue={formatInt} />}
-          {!loading && planBreakdown.length === 0 && <p className="jobs__status">No active subscriptions.</p>}
+          {chartsError && <p className="jobs__status">Unable to load subscriptions.</p>}
+          {!chartsLoading && !chartsError && planBreakdown.length > 0 && (
+            <BarChart data={planBreakdown} formatValue={formatInt} />
+          )}
+          {!chartsLoading && !chartsError && planBreakdown.length === 0 && (
+            <p className="jobs__status">No active subscriptions.</p>
+          )}
         </div>
 
         <div className="chart-card">
           <h2 className="chart-card__title">Payroll across all companies ({currentYear})</h2>
-          {!loading && (
+          {chartsError && <p className="jobs__status">Unable to load payroll data.</p>}
+          {!chartsLoading && !chartsError && (
             <StackedBarChart
               data={monthlyData}
               series={[
@@ -364,14 +376,17 @@ function AdminDashboard({ firstname }: { firstname: string }) {
         <h2 style={{ margin: 0 }}>Companies</h2>
       </div>
 
-      {loading && <p className="jobs__status">Loading companies…</p>}
-      {!loading && (companies ?? []).length === 0 && (
+      {companiesSectionLoading && <p className="jobs__status">Loading companies…</p>}
+      {!companiesSectionLoading && companiesSectionError && (
+        <p className="jobs__status">Unable to load companies.</p>
+      )}
+      {!companiesSectionLoading && !companiesSectionError && (companies ?? []).length === 0 && (
         <div className="placeholder-box">
           <span className="placeholder-box__badge">No records</span>
           <p>No companies registered yet.</p>
         </div>
       )}
-      {!loading && (companies ?? []).length > 0 && (
+      {!companiesSectionLoading && !companiesSectionError && (companies ?? []).length > 0 && (
         <div className="table-wrap">
           <table className="data-table">
             <thead>

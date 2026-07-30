@@ -6,6 +6,11 @@ export const jobPostingsApi = {
     return api.get<JobPosting[]>('/api/job').then((r) => r.data);
   },
 
+  /** Scopé à l'entreprise de l'appelant (rôle COMPANY uniquement) - voir JobPostingController. */
+  myCompanyList(): Promise<JobPosting[]> {
+    return api.get<JobPosting[]>('/api/job/my-company').then((r) => r.data);
+  },
+
   create(payload: JobPostingCreateRequest): Promise<JobPosting> {
     return api.post<JobPosting>('/api/job', payload).then((r) => r.data);
   },

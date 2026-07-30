@@ -24,6 +24,7 @@ public class InterviewService {
     private final CandidateServiceImpl candidateService;
     private final OwnershipGuard ownershipGuard;
     private final InterviewEmailNotificationService interviewEmailNotificationService;
+    private final NotificationService notificationService;
 
     @Transactional // Garantit que l'entretien ET la candidature sont mis à jour ensemble
     public Interview scheduleInterview(Long applicationId, LocalDateTime date, String location) {
@@ -48,6 +49,10 @@ public class InterviewService {
 
         Interview saved = interviewRepository.save(interview);
         interviewEmailNotificationService.notifyInterviewScheduled(app.getCandidate(), app.getJobPosting(), saved);
+        if (app.getCandidate() != null) {
+            notificationService.notify(app.getCandidate().getUser(),
+                    "Interview scheduled for \"" + app.getJobPosting().getTitle() + "\" on " + date + ".");
+        }
         return saved;
     }
 
