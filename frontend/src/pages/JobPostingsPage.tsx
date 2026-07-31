@@ -9,8 +9,14 @@ import { candidatesApi } from '@/api/candidates';
 import { applicationsApi } from '@/api/applications';
 import { useAuth } from '@/auth/useAuth';
 import { getErrorMessage } from '@/lib/errors';
+import { useConfirm } from '@/lib/useConfirm';
+import { useSort } from '@/lib/useSort';
 import { IconButton } from '@/components/IconButton';
 import { Pagination } from '@/components/Pagination';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { SortableTh } from '@/components/SortableTh';
+import { useToast } from '@/components/ToastProvider';
 import { usePagination } from '@/lib/usePagination';
 import type { Company, JobPosting, JobPostingCreateRequest, PublicJobResponse, TypeContrat } from '@/types';
 
@@ -46,6 +52,25 @@ function toRequestPayload(f: typeof EMPTY_FORM) {
     jobType: f.jobType,
     deadline: f.deadline ? `${f.deadline}T23:59:59` : undefined,
   };
+}
+
+type JobSortKey = 'title' | 'department' | 'type' | 'company' | 'deadline' | 'status';
+
+function getJobSortValue(j: JobPosting, key: JobSortKey): string | number {
+  switch (key) {
+    case 'title':
+      return j.title ?? '';
+    case 'department':
+      return j.department ?? '';
+    case 'type':
+      return j.jobType ? TYPE_LABEL[j.jobType] : '';
+    case 'company':
+      return j.createdByCompany?.companyName ?? '';
+    case 'deadline':
+      return j.deadline ?? '';
+    case 'status':
+      return j.status ?? '';
+  }
 }
 
 export function JobPostingsPage() {
@@ -202,6 +227,8 @@ function ManageJobPostings() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
 
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -233,7 +260,8 @@ function ManageJobPostings() {
     );
   }, [jobs, search]);
 
-  const { page, setPage, pageCount, pageItems } = usePagination(filtered, 10);
+  const { sorted, sortKey, direction, toggleSort } = useSort<JobPosting, JobSortKey>(filtered, getJobSortValue);
+  const { page, setPage, pageCount, pageItems } = usePagination(sorted, 10);
 
   const createMutation = useMutation({
     mutationFn: jobPostingsApi.create,
@@ -260,12 +288,20 @@ function ManageJobPostings() {
 
   const deleteMutation = useMutation({
     mutationFn: jobPostingsApi.remove,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['job-postings'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job-postings'] });
+      toast.showSuccess('Job posting deleted.');
+    },
+    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to delete the job posting')),
   });
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) => jobPostingsApi.changeStatus(id, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['job-postings'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job-postings'] });
+      toast.showSuccess('Job posting status updated.');
+    },
+    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to update the job posting status')),
   });
 
   const openAddModal = () => {
@@ -310,8 +346,13 @@ function ManageJobPostings() {
   };
 
   const handleDelete = (job: JobPosting) => {
-    if (!window.confirm(`Delete the job posting "${job.title}"? This cannot be undone.`)) return;
-    deleteMutation.mutate(job.id);
+    requestConfirm({
+      title: 'Delete job posting',
+      message: `Delete the job posting "${job.title}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: () => deleteMutation.mutate(job.id),
+    });
   };
 
   const toggleStatus = (job: JobPosting) => {
@@ -341,7 +382,7 @@ function ManageJobPostings() {
         />
       </div>
 
-      {isLoading && <p className="jobs__status">Loading job postings…</p>}
+      {isLoading && <TableSkeleton columns={isAdmin ? 7 : 6} />}
       {isError && <p className="jobs__status">Unable to load job postings.</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
@@ -356,31 +397,51 @@ function ManageJobPostings() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Title</th>
-                <th>Department</th>
-                <th>Type</th>
-                {isAdmin && <th>Company</th>}
-                <th>Deadline</th>
-                <th>Status</th>
+                <SortableTh label="Title" sortKey="title" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh
+                  label="Department"
+                  sortKey="department"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
+                <SortableTh label="Type" sortKey="type" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                {isAdmin && (
+                  <SortableTh
+                    label="Company"
+                    sortKey="company"
+                    activeKey={sortKey}
+                    direction={direction}
+                    onSort={toggleSort}
+                  />
+                )}
+                <SortableTh
+                  label="Deadline"
+                  sortKey="deadline"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
+                <SortableTh label="Status" sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {pageItems.map((job) => (
                 <tr key={job.id}>
-                  <td>{job.title}</td>
-                  <td>{job.department || '—'}</td>
-                  <td>{job.jobType ? TYPE_LABEL[job.jobType] : '—'}</td>
-                  {isAdmin && <td>{job.createdByCompany?.companyName ?? '—'}</td>}
-                  <td>{job.deadline ? job.deadline.slice(0, 10) : '—'}</td>
-                  <td>
+                  <td data-label="Title">{job.title}</td>
+                  <td data-label="Department">{job.department || '—'}</td>
+                  <td data-label="Type">{job.jobType ? TYPE_LABEL[job.jobType] : '—'}</td>
+                  {isAdmin && <td data-label="Company">{job.createdByCompany?.companyName ?? '—'}</td>}
+                  <td data-label="Deadline">{job.deadline ? job.deadline.slice(0, 10) : '—'}</td>
+                  <td data-label="Status">
                     {job.status === 'OPEN' ? (
-                      <span className="badge badge--soft">Open</span>
+                      <span className="badge badge--success">Open</span>
                     ) : (
                       <span className="badge badge--muted">{job.status || 'Closed'}</span>
                     )}
                   </td>
-                  <td className="data-table__actions">
+                  <td className="data-table__actions" data-label="">
                     <IconButton icon="✏️" label="Edit" onClick={() => openEditModal(job)} />
                     <IconButton
                       icon={job.status === 'OPEN' ? '🔒' : '🔓'}
@@ -566,6 +627,8 @@ function ManageJobPostings() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog options={confirmOptions} onConfirm={handleConfirm} onCancel={closeConfirm} />
     </div>
   );
 }

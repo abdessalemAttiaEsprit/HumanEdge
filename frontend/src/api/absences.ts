@@ -39,4 +39,14 @@ export const absencesApi = {
     link.click();
     window.URL.revokeObjectURL(url);
   },
+
+  async exportCsv(): Promise<void> {
+    const res = await api.get('/api/absences/export.csv', { responseType: 'blob' });
+    const url = window.URL.createObjectURL(res.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'absences-export.csv';
+    link.click();
+    window.URL.revokeObjectURL(url);
+  },
 };

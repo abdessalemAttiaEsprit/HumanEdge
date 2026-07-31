@@ -4,7 +4,15 @@ import { absencesApi } from '@/api/absences';
 import { personnelApi } from '@/api/personnel';
 import { useAuth } from '@/auth/useAuth';
 import { getErrorMessage } from '@/lib/errors';
+import { usePagination } from '@/lib/usePagination';
+import { useConfirm } from '@/lib/useConfirm';
+import { useSort } from '@/lib/useSort';
 import { IconButton } from '@/components/IconButton';
+import { Pagination } from '@/components/Pagination';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { SortableTh } from '@/components/SortableTh';
+import { useToast } from '@/components/ToastProvider';
 import type { Absence, AbsenceCreateRequest, Personnel, QuotaSnapshot } from '@/types';
 
 type DateMode = 'single' | 'range';
@@ -32,6 +40,8 @@ function personnelName(p?: Personnel): string {
   if (!p?.user) return '—';
   return `${p.user.firstname} ${p.user.lastname}`;
 }
+
+type AbsenceSortKey = 'employee' | 'date' | 'reason' | 'status';
 
 function QuotaPanel({ quota }: { quota: QuotaSnapshot }) {
   return (
@@ -114,6 +124,7 @@ export function AbsencesPage() {
 // ============================================================================
 function MyAbsences() {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [showAddModal, setShowAddModal] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [justificationFile, setJustificationFile] = useState<File | null>(null);
@@ -146,8 +157,13 @@ function MyAbsences() {
       setForm(EMPTY_FORM);
       setJustificationFile(null);
       setFormError(null);
+      toast.showSuccess('Absence request submitted.');
     },
-    onError: (err) => setFormError(getErrorMessage(err, 'Unable to submit the absence request')),
+    onError: (err) => {
+      const message = getErrorMessage(err, 'Unable to submit the absence request');
+      setFormError(message);
+      toast.showError(message);
+    },
   });
 
   const absences = useMemo(
@@ -205,9 +221,9 @@ function MyAbsences() {
             <tbody>
               {absences.map((a) => (
                 <tr key={a.idAbsence}>
-                  <td>{formatDates(a)}</td>
-                  <td>{a.reason || '—'}</td>
-                  <td>
+                  <td data-label="Date(s)">{formatDates(a)}</td>
+                  <td data-label="Reason">{a.reason || '—'}</td>
+                  <td data-label="Justification">
                     {a.justification ? (
                       <IconButton
                         icon="📎"
@@ -218,11 +234,11 @@ function MyAbsences() {
                       '—'
                     )}
                   </td>
-                  <td>
+                  <td data-label="Status">
                     {isJustified(a) ? (
-                      <span className="badge badge--soft">Justified</span>
+                      <span className="badge badge--success">Justified</span>
                     ) : (
-                      <span className="badge badge--muted">Unjustified</span>
+                      <span className="badge badge--warning">Unjustified</span>
                     )}
                   </td>
                 </tr>
@@ -285,6 +301,8 @@ function MyAbsences() {
 // ============================================================================
 function ManagerAbsences() {
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editing, setEditing] = useState<Absence | null>(null);
@@ -342,8 +360,13 @@ function ManagerAbsences() {
       setJustificationFile(null);
       setSelectedPersonnelId('');
       setFormError(null);
+      toast.showSuccess('Absence created.');
     },
-    onError: (err) => setFormError(getErrorMessage(err, 'Unable to create the absence')),
+    onError: (err) => {
+      const message = getErrorMessage(err, 'Unable to create the absence');
+      setFormError(message);
+      toast.showError(message);
+    },
   });
 
   const updateMutation = useMutation({
@@ -353,8 +376,13 @@ function ManagerAbsences() {
       queryClient.invalidateQueries({ queryKey: ['absences'] });
       setEditing(null);
       setFormError(null);
+      toast.showSuccess('Absence updated.');
     },
-    onError: (err) => setFormError(getErrorMessage(err, 'Unable to update the absence')),
+    onError: (err) => {
+      const message = getErrorMessage(err, 'Unable to update the absence');
+      setFormError(message);
+      toast.showError(message);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -362,7 +390,9 @@ function ManagerAbsences() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['absences'] });
       queryClient.invalidateQueries({ queryKey: ['personnel'] });
+      toast.showSuccess('Absence deleted.');
     },
+    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to delete the absence')),
   });
 
   const uploadJustificationMutation = useMutation({
@@ -371,8 +401,13 @@ function ManagerAbsences() {
       queryClient.invalidateQueries({ queryKey: ['absences'] });
       setEditing(updated);
       setJustificationError(null);
+      toast.showSuccess('Justification uploaded.');
     },
-    onError: (err) => setJustificationError(getErrorMessage(err, 'Unable to upload the justification')),
+    onError: (err) => {
+      const message = getErrorMessage(err, 'Unable to upload the justification');
+      setJustificationError(message);
+      toast.showError(message);
+    },
   });
 
   function buildPayload(f: typeof EMPTY_FORM) {
@@ -394,6 +429,22 @@ function ManagerAbsences() {
       return haystack.includes(q);
     });
   }, [absences, search, personnelByAbsenceId]);
+
+  const getAbsenceSortValue = (a: Absence, key: AbsenceSortKey): string | number => {
+    switch (key) {
+      case 'employee':
+        return personnelName(personnelByAbsenceId.get(a.idAbsence));
+      case 'date':
+        return a.dateAbsence ?? a.startDate ?? '';
+      case 'reason':
+        return a.reason ?? '';
+      case 'status':
+        return isJustified(a) ? 1 : 0;
+    }
+  };
+
+  const { sorted, sortKey, direction, toggleSort } = useSort<Absence, AbsenceSortKey>(filtered, getAbsenceSortValue);
+  const { page, setPage, pageCount, pageItems } = usePagination(sorted, 10);
 
   const openAddModal = () => {
     setForm(EMPTY_FORM);
@@ -442,8 +493,13 @@ function ManagerAbsences() {
 
   const handleDelete = (a: Absence) => {
     const employee = personnelName(personnelByAbsenceId.get(a.idAbsence));
-    if (!window.confirm(`Delete this absence for ${employee}? This cannot be undone.`)) return;
-    deleteMutation.mutate(a.idAbsence);
+    requestConfirm({
+      title: 'Delete absence',
+      message: `Delete this absence for ${employee}? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: () => deleteMutation.mutate(a.idAbsence),
+    });
   };
 
   return (
@@ -453,9 +509,14 @@ function ManagerAbsences() {
           <h1>Absences</h1>
           <p className="page__subtitle">Track and manage employee absences.</p>
         </div>
-        <button className="btn btn--primary" onClick={openAddModal}>
-          + Add absence
-        </button>
+        <div className="page__header-actions">
+          <button className="btn btn--ghost" onClick={() => absencesApi.exportCsv()}>
+            ⬇️ Export CSV
+          </button>
+          <button className="btn btn--primary" onClick={openAddModal}>
+            + Add absence
+          </button>
+        </div>
       </div>
 
       <div className="toolbar">
@@ -468,7 +529,7 @@ function ManagerAbsences() {
         />
       </div>
 
-      {isLoading && <p className="jobs__status">Loading absences…</p>}
+      {isLoading && <TableSkeleton columns={5} />}
       {isError && <p className="jobs__status">Unable to load absences.</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
@@ -483,29 +544,35 @@ function ManagerAbsences() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Employee</th>
-                <th>Date(s)</th>
-                <th>Reason</th>
-                <th>Status</th>
+                <SortableTh
+                  label="Employee"
+                  sortKey="employee"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
+                <SortableTh label="Date(s)" sortKey="date" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="Reason" sortKey="reason" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((a) => {
+              {pageItems.map((a) => {
                 const employee = personnelByAbsenceId.get(a.idAbsence);
                 return (
                   <tr key={a.idAbsence}>
-                    <td>{personnelName(employee)}</td>
-                    <td>{formatDates(a)}</td>
-                    <td>{a.reason || '—'}</td>
-                    <td>
+                    <td data-label="Employee">{personnelName(employee)}</td>
+                    <td data-label="Date(s)">{formatDates(a)}</td>
+                    <td data-label="Reason">{a.reason || '—'}</td>
+                    <td data-label="Status">
                       {isJustified(a) ? (
-                        <span className="badge badge--soft">Justified</span>
+                        <span className="badge badge--success">Justified</span>
                       ) : (
-                        <span className="badge badge--muted">Unjustified</span>
+                        <span className="badge badge--warning">Unjustified</span>
                       )}
                     </td>
-                    <td className="data-table__actions">
+                    <td className="data-table__actions" data-label="">
                       <IconButton icon="✏️" label="Edit" onClick={() => openEditModal(a)} />
                       {a.justification && (
                         <IconButton
@@ -535,6 +602,8 @@ function ManagerAbsences() {
           </table>
         </div>
       )}
+
+      <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />
 
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
@@ -655,6 +724,8 @@ function ManagerAbsences() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog options={confirmOptions} onConfirm={handleConfirm} onCancel={closeConfirm} />
     </div>
   );
 }

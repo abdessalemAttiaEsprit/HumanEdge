@@ -18,8 +18,10 @@ public class NotificationController {
     private final NotificationService notificationService;
 
     @GetMapping("/me")
-    public ResponseEntity<List<Notification>> getMyNotifications() {
-        return ResponseEntity.ok(notificationService.getMyNotifications());
+    public ResponseEntity<List<Notification>> getMyNotifications(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(notificationService.getMyNotifications(page, size));
     }
 
     @GetMapping("/me/unread-count")
@@ -36,6 +38,12 @@ public class NotificationController {
     @PatchMapping("/me/read-all")
     public ResponseEntity<Void> markAllAsRead() {
         notificationService.markAllAsRead();
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteNotification(@PathVariable Long id) {
+        notificationService.deleteNotification(id);
         return ResponseEntity.noContent().build();
     }
 }

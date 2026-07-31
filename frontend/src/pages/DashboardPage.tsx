@@ -9,6 +9,7 @@ import { companiesApi } from '@/api/companies';
 import { subscriptionsApi } from '@/api/subscriptions';
 import { formatInt, formatTnd, formatDateFr } from '@/lib/format';
 import { BarChart, StackedBarChart, type StackedDatum } from '@/components/charts';
+import { TableSkeleton } from '@/components/TableSkeleton';
 import type { Month, Payment, Personnel } from '@/types';
 
 const CNSS_RATE = 0.0918; // fixed employee CNSS rate — see PayrollPage.suggestAmounts
@@ -217,17 +218,17 @@ function CompanyDashboard({ firstname }: { firstname: string }) {
                 const latest = latestPayByPersonnel.get(p.idPersonnel);
                 return (
                   <tr key={p.idPersonnel}>
-                    <td>{personnelName(p)}</td>
-                    <td>{p.user?.email ?? '—'}</td>
-                    <td>{p.cin}</td>
-                    <td>
+                    <td data-label="Name">{personnelName(p)}</td>
+                    <td data-label="Email">{p.user?.email ?? '—'}</td>
+                    <td data-label="CIN">{p.cin}</td>
+                    <td data-label="Contract">
                       {p.contract ? (
                         <span className="badge badge--soft">{p.contract.typeContrat}</span>
                       ) : (
                         <span className="badge badge--muted">None</span>
                       )}
                     </td>
-                    <td>{latest?.payed != null ? formatTnd(latest.payed) : '—'}</td>
+                    <td data-label="Latest net pay">{latest?.payed != null ? formatTnd(latest.payed) : '—'}</td>
                   </tr>
                 );
               })}
@@ -376,7 +377,7 @@ function AdminDashboard({ firstname }: { firstname: string }) {
         <h2 style={{ margin: 0 }}>Companies</h2>
       </div>
 
-      {companiesSectionLoading && <p className="jobs__status">Loading companies…</p>}
+      {companiesSectionLoading && <TableSkeleton columns={6} />}
       {!companiesSectionLoading && companiesSectionError && (
         <p className="jobs__status">Unable to load companies.</p>
       )}
@@ -404,12 +405,12 @@ function AdminDashboard({ firstname }: { firstname: string }) {
                 const sub = subscriptionByCompany.get(c.idCompany);
                 return (
                   <tr key={c.idCompany}>
-                    <td>{c.companyName}</td>
-                    <td>{formatInt(staffCountByCompany.get(c.idCompany) ?? 0)}</td>
-                    <td>{sub ? planLabel(sub.plan) : '—'}</td>
-                    <td>
+                    <td data-label="Company">{c.companyName}</td>
+                    <td data-label="Personnel">{formatInt(staffCountByCompany.get(c.idCompany) ?? 0)}</td>
+                    <td data-label="Plan">{sub ? planLabel(sub.plan) : '—'}</td>
+                    <td data-label="Subscription">
                       {sub ? (
-                        <span className={sub.status === 'ACTIVE' ? 'badge badge--soft' : 'badge badge--muted'}>
+                        <span className={sub.status === 'ACTIVE' ? 'badge badge--success' : 'badge badge--muted'}>
                           {sub.status}
                           {sub.status === 'ACTIVE' && sub.periodEnd ? ` · ${formatDateFr(sub.periodEnd)}` : ''}
                         </span>
@@ -417,16 +418,16 @@ function AdminDashboard({ firstname }: { firstname: string }) {
                         '—'
                       )}
                     </td>
-                    <td>
+                    <td data-label="Verified">
                       {c.verified ? (
-                        <span className="badge badge--soft">Verified</span>
+                        <span className="badge badge--success">Verified</span>
                       ) : (
-                        <span className="badge badge--muted">Pending</span>
+                        <span className="badge badge--warning">Pending</span>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Status">
                       {c.active ? (
-                        <span className="badge badge--soft">Active</span>
+                        <span className="badge badge--success">Active</span>
                       ) : (
                         <span className="badge badge--muted">Inactive</span>
                       )}

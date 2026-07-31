@@ -8,8 +8,13 @@ import { useAuth } from '@/auth/useAuth';
 import { getErrorMessage } from '@/lib/errors';
 import { usePagination } from '@/lib/usePagination';
 import { useEscapeKey } from '@/lib/useEscapeKey';
+import { useConfirm } from '@/lib/useConfirm';
+import { useSort } from '@/lib/useSort';
 import { IconButton } from '@/components/IconButton';
 import { Pagination } from '@/components/Pagination';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { SortableTh } from '@/components/SortableTh';
 import { useToast } from '@/components/ToastProvider';
 import type { Company, Personnel, PersonnelCreateRequest } from '@/types';
 
@@ -36,6 +41,35 @@ function fullName(p: Personnel): string {
   return `${p.user.firstname} ${p.user.lastname}`;
 }
 
+const PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+
+function generateTempPassword(): string {
+  const bytes = new Uint32Array(12);
+  window.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => PASSWORD_CHARS[b % PASSWORD_CHARS.length]).join('');
+}
+
+type PersonnelSortKey = 'name' | 'email' | 'cin' | 'phone' | 'matricule' | 'company' | 'contract';
+
+function getPersonnelSortValue(p: Personnel, key: PersonnelSortKey): string | number {
+  switch (key) {
+    case 'name':
+      return fullName(p);
+    case 'email':
+      return p.user?.email ?? '';
+    case 'cin':
+      return p.cin ?? '';
+    case 'phone':
+      return p.telephone ?? '';
+    case 'matricule':
+      return p.matricule ?? '';
+    case 'company':
+      return p.user?.company?.companyName ?? '';
+    case 'contract':
+      return p.contract?.typeContrat ?? '';
+  }
+}
+
 interface PersonnelPrefillState {
   prefillCandidate?: Partial<PersonnelCreateRequest>;
 }
@@ -45,6 +79,7 @@ export function PersonnelPage() {
   const isAdmin = user?.role === 'ADMIN';
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -58,6 +93,7 @@ export function PersonnelPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [prefillNotice, setPrefillNotice] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const { data: personnelList, isLoading, isError } = useQuery({
     queryKey: ['personnel'],
@@ -154,6 +190,7 @@ export function PersonnelPage() {
     setCreatePhoto(null);
     setFormError(null);
     setPrefillNotice(false);
+    setShowPassword(false);
     setShowAddModal(true);
   };
 
@@ -197,12 +234,23 @@ export function PersonnelPage() {
   };
 
   const handleDelete = (p: Personnel) => {
-    if (!window.confirm(`Remove ${fullName(p)} from personnel? This cannot be undone.`)) return;
-    setDeleteError(null);
-    deleteMutation.mutate(p.idPersonnel);
+    requestConfirm({
+      title: 'Remove from personnel',
+      message: `Remove ${fullName(p)} from personnel? This cannot be undone.`,
+      confirmLabel: 'Remove',
+      variant: 'danger',
+      onConfirm: () => {
+        setDeleteError(null);
+        deleteMutation.mutate(p.idPersonnel);
+      },
+    });
   };
 
-  const { page, setPage, pageCount, pageItems } = usePagination(filtered, 10);
+  const { sorted, sortKey, direction, toggleSort } = useSort<Personnel, PersonnelSortKey>(
+    filtered,
+    getPersonnelSortValue,
+  );
+  const { page, setPage, pageCount, pageItems } = usePagination(sorted, 10);
 
   useEscapeKey(() => setShowAddModal(false), showAddModal);
   useEscapeKey(() => setEditing(null), !!editing);
@@ -214,9 +262,14 @@ export function PersonnelPage() {
           <h1>Personnel</h1>
           <p className="page__subtitle">Manage your company's employee records.</p>
         </div>
-        <button className="btn btn--primary" onClick={openAddModal}>
-          + Add personnel
-        </button>
+        <div className="page__header-actions">
+          <button className="btn btn--ghost" onClick={() => personnelApi.exportCsv()}>
+            ⬇️ Export CSV
+          </button>
+          <button className="btn btn--primary" onClick={openAddModal}>
+            + Add personnel
+          </button>
+        </div>
       </div>
 
       <div className="toolbar">
@@ -231,7 +284,7 @@ export function PersonnelPage() {
 
       {deleteError && <div className="alert alert--error">{deleteError}</div>}
 
-      {isLoading && <p className="jobs__status">Loading personnel…</p>}
+      {isLoading && <TableSkeleton columns={isAdmin ? 8 : 7} />}
       {isError && <p className="jobs__status">Unable to load personnel records.</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
@@ -246,20 +299,40 @@ export function PersonnelPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>CIN</th>
-                <th>Phone</th>
-                <th>Matricule</th>
-                {isAdmin && <th>Company</th>}
-                <th>Contract</th>
+                <SortableTh label="Name" sortKey="name" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="Email" sortKey="email" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="CIN" sortKey="cin" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="Phone" sortKey="phone" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh
+                  label="Matricule"
+                  sortKey="matricule"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
+                {isAdmin && (
+                  <SortableTh
+                    label="Company"
+                    sortKey="company"
+                    activeKey={sortKey}
+                    direction={direction}
+                    onSort={toggleSort}
+                  />
+                )}
+                <SortableTh
+                  label="Contract"
+                  sortKey="contract"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {pageItems.map((p) => (
                 <tr key={p.idPersonnel}>
-                  <td className="data-table__name-cell">
+                  <td className="data-table__name-cell" data-label="Name">
                     {p.image ? (
                       <img className="avatar" src={fileUrl(p.image)} alt={fullName(p)} />
                     ) : (
@@ -267,19 +340,19 @@ export function PersonnelPage() {
                     )}
                     {fullName(p)}
                   </td>
-                  <td>{p.user?.email ?? '—'}</td>
-                  <td>{p.cin}</td>
-                  <td>{p.telephone || '—'}</td>
-                  <td>{p.matricule || '—'}</td>
-                  {isAdmin && <td>{p.user?.company?.companyName ?? '—'}</td>}
-                  <td>
+                  <td data-label="Email">{p.user?.email ?? '—'}</td>
+                  <td data-label="CIN">{p.cin}</td>
+                  <td data-label="Phone">{p.telephone || '—'}</td>
+                  <td data-label="Matricule">{p.matricule || '—'}</td>
+                  {isAdmin && <td data-label="Company">{p.user?.company?.companyName ?? '—'}</td>}
+                  <td data-label="Contract">
                     {p.contract ? (
                       <span className="badge badge--soft">{p.contract.typeContrat}</span>
                     ) : (
                       <span className="badge badge--muted">None</span>
                     )}
                   </td>
-                  <td className="data-table__actions">
+                  <td className="data-table__actions" data-label="">
                     <IconButton icon="✏️" label="Edit" onClick={() => openEditModal(p)} />
                     <IconButton
                       icon="📄"
@@ -355,12 +428,30 @@ export function PersonnelPage() {
                 </label>
                 <label className="field">
                   <span>Temporary password</span>
-                  <input
-                    type="password"
-                    value={createForm.password}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
-                    required
-                  />
+                  <div className="password-field">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={createForm.password}
+                      onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={() => setShowPassword((v) => !v)}
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      <span aria-hidden="true">{showPassword ? '🙈' : '👁️'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => setCreateForm((f) => ({ ...f, password: generateTempPassword() }))}
+                    >
+                      Generate
+                    </button>
+                  </div>
                 </label>
                 {isAdmin && (
                   <label className="field">
@@ -518,6 +609,8 @@ export function PersonnelPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog options={confirmOptions} onConfirm={handleConfirm} onCancel={closeConfirm} />
     </div>
   );
 }

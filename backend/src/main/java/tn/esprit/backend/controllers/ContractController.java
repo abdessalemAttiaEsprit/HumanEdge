@@ -1,13 +1,17 @@
 package tn.esprit.backend.controllers;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import tn.esprit.backend.entities.Contract;
 import tn.esprit.backend.services.ContractService;
+import tn.esprit.backend.services.CsvExportService;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -16,6 +20,7 @@ import java.util.List;
 public class ContractController {
 
     private final ContractService contractService;
+    private final CsvExportService csvExportService;
 
     /**
      * GET /api/contracts : Récupérer tous les contrats.
@@ -25,6 +30,34 @@ public class ContractController {
     public ResponseEntity<List<Contract>> getAllContracts() {
         List<Contract> contracts = contractService.getAllContracts();
         return ResponseEntity.ok(contracts);
+    }
+
+    /** Contrats visibles par l'appelant (voir ContractService#getAllContracts) en CSV. */
+    @GetMapping("/export.csv")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY')")
+    public ResponseEntity<byte[]> exportContractsCsv() {
+        List<String> headers = List.of(
+                "Employee", "Role", "Type", "Start date", "End date", "Category", "Step", "Base salary");
+        List<List<String>> rows = new ArrayList<>();
+        for (Contract c : contractService.getAllContracts()) {
+            String employee = c.getPersonnel() != null && c.getPersonnel().getUser() != null
+                    ? (c.getPersonnel().getUser().getFirstname() + " " + c.getPersonnel().getUser().getLastname()).trim()
+                    : "";
+            rows.add(List.of(
+                    employee,
+                    c.getWork() != null ? c.getWork() : "",
+                    c.getTypeContrat() != null ? c.getTypeContrat().name() : "",
+                    c.getDateDebut() != null ? c.getDateDebut().toString() : "",
+                    c.getDateFin() != null ? c.getDateFin().toString() : "",
+                    c.getCategorie() != null ? c.getCategorie() : "",
+                    c.getEchelon() != null ? String.valueOf(c.getEchelon()) : "",
+                    c.getSalaireBase() != null ? String.valueOf(c.getSalaireBase()) : ""));
+        }
+        byte[] csv = csvExportService.toCsv(headers, rows);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"contracts-export.csv\"")
+                .body(csv);
     }
 
     /**

@@ -8,8 +8,13 @@ import { useAuth } from '@/auth/useAuth';
 import { getErrorMessage } from '@/lib/errors';
 import { usePagination } from '@/lib/usePagination';
 import { useEscapeKey } from '@/lib/useEscapeKey';
+import { useConfirm } from '@/lib/useConfirm';
+import { useSort } from '@/lib/useSort';
 import { IconButton } from '@/components/IconButton';
 import { Pagination } from '@/components/Pagination';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { SortableTh } from '@/components/SortableTh';
 import { useToast } from '@/components/ToastProvider';
 import type { Candidate, CandidateCreateRequest, CandidateUpdateRequest } from '@/types';
 
@@ -26,6 +31,35 @@ const EMPTY_FORM = {
 function candidateName(c?: Candidate | null): string {
   if (!c) return '—';
   return [c.firstName, c.lastName].filter(Boolean).join(' ') || '—';
+}
+
+function interviewStatusBadgeClass(status?: string): string {
+  if (status === 'COMPLETED') return 'badge badge--success';
+  if (status === 'CANCELLED') return 'badge badge--danger';
+  return 'badge badge--soft';
+}
+
+function applicationStatusBadgeClass(status?: string): string {
+  if (status === 'ACCEPTED') return 'badge badge--success';
+  if (status === 'REJECTED') return 'badge badge--danger';
+  if (status === 'SHORTLISTED') return 'badge badge--warning';
+  if (status === 'UNDER_REVIEW') return 'badge badge--soft';
+  return 'badge badge--muted';
+}
+
+type CandidateSortKey = 'name' | 'email' | 'phone' | 'experience';
+
+function getCandidateSortValue(c: Candidate, key: CandidateSortKey): string | number {
+  switch (key) {
+    case 'name':
+      return candidateName(c);
+    case 'email':
+      return c.email ?? '';
+    case 'phone':
+      return c.phoneNumber ?? '';
+    case 'experience':
+      return c.yearsOfExperience ?? -1;
+  }
 }
 
 function toRequestPayload(f: typeof EMPTY_FORM) {
@@ -367,6 +401,7 @@ function MyCandidateProfile() {
 function ManageCandidates() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editing, setEditing] = useState<Candidate | null>(null);
@@ -459,11 +494,20 @@ function ManageCandidates() {
   };
 
   const handleDelete = (c: Candidate) => {
-    if (!window.confirm(`Delete the candidate profile for ${candidateName(c)}? This cannot be undone.`)) return;
-    deleteMutation.mutate(c.id);
+    requestConfirm({
+      title: 'Delete candidate profile',
+      message: `Delete the candidate profile for ${candidateName(c)}? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: () => deleteMutation.mutate(c.id),
+    });
   };
 
-  const { page, setPage, pageCount, pageItems } = usePagination(filtered, 10);
+  const { sorted, sortKey, direction, toggleSort } = useSort<Candidate, CandidateSortKey>(
+    filtered,
+    getCandidateSortValue,
+  );
+  const { page, setPage, pageCount, pageItems } = usePagination(sorted, 10);
 
   useEscapeKey(() => setShowAddModal(false), showAddModal);
   useEscapeKey(() => setEditing(null), !!editing);
@@ -491,7 +535,7 @@ function ManageCandidates() {
         />
       </div>
 
-      {isLoading && <p className="jobs__status">Loading candidates…</p>}
+      {isLoading && <TableSkeleton columns={6} />}
       {isError && <p className="jobs__status">Unable to load candidates.</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
@@ -506,10 +550,16 @@ function ManageCandidates() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Experience</th>
+                <SortableTh label="Name" sortKey="name" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="Email" sortKey="email" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="Phone" sortKey="phone" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh
+                  label="Experience"
+                  sortKey="experience"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
                 <th>CV</th>
                 <th></th>
               </tr>
@@ -517,18 +567,18 @@ function ManageCandidates() {
             <tbody>
               {pageItems.map((c) => (
                 <tr key={c.id}>
-                  <td>{candidateName(c)}</td>
-                  <td>{c.email || '—'}</td>
-                  <td>{c.phoneNumber || '—'}</td>
-                  <td>{c.yearsOfExperience != null ? `${c.yearsOfExperience} yrs` : '—'}</td>
-                  <td>
+                  <td data-label="Name">{candidateName(c)}</td>
+                  <td data-label="Email">{c.email || '—'}</td>
+                  <td data-label="Phone">{c.phoneNumber || '—'}</td>
+                  <td data-label="Experience">{c.yearsOfExperience != null ? `${c.yearsOfExperience} yrs` : '—'}</td>
+                  <td data-label="CV">
                     {c.cvFileId ? (
                       <span className="badge badge--soft">On file</span>
                     ) : (
                       <span className="badge badge--muted">None</span>
                     )}
                   </td>
-                  <td className="data-table__actions">
+                  <td className="data-table__actions" data-label="">
                     <IconButton icon="👁️" label="View" onClick={() => setViewing(c)} />
                     <IconButton icon="✏️" label="Edit" onClick={() => openEditModal(c)} />
                     <IconButton
@@ -756,11 +806,11 @@ function ManageCandidates() {
                   <tbody>
                     {viewApplications!.map((a) => (
                       <tr key={a.id}>
-                        <td>{a.jobPosting?.title || '—'}</td>
-                        <td>
-                          <span className="badge badge--soft">{a.status || '—'}</span>
+                        <td data-label="Job">{a.jobPosting?.title || '—'}</td>
+                        <td data-label="Status">
+                          <span className={applicationStatusBadgeClass(a.status)}>{a.status || '—'}</span>
                         </td>
-                        <td>{a.appliedDate ? a.appliedDate.slice(0, 10) : '—'}</td>
+                        <td data-label="Applied">{a.appliedDate ? a.appliedDate.slice(0, 10) : '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -785,11 +835,11 @@ function ManageCandidates() {
                   <tbody>
                     {viewInterviews!.map((iv) => (
                       <tr key={iv.id}>
-                        <td>{iv.job?.title || '—'}</td>
-                        <td>{iv.interviewDate ? iv.interviewDate.replace('T', ' ').slice(0, 16) : '—'}</td>
-                        <td>{iv.interviewLocation || '—'}</td>
-                        <td>
-                          <span className="badge badge--soft">{iv.status || '—'}</span>
+                        <td data-label="Job">{iv.job?.title || '—'}</td>
+                        <td data-label="Date">{iv.interviewDate ? iv.interviewDate.replace('T', ' ').slice(0, 16) : '—'}</td>
+                        <td data-label="Location">{iv.interviewLocation || '—'}</td>
+                        <td data-label="Status">
+                          <span className={interviewStatusBadgeClass(iv.status)}>{iv.status || '—'}</span>
                         </td>
                       </tr>
                     ))}
@@ -806,6 +856,8 @@ function ManageCandidates() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog options={confirmOptions} onConfirm={handleConfirm} onCancel={closeConfirm} />
     </div>
   );
 }

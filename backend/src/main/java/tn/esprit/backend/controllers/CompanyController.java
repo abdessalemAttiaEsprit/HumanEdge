@@ -2,6 +2,9 @@ package tn.esprit.backend.controllers;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -10,8 +13,10 @@ import tn.esprit.backend.entities.Company;
 import tn.esprit.backend.entities.Subscription;
 import tn.esprit.backend.exceptions.ResourceNotFoundException;
 import tn.esprit.backend.services.CompanyService;
+import tn.esprit.backend.services.CsvExportService;
 import tn.esprit.backend.services.SubscriptionService;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -21,6 +26,7 @@ public class CompanyController {
 
     private final CompanyService companyService;
     private final SubscriptionService subscriptionService;
+    private final CsvExportService csvExportService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -32,6 +38,30 @@ public class CompanyController {
     @PreAuthorize("hasRole('ADMIN')")
     public List<Company> getAllCompanies() {
         return companyService.getAllCompanies();
+    }
+
+    @GetMapping("/export.csv")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> exportCompaniesCsv() {
+        List<String> headers = List.of(
+                "Company", "Fiscal number", "CNSS number", "City", "Phone", "Verified", "Active", "Registered on");
+        List<List<String>> rows = new ArrayList<>();
+        for (Company c : companyService.getAllCompanies()) {
+            rows.add(List.of(
+                    c.getCompanyName() != null ? c.getCompanyName() : "",
+                    c.getFiscalNumber() != null ? c.getFiscalNumber() : "",
+                    c.getCnssNumber() != null ? c.getCnssNumber() : "",
+                    c.getCity() != null ? c.getCity() : "",
+                    c.getPhone() != null ? c.getPhone() : "",
+                    Boolean.TRUE.equals(c.getVerified()) ? "Yes" : "No",
+                    Boolean.TRUE.equals(c.getActive()) ? "Yes" : "No",
+                    c.getCreatedAt() != null ? c.getCreatedAt().toString() : ""));
+        }
+        byte[] csv = csvExportService.toCsv(headers, rows);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"companies-export.csv\"")
+                .body(csv);
     }
 
     @GetMapping("/{id}")

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notificationsApi } from '@/api/notifications';
+
+const PAGE_SIZE = 20;
 
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -24,11 +26,20 @@ export function NotificationBell() {
     refetchInterval: 30_000,
   });
 
-  const { data: notifications } = useQuery({
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['notifications', 'list'],
-    queryFn: notificationsApi.list,
+    queryFn: ({ pageParam }) => notificationsApi.list(pageParam, PAGE_SIZE),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => (lastPage.length === PAGE_SIZE ? allPages.length : undefined),
     enabled: open,
   });
+
+  const notifications = data?.pages.flat();
 
   useEffect(() => {
     if (!open) return;
@@ -57,6 +68,12 @@ export function NotificationBell() {
       await notificationsApi.markAsRead(id);
       invalidate();
     }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    await notificationsApi.remove(id);
+    invalidate();
   };
 
   return (
@@ -90,16 +107,42 @@ export function NotificationBell() {
               <p className="jobs__status">No notifications yet.</p>
             )}
             {notifications?.map((n) => (
-              <button
+              <div
                 key={n.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 className={`notification-bell__item${n.read ? '' : ' notification-bell__item--unread'}`}
                 onClick={() => handleItemClick(n.id, n.read)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleItemClick(n.id, n.read);
+                  }
+                }}
               >
                 <span className="notification-bell__message">{n.message}</span>
                 <span className="notification-bell__time">{timeAgo(n.createdAt)}</span>
-              </button>
+                <button
+                  type="button"
+                  className="notification-bell__delete"
+                  onClick={(e) => handleDelete(e, n.id)}
+                  title="Delete this notification"
+                  aria-label="Delete this notification"
+                >
+                  ✕
+                </button>
+              </div>
             ))}
+            {hasNextPage && (
+              <button
+                type="button"
+                className="notification-bell__load-more"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+              >
+                {isFetchingNextPage ? 'Loading…' : 'Load more'}
+              </button>
+            )}
           </div>
         </div>
       )}

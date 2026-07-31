@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
 import { navItemsForRole } from '@/config/navigation';
 import { fileUrl } from '@/api/axios';
+import { useTheme } from '@/lib/useTheme';
 import { NotificationBell } from './NotificationBell';
 
 const ROLE_LABEL: Record<string, string> = {
@@ -14,6 +15,7 @@ const ROLE_LABEL: Record<string, string> = {
 export function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
 
   if (!user) return null;
 
@@ -52,6 +54,15 @@ export function Layout() {
         <header className="topbar">
           <div className="topbar__role">{ROLE_LABEL[user.role] ?? user.role}</div>
           <div className="topbar__user">
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              <span aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span>
+            </button>
             <NotificationBell />
             <Link to="/profile" className="topbar__user-link" title="My profile">
               {avatar ? (

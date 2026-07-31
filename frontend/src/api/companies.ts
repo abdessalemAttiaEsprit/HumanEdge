@@ -56,4 +56,14 @@ export const companiesApi = {
   removeCascade(id: number): Promise<void> {
     return api.delete(`/api/companies/${id}/force`).then(() => undefined);
   },
+
+  async exportCsv(): Promise<void> {
+    const res = await api.get('/api/companies/export.csv', { responseType: 'blob' });
+    const url = window.URL.createObjectURL(res.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'companies-export.csv';
+    link.click();
+    window.URL.revokeObjectURL(url);
+  },
 };

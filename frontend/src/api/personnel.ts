@@ -63,4 +63,10 @@ export const personnelApi = {
     const res = await api.get(`/api/personnel/${id}/attestation-pdf`, { responseType: 'blob' });
     downloadBlob(res.data, `attestation_${id}.pdf`);
   },
+
+  /** Personnel visible par l'appelant (voir PersonnelController#exportPersonnelCsv) en CSV. */
+  async exportCsv(): Promise<void> {
+    const res = await api.get('/api/personnel/export.csv', { responseType: 'blob' });
+    downloadBlob(res.data, 'personnel-export.csv');
+  },
 };

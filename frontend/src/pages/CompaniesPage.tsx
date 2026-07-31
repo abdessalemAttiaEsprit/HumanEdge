@@ -6,14 +6,37 @@ import { getErrorMessage } from '@/lib/errors';
 import { formatDateFr } from '@/lib/format';
 import { usePagination } from '@/lib/usePagination';
 import { useEscapeKey } from '@/lib/useEscapeKey';
+import { useConfirm } from '@/lib/useConfirm';
+import { useSort } from '@/lib/useSort';
 import { IconButton } from '@/components/IconButton';
 import { Pagination } from '@/components/Pagination';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { SortableTh } from '@/components/SortableTh';
 import { useToast } from '@/components/ToastProvider';
 import type { Company } from '@/types';
+
+type CompanySortKey = 'name' | 'fiscal' | 'city' | 'verified' | 'active';
+
+function getCompanySortValue(c: Company, key: CompanySortKey): string | number {
+  switch (key) {
+    case 'name':
+      return c.companyName ?? '';
+    case 'fiscal':
+      return c.fiscalNumber ?? '';
+    case 'city':
+      return c.city ?? '';
+    case 'verified':
+      return c.verified ? 1 : 0;
+    case 'active':
+      return c.active ? 1 : 0;
+  }
+}
 
 export function CompaniesPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
 
   const [search, setSearch] = useState('');
   const [viewing, setViewing] = useState<Company | null>(null);
@@ -97,12 +120,20 @@ export function CompaniesPage() {
     );
   }, [companies, search]);
 
-  const { page, setPage, pageCount, pageItems } = usePagination(filtered, 10);
+  const { sorted, sortKey, direction, toggleSort } = useSort<Company, CompanySortKey>(filtered, getCompanySortValue);
+  const { page, setPage, pageCount, pageItems } = usePagination(sorted, 10);
 
   const handleDelete = (c: Company) => {
-    if (!window.confirm(`Delete "${c.companyName}"? This removes the company and cannot be undone.`)) return;
-    setActionError(null);
-    deleteMutation.mutate(c.idCompany);
+    requestConfirm({
+      title: 'Delete company',
+      message: `Delete "${c.companyName}"? This removes the company and cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: () => {
+        setActionError(null);
+        deleteMutation.mutate(c.idCompany);
+      },
+    });
   };
 
   const openForceDelete = (c: Company) => {
@@ -145,11 +176,14 @@ export function CompaniesPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        <button className="btn btn--ghost" onClick={() => companiesApi.exportCsv()}>
+          ⬇️ Export CSV
+        </button>
       </div>
 
       {actionError && <div className="alert alert--error">{actionError}</div>}
 
-      {isLoading && <p className="jobs__status">Loading companies…</p>}
+      {isLoading && <TableSkeleton columns={6} />}
       {isError && <p className="jobs__status">Unable to load companies.</p>}
       {!isLoading && !isError && filtered.length === 0 && (
         <div className="placeholder-box">
@@ -163,18 +197,18 @@ export function CompaniesPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Company</th>
-                <th>Fiscal number</th>
-                <th>City</th>
-                <th>Verified</th>
-                <th>Status</th>
+                <SortableTh label="Company" sortKey="name" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="Fiscal number" sortKey="fiscal" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="City" sortKey="city" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="Verified" sortKey="verified" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="Status" sortKey="active" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {pageItems.map((c) => (
                 <tr key={c.idCompany}>
-                  <td className="data-table__name-cell">
+                  <td className="data-table__name-cell" data-label="Company">
                     {c.logoUrl ? (
                       <img className="avatar" src={fileUrl(c.logoUrl)} alt={c.companyName} />
                     ) : (
@@ -182,23 +216,23 @@ export function CompaniesPage() {
                     )}
                     {c.companyName}
                   </td>
-                  <td>{c.fiscalNumber}</td>
-                  <td>{c.city || '—'}</td>
-                  <td>
+                  <td data-label="Fiscal number">{c.fiscalNumber}</td>
+                  <td data-label="City">{c.city || '—'}</td>
+                  <td data-label="Verified">
                     {c.verified ? (
-                      <span className="badge badge--soft">Verified</span>
+                      <span className="badge badge--success">Verified</span>
                     ) : (
-                      <span className="badge badge--muted">Pending</span>
+                      <span className="badge badge--warning">Pending</span>
                     )}
                   </td>
-                  <td>
+                  <td data-label="Status">
                     {c.active ? (
-                      <span className="badge badge--soft">Active</span>
+                      <span className="badge badge--success">Active</span>
                     ) : (
                       <span className="badge badge--muted">Inactive</span>
                     )}
                   </td>
-                  <td className="data-table__actions">
+                  <td className="data-table__actions" data-label="">
                     <IconButton icon="👁️" label="View details" onClick={() => setViewing(c)} />
                     {!c.verified && (
                       <IconButton
@@ -221,6 +255,7 @@ export function CompaniesPage() {
                       onClick={() => handleDelete(c)}
                       disabled={deleteMutation.isPending}
                     />
+                    <span className="data-table__actions-divider" aria-hidden="true" />
                     <IconButton
                       icon="💣"
                       label="Force delete (cascade — also wipes users, personnel, contracts, payments…)"
@@ -338,6 +373,8 @@ export function CompaniesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog options={confirmOptions} onConfirm={handleConfirm} onCancel={closeConfirm} />
     </div>
   );
 }

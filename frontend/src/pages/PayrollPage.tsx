@@ -7,8 +7,13 @@ import { useAuth } from '@/auth/useAuth';
 import { getErrorMessage } from '@/lib/errors';
 import { usePagination } from '@/lib/usePagination';
 import { useEscapeKey } from '@/lib/useEscapeKey';
+import { useConfirm } from '@/lib/useConfirm';
+import { useSort } from '@/lib/useSort';
 import { IconButton } from '@/components/IconButton';
 import { Pagination } from '@/components/Pagination';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { SortableTh } from '@/components/SortableTh';
 import { useToast } from '@/components/ToastProvider';
 import type { Absence, Month, Payment, PayrollGenerationSummary, Personnel } from '@/types';
 
@@ -67,11 +72,28 @@ function suggestAmounts(personnel: Personnel, month: Month, year: number) {
   return { montantCnss, payed, nonJustifiedDays, grossBase };
 }
 
+type PaymentSortKey = 'employee' | 'period' | 'paymentDate' | 'netPay' | 'status';
+
+function getPaymentSortValue(p: Payment, key: PaymentSortKey): string | number {
+  switch (key) {
+    case 'employee':
+      return personnelName(p.personnel);
+    case 'period':
+      return `${p.year}-${p.month ? MONTHS.indexOf(p.month) : -1}`;
+    case 'paymentDate':
+      return p.paymentDate ?? '';
+    case 'netPay':
+      return p.payed ?? -1;
+    case 'status':
+      return p.status ?? '';
+  }
+}
+
 function StatusBadge({ status }: { status?: string }) {
   return status === 'VALIDATED' ? (
-    <span className="badge badge--soft">Validated</span>
+    <span className="badge badge--success">Validated</span>
   ) : (
-    <span className="badge badge--muted">{status || 'Draft'}</span>
+    <span className="badge badge--warning">{status || 'Draft'}</span>
   );
 }
 
@@ -99,7 +121,7 @@ function MyPayslips() {
         <p className="page__subtitle">Your payment history.</p>
       </div>
 
-      {isLoading && <p className="jobs__status">Loading your payslips…</p>}
+      {isLoading && <TableSkeleton columns={5} />}
       {isError && <p className="jobs__status">Unable to load your payslips.</p>}
       {!isLoading && !isError && (payments?.length ?? 0) === 0 && (
         <div className="placeholder-box">
@@ -123,11 +145,11 @@ function MyPayslips() {
             <tbody>
               {pageItems.map((p) => (
                 <tr key={p.id}>
-                  <td>{p.month} {p.year}</td>
-                  <td>{p.paymentDate || '—'}</td>
-                  <td>{p.payed != null ? `${p.payed.toFixed(3)} TND` : '—'}</td>
-                  <td><StatusBadge status={p.status} /></td>
-                  <td className="data-table__actions">
+                  <td data-label="Period">{p.month} {p.year}</td>
+                  <td data-label="Payment date">{p.paymentDate || '—'}</td>
+                  <td data-label="Net pay">{p.payed != null ? `${p.payed.toFixed(3)} TND` : '—'}</td>
+                  <td data-label="Status"><StatusBadge status={p.status} /></td>
+                  <td className="data-table__actions" data-label="">
                     <IconButton icon="🧾" label="Download PDF" onClick={() => paymentsApi.downloadPayslipPdf(p.id)} />
                   </td>
                 </tr>
@@ -150,6 +172,7 @@ function ManagePayroll() {
   const isAdmin = user?.role === 'ADMIN';
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
 
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -262,7 +285,8 @@ function ManagePayroll() {
     [personnelList, form.personnelId],
   );
 
-  const { page, setPage, pageCount, pageItems } = usePagination(filtered, 10);
+  const { sorted, sortKey, direction, toggleSort } = useSort<Payment, PaymentSortKey>(filtered, getPaymentSortValue);
+  const { page, setPage, pageCount, pageItems } = usePagination(sorted, 10);
 
   const openAddModal = () => {
     setForm(EMPTY_FORM);
@@ -347,8 +371,13 @@ function ManagePayroll() {
   };
 
   const handleDelete = (p: Payment) => {
-    if (!window.confirm(`Delete this payment for ${personnelName(p.personnel)}? This cannot be undone.`)) return;
-    deleteMutation.mutate(p.id);
+    requestConfirm({
+      title: 'Delete payment',
+      message: `Delete this payment for ${personnelName(p.personnel)}? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: () => deleteMutation.mutate(p.id),
+    });
   };
 
   return (
@@ -381,7 +410,7 @@ function ManagePayroll() {
         />
       </div>
 
-      {isLoading && <p className="jobs__status">Loading payments…</p>}
+      {isLoading && <TableSkeleton columns={6} />}
       {isError && <p className="jobs__status">Unable to load payments.</p>}
       {!isLoading && !isError && filtered.length === 0 && (
         <div className="placeholder-box">
@@ -395,23 +424,35 @@ function ManagePayroll() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Employee</th>
-                <th>Period</th>
-                <th>Payment date</th>
-                <th>Net pay</th>
-                <th>Status</th>
+                <SortableTh
+                  label="Employee"
+                  sortKey="employee"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
+                <SortableTh label="Period" sortKey="period" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh
+                  label="Payment date"
+                  sortKey="paymentDate"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
+                <SortableTh label="Net pay" sortKey="netPay" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="Status" sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {pageItems.map((p) => (
                 <tr key={p.id}>
-                  <td>{personnelName(p.personnel)}</td>
-                  <td>{p.month} {p.year}</td>
-                  <td>{p.paymentDate || '—'}</td>
-                  <td>{p.payed != null ? `${p.payed.toFixed(3)} TND` : '—'}</td>
-                  <td><StatusBadge status={p.status} /></td>
-                  <td className="data-table__actions">
+                  <td data-label="Employee">{personnelName(p.personnel)}</td>
+                  <td data-label="Period">{p.month} {p.year}</td>
+                  <td data-label="Payment date">{p.paymentDate || '—'}</td>
+                  <td data-label="Net pay">{p.payed != null ? `${p.payed.toFixed(3)} TND` : '—'}</td>
+                  <td data-label="Status"><StatusBadge status={p.status} /></td>
+                  <td className="data-table__actions" data-label="">
                     <IconButton icon="✏️" label="Edit" onClick={() => openEditModal(p)} />
                     {p.status !== 'VALIDATED' && (
                       <IconButton
@@ -715,6 +756,8 @@ function ManagePayroll() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog options={confirmOptions} onConfirm={handleConfirm} onCancel={closeConfirm} />
     </div>
   );
 }

@@ -4,7 +4,15 @@ import { contractsApi } from '@/api/contracts';
 import { personnelApi } from '@/api/personnel';
 import { paymentsApi } from '@/api/payments';
 import { getErrorMessage } from '@/lib/errors';
+import { usePagination } from '@/lib/usePagination';
+import { useConfirm } from '@/lib/useConfirm';
+import { useSort } from '@/lib/useSort';
 import { IconButton } from '@/components/IconButton';
+import { Pagination } from '@/components/Pagination';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { SortableTh } from '@/components/SortableTh';
+import { useToast } from '@/components/ToastProvider';
 import type { Contract, ContractCreateRequest, ContractUpdateRequest, Personnel, TypeContrat } from '@/types';
 
 const TYPE_LABEL: Record<TypeContrat, string> = {
@@ -31,6 +39,8 @@ const EMPTY_CREATE: Omit<ContractCreateRequest, 'personnel'> = {
 
 type EditState = Omit<ContractUpdateRequest, 'typeContrat'> & { typeContrat: TypeContrat };
 
+type ContractSortKey = 'employee' | 'work' | 'type' | 'start' | 'end' | 'category' | 'salary';
+
 function personnelName(p?: Personnel): string {
   if (!p?.user) return '—';
   return `${p.user.firstname} ${p.user.lastname}`;
@@ -38,6 +48,8 @@ function personnelName(p?: Personnel): string {
 
 export function ContractsPage() {
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
 
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -88,8 +100,13 @@ export function ContractsPage() {
       setCreateForm(EMPTY_CREATE);
       setSelectedPersonnelId('');
       setFormError(null);
+      toast.showSuccess('Contract created.');
     },
-    onError: (err) => setFormError(getErrorMessage(err, 'Unable to create the contract')),
+    onError: (err) => {
+      const message = getErrorMessage(err, 'Unable to create the contract');
+      setFormError(message);
+      toast.showError(message);
+    },
   });
 
   const updateMutation = useMutation({
@@ -100,8 +117,13 @@ export function ContractsPage() {
       setEditing(null);
       setEditForm(null);
       setFormError(null);
+      toast.showSuccess('Contract updated.');
     },
-    onError: (err) => setFormError(getErrorMessage(err, 'Unable to update the contract')),
+    onError: (err) => {
+      const message = getErrorMessage(err, 'Unable to update the contract');
+      setFormError(message);
+      toast.showError(message);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -109,7 +131,9 @@ export function ContractsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
       queryClient.invalidateQueries({ queryKey: ['personnel'] });
+      toast.showSuccess('Contract deleted.');
     },
+    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to delete the contract')),
   });
 
   const filtered = useMemo(() => {
@@ -122,6 +146,27 @@ export function ContractsPage() {
       return haystack.includes(q);
     });
   }, [contracts, search, personnelByContractId]);
+
+  const getContractSortValue = (c: Contract, key: ContractSortKey): string | number => {
+    switch (key) {
+      case 'employee':
+        return personnelName(personnelByContractId.get(c.idContract));
+      case 'work':
+        return c.work ?? '';
+      case 'type':
+        return c.typeContrat ? TYPE_LABEL[c.typeContrat] : '';
+      case 'start':
+        return c.dateDebut ?? '';
+      case 'end':
+        return c.dateFin ?? '';
+      case 'category':
+        return c.categorie ?? '';
+      case 'salary':
+        return c.salaireBase ?? -1;
+    }
+  };
+  const { sorted, sortKey, direction, toggleSort } = useSort<Contract, ContractSortKey>(filtered, getContractSortValue);
+  const { page, setPage, pageCount, pageItems } = usePagination(sorted, 10);
 
   const openAddModal = () => {
     setCreateForm(EMPTY_CREATE);
@@ -168,8 +213,13 @@ export function ContractsPage() {
 
   const handleDelete = (c: Contract) => {
     const employee = personnelName(personnelByContractId.get(c.idContract));
-    if (!window.confirm(`Delete the contract for ${employee}? This cannot be undone.`)) return;
-    deleteMutation.mutate(c.idContract);
+    requestConfirm({
+      title: 'Delete contract',
+      message: `Delete the contract for ${employee}? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: () => deleteMutation.mutate(c.idContract),
+    });
   };
 
   return (
@@ -179,9 +229,14 @@ export function ContractsPage() {
           <h1>Contracts</h1>
           <p className="page__subtitle">Manage employee work contracts and salary grid assignment.</p>
         </div>
-        <button className="btn btn--primary" onClick={openAddModal}>
-          + Add contract
-        </button>
+        <div className="page__header-actions">
+          <button className="btn btn--ghost" onClick={() => contractsApi.exportCsv()}>
+            ⬇️ Export CSV
+          </button>
+          <button className="btn btn--primary" onClick={openAddModal}>
+            + Add contract
+          </button>
+        </div>
       </div>
 
       <div className="toolbar">
@@ -194,7 +249,7 @@ export function ContractsPage() {
         />
       </div>
 
-      {isLoading && <p className="jobs__status">Loading contracts…</p>}
+      {isLoading && <TableSkeleton columns={8} />}
       {isError && <p className="jobs__status">Unable to load contracts.</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
@@ -209,43 +264,61 @@ export function ContractsPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Employee</th>
-                <th>Role</th>
-                <th>Type</th>
-                <th>Start</th>
-                <th>End</th>
-                <th>Category</th>
-                <th>Base salary</th>
+                <SortableTh
+                  label="Employee"
+                  sortKey="employee"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
+                <SortableTh label="Role" sortKey="work" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="Type" sortKey="type" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="Start" sortKey="start" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="End" sortKey="end" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh
+                  label="Category"
+                  sortKey="category"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
+                <SortableTh
+                  label="Base salary"
+                  sortKey="salary"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c) => {
+              {pageItems.map((c) => {
                 const employee = personnelByContractId.get(c.idContract);
                 return (
                   <tr key={c.idContract}>
-                    <td>
+                    <td data-label="Employee">
                       {employee ? (
                         personnelName(employee)
                       ) : (
                         <span className="badge badge--muted">Unassigned</span>
                       )}
                     </td>
-                    <td>{c.work || '—'}</td>
-                    <td>
+                    <td data-label="Role">{c.work || '—'}</td>
+                    <td data-label="Type">
                       {c.typeContrat ? (
                         <span className="badge badge--soft">{TYPE_LABEL[c.typeContrat]}</span>
                       ) : (
                         '—'
                       )}
                     </td>
-                    <td>{c.dateDebut || '—'}</td>
-                    <td>{c.dateFin || '—'}</td>
-                    <td>
+                    <td data-label="Start">{c.dateDebut || '—'}</td>
+                    <td data-label="End">{c.dateFin || '—'}</td>
+                    <td data-label="Category">
                       {c.categorie} {c.echelon ? `· step ${c.echelon}` : ''}
                     </td>
-                    <td>{c.salaireBase != null ? `${c.salaireBase.toFixed(3)} TND` : '—'}</td>
-                    <td className="data-table__actions">
+                    <td data-label="Base salary">{c.salaireBase != null ? `${c.salaireBase.toFixed(3)} TND` : '—'}</td>
+                    <td className="data-table__actions" data-label="">
                       <IconButton icon="✏️" label="Edit" onClick={() => openEditModal(c)} />
                       <IconButton
                         icon="🗑️"
@@ -262,6 +335,8 @@ export function ContractsPage() {
           </table>
         </div>
       )}
+
+      <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />
 
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
@@ -537,6 +612,8 @@ export function ContractsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog options={confirmOptions} onConfirm={handleConfirm} onCancel={closeConfirm} />
     </div>
   );
 }

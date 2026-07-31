@@ -12,6 +12,8 @@ import { PlanPicker } from '@/components/PlanPicker';
 import { CardPaymentFields, type CardDetails } from '@/components/CardPaymentFields';
 import { useToast } from '@/components/ToastProvider';
 import { useEscapeKey } from '@/lib/useEscapeKey';
+import { useConfirm } from '@/lib/useConfirm';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import type { CompanyUpdateRequest, SubscriptionPaymentRequest } from '@/types';
 
 export function ProfilePage() {
@@ -286,6 +288,7 @@ function CompanyCard({ companyId }: { companyId: number }) {
 function SubscriptionCard({ companyId }: { companyId: number }) {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
   const [showManage, setShowManage] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('');
   const [card, setCard] = useState<CardDetails>({ cardHolder: '', cardNumber: '', cardExpiry: '', cardCvv: '' });
@@ -340,8 +343,14 @@ function SubscriptionCard({ companyId }: { companyId: number }) {
   };
 
   const handleCancel = () => {
-    if (!window.confirm('Cancel your subscription? You can renew it anytime from this page.')) return;
-    cancelMutation.mutate();
+    requestConfirm({
+      title: 'Cancel subscription',
+      message: 'Cancel your subscription? You can renew it anytime from this page.',
+      confirmLabel: 'Cancel subscription',
+      cancelLabel: 'Keep subscription',
+      variant: 'danger',
+      onConfirm: () => cancelMutation.mutate(),
+    });
   };
 
   useEscapeKey(() => setShowManage(false), showManage);
@@ -363,7 +372,7 @@ function SubscriptionCard({ companyId }: { companyId: number }) {
       <div className="chart-card__header">
         <h2 className="chart-card__title">Subscription</h2>
         {subscription && (
-          <span className={isActive ? 'badge badge--soft' : 'badge badge--muted'}>{subscription.status}</span>
+          <span className={isActive ? 'badge badge--success' : 'badge badge--muted'}>{subscription.status}</span>
         )}
       </div>
 
@@ -416,6 +425,8 @@ function SubscriptionCard({ companyId }: { companyId: number }) {
           </div>
         </div>
       )}
+
+      <ConfirmDialog options={confirmOptions} onConfirm={handleConfirm} onCancel={closeConfirm} />
     </div>
   );
 }

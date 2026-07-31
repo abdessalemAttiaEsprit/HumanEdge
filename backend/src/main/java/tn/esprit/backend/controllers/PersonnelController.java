@@ -11,9 +11,11 @@ import org.springframework.web.multipart.MultipartFile;
 import tn.esprit.backend.dto.PersonnelCreateRequest;
 import tn.esprit.backend.dto.PersonnelSelfUpdateRequest;
 import tn.esprit.backend.entities.Personnel;
+import tn.esprit.backend.services.CsvExportService;
 import tn.esprit.backend.services.PdfService;
 import tn.esprit.backend.services.PersonnelService;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -23,11 +25,41 @@ public class PersonnelController {
 
     private final PersonnelService personnelService;
     private final PdfService pdfService;
+    private final CsvExportService csvExportService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY')")
     public ResponseEntity<List<Personnel>> getAllPersonnel() {
         return ResponseEntity.ok(personnelService.getAllPersonnel());
+    }
+
+    /** Personnel visible par l'appelant (voir PersonnelService#getAllPersonnel) en CSV. */
+    @GetMapping("/export.csv")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY')")
+    public ResponseEntity<byte[]> exportPersonnelCsv() {
+        List<String> headers = List.of(
+                "Employee", "Email", "Matricule", "CIN", "CNSS number", "RIB", "Phone", "Company");
+        List<List<String>> rows = new ArrayList<>();
+        for (Personnel p : personnelService.getAllPersonnel()) {
+            String name = p.getUser() != null
+                    ? (p.getUser().getFirstname() + " " + p.getUser().getLastname()).trim()
+                    : "";
+            rows.add(List.of(
+                    name,
+                    p.getUser() != null && p.getUser().getEmail() != null ? p.getUser().getEmail() : "",
+                    p.getMatricule() != null ? p.getMatricule() : "",
+                    p.getCin() != null ? p.getCin() : "",
+                    p.getCnssNumber() != null ? p.getCnssNumber() : "",
+                    p.getRib() != null ? p.getRib() : "",
+                    p.getTelephone() != null ? p.getTelephone() : "",
+                    p.getUser() != null && p.getUser().getCompany() != null
+                            ? String.valueOf(p.getUser().getCompany().getCompanyName()) : ""));
+        }
+        byte[] csv = csvExportService.toCsv(headers, rows);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"personnel-export.csv\"")
+                .body(csv);
     }
 
     @GetMapping("/company/{companyId}")

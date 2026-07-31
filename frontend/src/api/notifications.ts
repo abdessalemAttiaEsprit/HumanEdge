@@ -2,8 +2,10 @@ import { api } from './axios';
 import type { AppNotification } from '@/types';
 
 export const notificationsApi = {
-  list(): Promise<AppNotification[]> {
-    return api.get<AppNotification[]>('/api/notifications/me').then((r) => r.data);
+  list(page = 0, size = 20): Promise<AppNotification[]> {
+    return api
+      .get<AppNotification[]>('/api/notifications/me', { params: { page, size } })
+      .then((r) => r.data);
   },
 
   unreadCount(): Promise<number> {
@@ -16,5 +18,9 @@ export const notificationsApi = {
 
   markAllAsRead(): Promise<void> {
     return api.patch('/api/notifications/me/read-all').then(() => undefined);
+  },
+
+  remove(id: number): Promise<void> {
+    return api.delete(`/api/notifications/${id}`).then(() => undefined);
   },
 };

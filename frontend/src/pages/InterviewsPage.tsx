@@ -5,7 +5,14 @@ import { AxiosError } from 'axios';
 import { interviewsApi } from '@/api/interviews';
 import { candidatesApi } from '@/api/candidates';
 import { useAuth } from '@/auth/useAuth';
+import { getErrorMessage } from '@/lib/errors';
+import { useConfirm } from '@/lib/useConfirm';
+import { useSort } from '@/lib/useSort';
 import { IconButton } from '@/components/IconButton';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { SortableTh } from '@/components/SortableTh';
+import { useToast } from '@/components/ToastProvider';
 import type { Interview, InterviewStatus } from '@/types';
 
 const STATUS_OPTIONS: InterviewStatus[] = ['SCHEDULED', 'COMPLETED', 'CANCELLED'];
@@ -18,6 +25,29 @@ function candidateName(iv: Interview): string {
 
 function formatDateTime(v?: string): string {
   return v ? v.replace('T', ' ').slice(0, 16) : '—';
+}
+
+function interviewStatusBadgeClass(status?: string): string {
+  if (status === 'COMPLETED') return 'badge badge--success';
+  if (status === 'CANCELLED') return 'badge badge--danger';
+  return 'badge badge--soft';
+}
+
+type InterviewSortKey = 'candidate' | 'job' | 'date' | 'location' | 'status';
+
+function getInterviewSortValue(iv: Interview, key: InterviewSortKey): string | number {
+  switch (key) {
+    case 'candidate':
+      return candidateName(iv);
+    case 'job':
+      return iv.job?.title ?? '';
+    case 'date':
+      return iv.interviewDate ?? '';
+    case 'location':
+      return iv.interviewLocation ?? '';
+    case 'status':
+      return iv.status ?? '';
+  }
 }
 
 export function InterviewsPage() {
@@ -73,7 +103,7 @@ function MyInterviews() {
         <p className="page__subtitle">Upcoming and past interviews for your applications.</p>
       </div>
 
-      {isLoading && <p className="jobs__status">Loading your interviews…</p>}
+      {isLoading && <TableSkeleton columns={5} />}
       {isError && <p className="jobs__status">Unable to load your interviews.</p>}
 
       {!isLoading && !isError && sorted.length === 0 && (
@@ -98,12 +128,12 @@ function MyInterviews() {
             <tbody>
               {sorted.map((iv) => (
                 <tr key={iv.id}>
-                  <td>{iv.job?.title || '—'}</td>
-                  <td>{iv.job?.createdByCompany?.companyName || '—'}</td>
-                  <td>{formatDateTime(iv.interviewDate)}</td>
-                  <td>{iv.interviewLocation || '—'}</td>
-                  <td>
-                    <span className="badge badge--soft">{iv.status || '—'}</span>
+                  <td data-label="Job">{iv.job?.title || '—'}</td>
+                  <td data-label="Company">{iv.job?.createdByCompany?.companyName || '—'}</td>
+                  <td data-label="Date & time">{formatDateTime(iv.interviewDate)}</td>
+                  <td data-label="Location">{iv.interviewLocation || '—'}</td>
+                  <td data-label="Status">
+                    <span className={interviewStatusBadgeClass(iv.status)}>{iv.status || '—'}</span>
                   </td>
                 </tr>
               ))}
@@ -122,6 +152,8 @@ function MyInterviews() {
 function ManageInterviews() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const toast = useToast();
+  const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
   const [search, setSearch] = useState('');
 
   const { data: interviews, isLoading, isError } = useQuery({
@@ -131,12 +163,20 @@ function ManageInterviews() {
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: InterviewStatus }) => interviewsApi.updateStatus(id, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['interviews'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['interviews'] });
+      toast.showSuccess('Interview status updated.');
+    },
+    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to update the interview status')),
   });
 
   const deleteMutation = useMutation({
     mutationFn: interviewsApi.remove,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['interviews'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['interviews'] });
+      toast.showSuccess('Interview deleted.');
+    },
+    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to delete the interview')),
   });
 
   const filtered = useMemo(() => {
@@ -148,9 +188,19 @@ function ManageInterviews() {
     );
   }, [interviews, search]);
 
+  const { sorted, sortKey, direction, toggleSort } = useSort<Interview, InterviewSortKey>(
+    filtered,
+    getInterviewSortValue,
+  );
+
   const handleDelete = (iv: Interview) => {
-    if (!window.confirm(`Delete the interview with ${candidateName(iv)} for "${iv.job?.title}"?`)) return;
-    deleteMutation.mutate(iv.id);
+    requestConfirm({
+      title: 'Delete interview',
+      message: `Delete the interview with ${candidateName(iv)} for "${iv.job?.title}"?`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: () => deleteMutation.mutate(iv.id),
+    });
   };
 
   const handleAddAsEmployee = (iv: Interview) => {
@@ -188,7 +238,7 @@ function ManageInterviews() {
         />
       </div>
 
-      {isLoading && <p className="jobs__status">Loading interviews…</p>}
+      {isLoading && <TableSkeleton columns={6} />}
       {isError && <p className="jobs__status">Unable to load interviews.</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
@@ -203,24 +253,37 @@ function ManageInterviews() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Candidate</th>
-                <th>Job</th>
-                <th>Date &amp; time</th>
-                <th>Location</th>
-                <th>Status</th>
+                <SortableTh
+                  label="Candidate"
+                  sortKey="candidate"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
+                <SortableTh label="Job" sortKey="job" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label="Date & time" sortKey="date" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh
+                  label="Location"
+                  sortKey="location"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
+                <SortableTh label="Status" sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((iv) => (
+              {sorted.map((iv) => (
                 <tr key={iv.id}>
-                  <td>{candidateName(iv)}</td>
-                  <td>{iv.job?.title || '—'}</td>
-                  <td>{formatDateTime(iv.interviewDate)}</td>
-                  <td>{iv.interviewLocation || '—'}</td>
-                  <td>
+                  <td data-label="Candidate">{candidateName(iv)}</td>
+                  <td data-label="Job">{iv.job?.title || '—'}</td>
+                  <td data-label="Date & time">{formatDateTime(iv.interviewDate)}</td>
+                  <td data-label="Location">{iv.interviewLocation || '—'}</td>
+                  <td data-label="Status">
                     <select
                       className="table-select"
+                      aria-label={`Status for the interview with ${candidateName(iv)}`}
                       value={iv.status ?? 'SCHEDULED'}
                       onChange={(e) => statusMutation.mutate({ id: iv.id, status: e.target.value as InterviewStatus })}
                       disabled={statusMutation.isPending}
@@ -232,7 +295,7 @@ function ManageInterviews() {
                       ))}
                     </select>
                   </td>
-                  <td className="data-table__actions">
+                  <td className="data-table__actions" data-label="">
                     {iv.status === 'COMPLETED' && (
                       <IconButton
                         icon="➕"
@@ -254,6 +317,8 @@ function ManageInterviews() {
           </table>
         </div>
       )}
+
+      <ConfirmDialog options={confirmOptions} onConfirm={handleConfirm} onCancel={closeConfirm} />
     </div>
   );
 }

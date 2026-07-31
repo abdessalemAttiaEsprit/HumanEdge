@@ -1,6 +1,7 @@
 package tn.esprit.backend.services;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import tn.esprit.backend.entities.Notification;
 import tn.esprit.backend.entities.User;
@@ -20,8 +21,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class NotificationService {
 
-    private static final int MAX_RETURNED = 50;
-
     private final NotificationRepo notificationRepo;
     private final OwnershipGuard ownershipGuard;
 
@@ -39,11 +38,10 @@ public class NotificationService {
         notificationRepo.save(notification);
     }
 
-    public List<Notification> getMyNotifications() {
+    /** Historique paginé (le plus récent d'abord) — la cloche charge par pages de {@code size} via "Load more". */
+    public List<Notification> getMyNotifications(int page, int size) {
         Long userId = ownershipGuard.currentUser().getIdUser();
-        return notificationRepo.findByRecipient_IdUserOrderByCreatedAtDesc(userId).stream()
-                .limit(MAX_RETURNED)
-                .toList();
+        return notificationRepo.findByRecipient_IdUserOrderByCreatedAtDesc(userId, PageRequest.of(page, size)).getContent();
     }
 
     public long unreadCount() {
@@ -69,5 +67,15 @@ public class NotificationService {
                 .toList();
         unread.forEach(n -> n.setRead(true));
         notificationRepo.saveAll(unread);
+    }
+
+    public void deleteNotification(Long id) {
+        Notification notification = notificationRepo.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
+        Long userId = ownershipGuard.currentUser().getIdUser();
+        if (!notification.getRecipient().getIdUser().equals(userId)) {
+            throw new ResourceNotFoundException("Notification not found");
+        }
+        notificationRepo.delete(notification);
     }
 }

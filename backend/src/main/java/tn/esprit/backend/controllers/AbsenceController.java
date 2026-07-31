@@ -13,10 +13,12 @@ import org.springframework.web.multipart.MultipartFile;
 import tn.esprit.backend.entities.Absence;
 import tn.esprit.backend.services.AbsenceQuotaCalculator;
 import tn.esprit.backend.services.AbsenceService;
+import tn.esprit.backend.services.CsvExportService;
 import tn.esprit.backend.services.FileStorageService;
 
 import java.net.URLConnection;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -26,6 +28,7 @@ public class AbsenceController {
 
     private final AbsenceService absenceService;
     private final FileStorageService fileStorageService;
+    private final CsvExportService csvExportService;
 
     /**
      * GET /api/absences : Récupérer toutes les absences.
@@ -35,6 +38,33 @@ public class AbsenceController {
     public ResponseEntity<List<Absence>> getAllAbsences() {
         List<Absence> absences = absenceService.getAllAbsences();
         return ResponseEntity.ok(absences);
+    }
+
+    /** Absences visibles par l'appelant (voir AbsenceService#getAllAbsences) en CSV. */
+    @GetMapping("/export.csv")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY')")
+    public ResponseEntity<byte[]> exportAbsencesCsv() {
+        List<String> headers = List.of("Employee", "Date", "Start date", "End date", "Reason", "Justified");
+        List<List<String>> rows = new ArrayList<>();
+        for (Absence a : absenceService.getAllAbsences()) {
+            String employee = a.getPersonnel() != null && a.getPersonnel().getUser() != null
+                    ? (a.getPersonnel().getUser().getFirstname() + " " + a.getPersonnel().getUser().getLastname()).trim()
+                    : "";
+            boolean justified = (a.getReason() != null && !a.getReason().isBlank())
+                    || (a.getJustification() != null && !a.getJustification().isBlank());
+            rows.add(List.of(
+                    employee,
+                    a.getDateAbsence() != null ? a.getDateAbsence().toString() : "",
+                    a.getStartDate() != null ? a.getStartDate().toString() : "",
+                    a.getEndDate() != null ? a.getEndDate().toString() : "",
+                    a.getReason() != null ? a.getReason() : "",
+                    justified ? "Yes" : "No"));
+        }
+        byte[] csv = csvExportService.toCsv(headers, rows);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"absences-export.csv\"")
+                .body(csv);
     }
 
     /**

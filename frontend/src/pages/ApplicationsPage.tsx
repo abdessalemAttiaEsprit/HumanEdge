@@ -9,8 +9,13 @@ import { useAuth } from '@/auth/useAuth';
 import { getErrorMessage } from '@/lib/errors';
 import { usePagination } from '@/lib/usePagination';
 import { useEscapeKey } from '@/lib/useEscapeKey';
+import { useConfirm } from '@/lib/useConfirm';
+import { useSort } from '@/lib/useSort';
 import { IconButton } from '@/components/IconButton';
 import { Pagination } from '@/components/Pagination';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { SortableTh } from '@/components/SortableTh';
 import { useToast } from '@/components/ToastProvider';
 import type { Application, ApplicationStatus } from '@/types';
 
@@ -23,9 +28,28 @@ function candidateName(a: Application): string {
 }
 
 function statusBadgeClass(status?: string): string {
-  if (status === 'ACCEPTED') return 'badge badge--soft';
-  if (status === 'REJECTED') return 'badge badge--muted';
-  return 'badge badge--soft';
+  if (status === 'ACCEPTED') return 'badge badge--success';
+  if (status === 'REJECTED') return 'badge badge--danger';
+  if (status === 'SHORTLISTED') return 'badge badge--warning';
+  if (status === 'UNDER_REVIEW') return 'badge badge--soft';
+  return 'badge badge--muted';
+}
+
+type ApplicationSortKey = 'candidate' | 'job' | 'applied' | 'aiScore' | 'status';
+
+function getApplicationSortValue(a: Application, key: ApplicationSortKey): string | number {
+  switch (key) {
+    case 'candidate':
+      return candidateName(a);
+    case 'job':
+      return a.jobPosting?.title ?? '';
+    case 'applied':
+      return a.appliedDate ?? '';
+    case 'aiScore':
+      return a.aiScore ?? -1;
+    case 'status':
+      return a.status ?? '';
+  }
 }
 
 export function ApplicationsPage() {
@@ -82,7 +106,7 @@ function MyApplications() {
         <p className="page__subtitle">Track the status of the jobs you've applied to.</p>
       </div>
 
-      {isLoading && <p className="jobs__status">Loading your applications…</p>}
+      {isLoading && <TableSkeleton columns={5} />}
       {isError && <p className="jobs__status">Unable to load your applications.</p>}
 
       {!isLoading && !isError && sorted.length === 0 && (
@@ -109,13 +133,13 @@ function MyApplications() {
             <tbody>
               {sorted.map((a) => (
                 <tr key={a.id}>
-                  <td>{a.jobPosting?.title || '—'}</td>
-                  <td>{a.jobPosting?.createdByCompany?.companyName || '—'}</td>
-                  <td>{a.appliedDate ? a.appliedDate.slice(0, 10) : '—'}</td>
-                  <td>
+                  <td data-label="Job">{a.jobPosting?.title || '—'}</td>
+                  <td data-label="Company">{a.jobPosting?.createdByCompany?.companyName || '—'}</td>
+                  <td data-label="Applied">{a.appliedDate ? a.appliedDate.slice(0, 10) : '—'}</td>
+                  <td data-label="Status">
                     <span className={statusBadgeClass(a.status)}>{a.status || '—'}</span>
                   </td>
-                  <td>
+                  <td data-label="Interview">
                     {a.interviewDate
                       ? `${a.interviewDate.replace('T', ' ').slice(0, 16)} @ ${a.interviewLocation || '—'}`
                       : '—'}
@@ -136,6 +160,7 @@ function MyApplications() {
 function ManageApplications() {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
   const [search, setSearch] = useState('');
   const [viewing, setViewing] = useState<Application | null>(null);
   const [expandedFeedbackId, setExpandedFeedbackId] = useState<number | null>(null);
@@ -225,8 +250,13 @@ function ManageApplications() {
   }, [applications, search]);
 
   const handleDelete = (a: Application) => {
-    if (!window.confirm(`Delete the application from ${candidateName(a)} for "${a.jobPosting?.title}"?`)) return;
-    deleteMutation.mutate(a.id);
+    requestConfirm({
+      title: 'Delete application',
+      message: `Delete the application from ${candidateName(a)} for "${a.jobPosting?.title}"?`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: () => deleteMutation.mutate(a.id),
+    });
   };
 
   const openSchedule = (a: Application) => {
@@ -247,7 +277,11 @@ function ManageApplications() {
     });
   };
 
-  const { page, setPage, pageCount, pageItems } = usePagination(filtered, 10);
+  const { sorted, sortKey, direction, toggleSort } = useSort<Application, ApplicationSortKey>(
+    filtered,
+    getApplicationSortValue,
+  );
+  const { page, setPage, pageCount, pageItems } = usePagination(sorted, 10);
 
   useEscapeKey(() => setViewing(null), !!viewing);
   useEscapeKey(() => setScheduling(null), !!scheduling);
@@ -259,7 +293,7 @@ function ManageApplications() {
           <h1>Applications</h1>
           <p className="page__subtitle">Review candidates, evaluate with AI, and schedule interviews.</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="page__header-actions">
           <button
             type="button"
             className="btn btn--ghost"
@@ -275,12 +309,24 @@ function ManageApplications() {
             onClick={handleEvaluateAll}
             title="Evaluate every application below without a score yet"
           >
-            {batchEvaluating
-              ? `Evaluating… (${batchProgress.done}/${batchProgress.total})`
-              : `🤖 Evaluate all (${filtered.filter((a) => a.aiScore == null).length})`}
+            {batchEvaluating ? 'Evaluating…' : `🤖 Evaluate all (${filtered.filter((a) => a.aiScore == null).length})`}
           </button>
         </div>
       </div>
+
+      {batchEvaluating && (
+        <div className="batch-progress">
+          <div className="batch-progress__track">
+            <div
+              className="batch-progress__fill"
+              style={{ width: `${batchProgress.total ? (batchProgress.done / batchProgress.total) * 100 : 0}%` }}
+            />
+          </div>
+          <span className="batch-progress__label">
+            {batchProgress.done}/{batchProgress.total} evaluated
+          </span>
+        </div>
+      )}
 
       <div className="toolbar">
         <input
@@ -292,7 +338,7 @@ function ManageApplications() {
         />
       </div>
 
-      {isLoading && <p className="jobs__status">Loading applications…</p>}
+      {isLoading && <TableSkeleton columns={6} />}
       {isError && <p className="jobs__status">Unable to load applications.</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
@@ -307,11 +353,29 @@ function ManageApplications() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Candidate</th>
-                <th>Job</th>
-                <th>Applied</th>
-                <th>AI score</th>
-                <th>Status</th>
+                <SortableTh
+                  label="Candidate"
+                  sortKey="candidate"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
+                <SortableTh label="Job" sortKey="job" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh
+                  label="Applied"
+                  sortKey="applied"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
+                <SortableTh
+                  label="AI score"
+                  sortKey="aiScore"
+                  activeKey={sortKey}
+                  direction={direction}
+                  onSort={toggleSort}
+                />
+                <SortableTh label="Status" sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
@@ -319,10 +383,10 @@ function ManageApplications() {
               {pageItems.map((a) => (
                 <Fragment key={a.id}>
                   <tr>
-                    <td>{candidateName(a)}</td>
-                    <td>{a.jobPosting?.title || '—'}</td>
-                    <td>{a.appliedDate ? a.appliedDate.slice(0, 10) : '—'}</td>
-                    <td>
+                    <td data-label="Candidate">{candidateName(a)}</td>
+                    <td data-label="Job">{a.jobPosting?.title || '—'}</td>
+                    <td data-label="Applied">{a.appliedDate ? a.appliedDate.slice(0, 10) : '—'}</td>
+                    <td data-label="AI score">
                       <div className="ai-score-cell">
                         <span>{a.aiScore != null ? a.aiScore.toFixed(1) : '—'}</span>
                         {a.aiFeedback && (
@@ -338,9 +402,10 @@ function ManageApplications() {
                         )}
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <select
                         className="table-select"
+                        aria-label={`Status for the application from ${candidateName(a)}`}
                         value={a.status ?? 'SUBMITTED'}
                         onChange={(e) => statusMutation.mutate({ id: a.id, status: e.target.value as ApplicationStatus })}
                         disabled={statusMutation.isPending}
@@ -352,7 +417,7 @@ function ManageApplications() {
                         ))}
                       </select>
                     </td>
-                    <td className="data-table__actions">
+                    <td className="data-table__actions" data-label="">
                       <IconButton icon="👁️" label="View" onClick={() => setViewing(a)} />
                       <IconButton
                         icon="🤖"
@@ -466,6 +531,8 @@ function ManageApplications() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog options={confirmOptions} onConfirm={handleConfirm} onCancel={closeConfirm} />
     </div>
   );
 }

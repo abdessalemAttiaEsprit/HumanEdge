@@ -17,4 +17,14 @@ export const contractsApi = {
   remove(id: number): Promise<void> {
     return api.delete(`/api/contracts/${id}`).then(() => undefined);
   },
+
+  async exportCsv(): Promise<void> {
+    const res = await api.get('/api/contracts/export.csv', { responseType: 'blob' });
+    const url = window.URL.createObjectURL(res.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'contracts-export.csv';
+    link.click();
+    window.URL.revokeObjectURL(url);
+  },
 };
