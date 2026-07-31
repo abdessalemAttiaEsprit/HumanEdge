@@ -7,6 +7,13 @@ metadata:
     app: hr-backend
 spec:
   replicas: 1
+  # RollingUpdate (le defaut) essaie de demarrer le nouveau pod avant d'arreter l'ancien, mais le
+  # volume "uploads" (PVC ReadWriteOnce) ne peut etre attache qu'a un seul nœud a la fois : le
+  # nouveau pod reste bloque en Pending/ContainerCreating (Multi-Attach error) tant que l'ancien
+  # tourne encore, surtout s'ils atterrissent sur des nœuds differents. Recreate evite ce
+  # blocage (accepte une courte coupure a chaque deploiement, ce qui est acceptable ici).
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: hr-backend

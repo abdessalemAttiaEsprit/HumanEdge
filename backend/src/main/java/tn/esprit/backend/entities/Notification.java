@@ -38,7 +38,10 @@ public class Notification {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(nullable = false)
+    // Nom de colonne explicite : "read" est un mot reserve MySQL (echoue silencieusement sur la
+    // base de prod, contrairement au profil de test H2) - meme categorie de bug que year/month
+    // sur Payment.
+    @Column(name = "is_read", nullable = false)
     @Builder.Default
     private boolean read = false;
 }
