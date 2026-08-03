@@ -4,5 +4,7 @@ metadata:
   name: hr-backend-config
   namespace: hr
 data:
-  CORS_ALLOWED_ORIGINS: "https://hr.human-edge.dev"
+  # Domaine de prod + origines locales (dev local pointant vers le backend deploye) -
+  # a retirer une fois les tests locaux termines.
+  CORS_ALLOWED_ORIGINS: "https://hr.human-edge.dev,http://localhost:*,http://127.0.0.1:*"
   FRONTEND_BASE_URL: "https://hr.human-edge.dev"
