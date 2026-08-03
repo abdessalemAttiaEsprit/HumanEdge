@@ -896,6 +896,10 @@ h3 {
   letter-spacing: 0.03em;
   border-bottom: 1px solid var(--border);
 }
+.data-table th.w-icon {
+  width: 32px;
+  padding-right: 0;
+}
 /* Below 720px, each row collapses into a card — cells stack with their column
    label (data-label) instead of scrolling a wide table horizontally. */
 @media (max-width: 720px) {
@@ -1029,6 +1033,58 @@ td:nth-child(3n + 2) .skeleton-bar {
   background: var(--bg);
   white-space: normal;
 }
+.data-table__expand-toggle {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  transition: transform 0.18s var(--ease), color 0.18s var(--ease), background 0.18s var(--ease);
+}
+.data-table__expand-toggle:hover {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+.data-table__expand-toggle--open {
+  transform: rotate(180deg);
+  color: var(--primary);
+}
+.data-table__row--expanded {
+  background: var(--bg);
+}
+
+/* Contract details panel (expanded row) */
+.contract-panel {
+  padding: 4px 0;
+}
+.contract-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px 24px;
+}
+.contract-panel__item {
+  min-width: 0;
+}
+.contract-panel__label {
+  display: block;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+.contract-panel__value {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  word-break: break-word;
+}
 .ai-feedback-panel strong {
   display: block;
   margin-bottom: 4px;
@@ -1052,6 +1108,55 @@ td:nth-child(3n + 2) .skeleton-bar {
   align-self: stretch;
   background: var(--border);
   margin: 0 2px;
+}
+
+/* Kebab dropdown (row actions) */
+.row-menu {
+  position: relative;
+  display: inline-flex;
+}
+.row-menu__dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  min-width: 160px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.row-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s var(--ease);
+}
+.row-menu__item:hover:not(:disabled) {
+  background: var(--bg);
+}
+.row-menu__item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.row-menu__item--danger {
+  color: var(--danger);
+}
+.row-menu__item--danger:hover:not(:disabled) {
+  background: var(--danger-soft);
 }
 
 /* Icon-only action buttons (table rows) */
@@ -1104,6 +1209,23 @@ td:nth-child(3n + 2) .skeleton-bar {
   font-size: 0.72rem;
   flex-shrink: 0;
 }
+.data-table__name-cell-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.data-table__name-cell-sub {
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.cell-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
 .field-with-preview {
   display: flex;
   align-items: center;
@@ -1142,7 +1264,9 @@ td:nth-child(3n + 2) .skeleton-bar {
 }
 
 .badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;

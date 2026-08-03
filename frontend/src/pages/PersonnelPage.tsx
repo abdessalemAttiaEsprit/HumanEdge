@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronDown, CircleDot, Circle, FileSignature, FileText, Pencil, Phone, Trash2 } from 'lucide-react';
 import { personnelApi } from '@/api/personnel';
 import { companiesApi } from '@/api/companies';
 import { fileUrl } from '@/api/axios';
@@ -11,12 +12,13 @@ import { useEscapeKey } from '@/lib/useEscapeKey';
 import { useConfirm } from '@/lib/useConfirm';
 import { useSort } from '@/lib/useSort';
 import { IconButton } from '@/components/IconButton';
+import { RowActionsMenu } from '@/components/RowActionsMenu';
 import { Pagination } from '@/components/Pagination';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { SortableTh } from '@/components/SortableTh';
 import { useToast } from '@/components/ToastProvider';
-import type { Company, Personnel, PersonnelCreateRequest } from '@/types';
+import type { Company, Contract, Personnel, PersonnelCreateRequest } from '@/types';
 
 const EMPTY_CREATE: PersonnelCreateRequest = {
   firstname: '',
@@ -41,6 +43,34 @@ function fullName(p: Personnel): string {
   return `${p.user.firstname} ${p.user.lastname}`;
 }
 
+function isContractActive(c: Contract): boolean {
+  return !c.dateFin || new Date(c.dateFin) >= new Date();
+}
+
+function formatDate(value?: string): string {
+  return value ? value.slice(0, 10) : '—';
+}
+
+function formatAmount(value?: number): string | undefined {
+  return value != null ? `${value} TND` : undefined;
+}
+
+function contractDetails(c: Contract): Array<[string, string]> {
+  const entries: Array<[string, string | undefined]> = [
+    ['Type de contrat', c.typeContrat],
+    ['Poste', c.work],
+    ['Catégorie', c.categorie],
+    ['Échelon', c.echelon != null ? String(c.echelon) : undefined],
+    ['Date de début', formatDate(c.dateDebut)],
+    ['Date de fin', c.dateFin ? formatDate(c.dateFin) : 'Indéterminée'],
+    ['Salaire de base', formatAmount(c.salaireBase)],
+    ['Salaire complémentaire', formatAmount(c.salaireComplementaire)],
+    ['Taux horaire sup.', formatAmount(c.tauxHoraireSup)],
+    ['Avantages', formatAmount(c.avantages)],
+  ];
+  return entries.filter((e): e is [string, string] => !!e[1]);
+}
+
 const PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
 
 function generateTempPassword(): string {
@@ -49,7 +79,7 @@ function generateTempPassword(): string {
   return Array.from(bytes, (b) => PASSWORD_CHARS[b % PASSWORD_CHARS.length]).join('');
 }
 
-type PersonnelSortKey = 'name' | 'email' | 'cin' | 'phone' | 'matricule' | 'company' | 'contract';
+type PersonnelSortKey = 'name' | 'email' | 'phone' | 'company' | 'contract';
 
 function getPersonnelSortValue(p: Personnel, key: PersonnelSortKey): string | number {
   switch (key) {
@@ -57,12 +87,8 @@ function getPersonnelSortValue(p: Personnel, key: PersonnelSortKey): string | nu
       return fullName(p);
     case 'email':
       return p.user?.email ?? '';
-    case 'cin':
-      return p.cin ?? '';
     case 'phone':
       return p.telephone ?? '';
-    case 'matricule':
-      return p.matricule ?? '';
     case 'company':
       return p.user?.company?.companyName ?? '';
     case 'contract':
@@ -94,6 +120,9 @@ export function PersonnelPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [prefillNotice, setPrefillNotice] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const toggleExpand = (id: number) => setExpandedId((cur) => (cur === id ? null : id));
 
   const { data: personnelList, isLoading, isError } = useQuery({
     queryKey: ['personnel'],
@@ -299,17 +328,10 @@ export function PersonnelPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <SortableTh label="Name" sortKey="name" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <th className="w-icon"></th>
+                <SortableTh label="Employee" sortKey="name" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <SortableTh label="Email" sortKey="email" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label="CIN" sortKey="cin" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <SortableTh label="Phone" sortKey="phone" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh
-                  label="Matricule"
-                  sortKey="matricule"
-                  activeKey={sortKey}
-                  direction={direction}
-                  onSort={toggleSort}
-                />
                 {isAdmin && (
                   <SortableTh
                     label="Company"
@@ -326,55 +348,135 @@ export function PersonnelPage() {
                   direction={direction}
                   onSort={toggleSort}
                 />
+                <th>Documents</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {pageItems.map((p) => (
-                <tr key={p.idPersonnel}>
-                  <td className="data-table__name-cell" data-label="Name">
-                    {p.image ? (
-                      <img className="avatar" src={fileUrl(p.image)} alt={fullName(p)} />
-                    ) : (
-                      <span className="avatar avatar--initials">{fullName(p).slice(0, 1)}</span>
+              {pageItems.map((p) => {
+                const expanded = expandedId === p.idPersonnel;
+                const columnCount = isAdmin ? 8 : 7;
+                return (
+                  <Fragment key={p.idPersonnel}>
+                    <tr className={expanded ? 'data-table__row--expanded' : ''}>
+                      <td data-label="">
+                        <button
+                          type="button"
+                          className={`data-table__expand-toggle${expanded ? ' data-table__expand-toggle--open' : ''}`}
+                          onClick={() => toggleExpand(p.idPersonnel)}
+                          aria-label={expanded ? 'Hide contract details' : 'Show contract details'}
+                          title={expanded ? 'Hide contract details' : 'Show contract details'}
+                        >
+                          <ChevronDown size={16} aria-hidden="true" />
+                        </button>
+                      </td>
+                      <td className="data-table__name-cell" data-label="Employee">
+                        {p.image ? (
+                          <img className="avatar" src={fileUrl(p.image)} alt={fullName(p)} />
+                        ) : (
+                          <span className="avatar avatar--initials">{fullName(p).slice(0, 1)}</span>
+                        )}
+                        <span className="data-table__name-cell-info">
+                          {fullName(p)}
+                          <span className="data-table__name-cell-sub">{p.matricule || 'No matricule yet'}</span>
+                        </span>
+                      </td>
+                      <td data-label="Email">{p.user?.email ?? '—'}</td>
+                      <td data-label="Phone">
+                        <span className="cell-with-icon">
+                          <Phone size={13} aria-hidden="true" />
+                          {p.telephone || '—'}
+                        </span>
+                      </td>
+                      {isAdmin && <td data-label="Company">{p.user?.company?.companyName ?? '—'}</td>}
+                      <td data-label="Contract">
+                        {p.contract ? (
+                          <span className={`badge ${isContractActive(p.contract) ? 'badge--success' : 'badge--muted'}`}>
+                            {isContractActive(p.contract) ? (
+                              <CircleDot size={11} aria-hidden="true" />
+                            ) : (
+                              <Circle size={11} aria-hidden="true" />
+                            )}
+                            {p.contract.typeContrat}
+                          </span>
+                        ) : (
+                          <span className="badge badge--muted">
+                            <Circle size={11} aria-hidden="true" />
+                            No contract
+                          </span>
+                        )}
+                      </td>
+                      <td className="data-table__actions" data-label="">
+                        <IconButton
+                          icon={<FileSignature size={15} aria-hidden="true" />}
+                          label={p.contract ? 'Download work contract' : 'No contract linked yet'}
+                          disabled={!p.contract}
+                          onClick={() => personnelApi.downloadContractPdf(p.idPersonnel)}
+                        />
+                        <IconButton
+                          icon={<FileText size={15} aria-hidden="true" />}
+                          label="Download attestation"
+                          onClick={() => personnelApi.downloadAttestationPdf(p.idPersonnel)}
+                        />
+                      </td>
+                      <td className="data-table__actions" data-label="">
+                        <RowActionsMenu
+                          ariaLabel={`Actions for ${fullName(p)}`}
+                          items={[
+                            {
+                              label: 'Edit',
+                              icon: <Pencil size={15} aria-hidden="true" />,
+                              onClick: () => openEditModal(p),
+                            },
+                            {
+                              label: 'Delete',
+                              icon: <Trash2 size={15} aria-hidden="true" />,
+                              danger: true,
+                              disabled: deleteMutation.isPending,
+                              onClick: () => handleDelete(p),
+                            },
+                          ]}
+                        />
+                      </td>
+                    </tr>
+                    {expanded && (
+                      <tr className="data-table__expanded-row">
+                        <td colSpan={columnCount}>
+                          <div className="contract-panel">
+                            <div className="contract-panel__grid">
+                              <div className="contract-panel__item">
+                                <span className="contract-panel__label">CIN</span>
+                                <span className="contract-panel__value">{p.cin || '—'}</span>
+                              </div>
+                              <div className="contract-panel__item">
+                                <span className="contract-panel__label">N° CNSS</span>
+                                <span className="contract-panel__value">{p.cnssNumber || '—'}</span>
+                              </div>
+                              <div className="contract-panel__item">
+                                <span className="contract-panel__label">RIB</span>
+                                <span className="contract-panel__value">{p.rib || '—'}</span>
+                              </div>
+                              {p.contract ? (
+                                contractDetails(p.contract).map(([label, value]) => (
+                                  <div className="contract-panel__item" key={label}>
+                                    <span className="contract-panel__label">{label}</span>
+                                    <span className="contract-panel__value">{value}</span>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="contract-panel__item">
+                                  <span className="contract-panel__label">Contract</span>
+                                  <span className="contract-panel__value">No contract linked yet</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                    {fullName(p)}
-                  </td>
-                  <td data-label="Email">{p.user?.email ?? '—'}</td>
-                  <td data-label="CIN">{p.cin}</td>
-                  <td data-label="Phone">{p.telephone || '—'}</td>
-                  <td data-label="Matricule">{p.matricule || '—'}</td>
-                  {isAdmin && <td data-label="Company">{p.user?.company?.companyName ?? '—'}</td>}
-                  <td data-label="Contract">
-                    {p.contract ? (
-                      <span className="badge badge--soft">{p.contract.typeContrat}</span>
-                    ) : (
-                      <span className="badge badge--muted">None</span>
-                    )}
-                  </td>
-                  <td className="data-table__actions" data-label="">
-                    <IconButton icon="✏️" label="Edit" onClick={() => openEditModal(p)} />
-                    <IconButton
-                      icon="📄"
-                      label={p.contract ? 'Download work contract' : 'No contract linked yet'}
-                      disabled={!p.contract}
-                      onClick={() => personnelApi.downloadContractPdf(p.idPersonnel)}
-                    />
-                    <IconButton
-                      icon="📋"
-                      label="Download attestation"
-                      onClick={() => personnelApi.downloadAttestationPdf(p.idPersonnel)}
-                    />
-                    <IconButton
-                      icon="🗑️"
-                      label="Delete"
-                      variant="danger"
-                      onClick={() => handleDelete(p)}
-                      disabled={deleteMutation.isPending}
-                    />
-                  </td>
-                </tr>
-              ))}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
