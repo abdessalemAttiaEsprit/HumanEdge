@@ -119,18 +119,36 @@ public class PdfService {
             int workingDays = 22;
             double dailyRate = salaireBase / workingDays;
 
-            List<Absence> periodAbsences = payment.getAbsences();
-            int totalAbsenceDays = 0;
-            int nonJustifiedDays = 0;
-            if (periodAbsences != null) {
-                for (Absence absence : periodAbsences) {
-                    int days = absenceDays(absence);
-                    totalAbsenceDays += days;
-                    if (absence.getJustification() == null || absence.getJustification().isBlank()) {
-                        nonJustifiedDays += days;
+            // Détail des absences : priorité au snapshot stocké sur le Payment au moment du calcul
+            // (justifiedAbsenceDays/unjustifiedAbsenceDays/absenceDeduction — voir PaymentService
+            // #generateMonthlyPayroll), qui reste stable même si les absences sont éditées après
+            // coup. Repli sur Payment.absences pour les bulletins créés avant l'ajout de ce
+            // snapshot (relation en pratique jamais peuplée, mais gardée par sécurité).
+            Integer justifiedSnapshot = payment.getJustifiedAbsenceDays();
+            Integer unjustifiedSnapshot = payment.getUnjustifiedAbsenceDays();
+            int justifiedDays;
+            int nonJustifiedDays;
+            if (justifiedSnapshot != null || unjustifiedSnapshot != null) {
+                justifiedDays = justifiedSnapshot != null ? justifiedSnapshot : 0;
+                nonJustifiedDays = unjustifiedSnapshot != null ? unjustifiedSnapshot : 0;
+            } else {
+                List<Absence> periodAbsences = payment.getAbsences();
+                int justified = 0;
+                int nonJustified = 0;
+                if (periodAbsences != null) {
+                    for (Absence absence : periodAbsences) {
+                        int days = absenceDays(absence);
+                        if (absence.getJustification() == null || absence.getJustification().isBlank()) {
+                            nonJustified += days;
+                        } else {
+                            justified += days;
+                        }
                     }
                 }
+                justifiedDays = justified;
+                nonJustifiedDays = nonJustified;
             }
+            int totalAbsenceDays = justifiedDays + nonJustifiedDays;
             long payableDays = Math.max(workingDays - totalAbsenceDays, 0);
 
             addPayRow(mainTable, "Salaire de base", fmt(dailyRate), "", String.valueOf(payableDays), fmt(salaireBase), "", normalFont, Color.WHITE, borderColor);
@@ -142,11 +160,11 @@ public class PdfService {
             double salaireBrutCotisable = salaireBase + avantages;
             addPayRow(mainTable, "SALAIRE BRUT COTISABLE", "", "", "", fmt(salaireBrutCotisable), "", boldFont, headerBg, borderColor);
 
-            if (totalAbsenceDays > 0) {
-                addPayRow(mainTable, "Absences (" + totalAbsenceDays + " jours)", "", "", String.valueOf(totalAbsenceDays), "", "", normalFont, lightGray, borderColor);
+            if (justifiedDays > 0) {
+                addPayRow(mainTable, "Absences justifiées (" + justifiedDays + " jours)", "", "", String.valueOf(justifiedDays), "", "", normalFont, lightGray, borderColor);
             }
 
-            double deductionAbsence = dailyRate * nonJustifiedDays;
+            double deductionAbsence = payment.getAbsenceDeduction() != null ? payment.getAbsenceDeduction() : dailyRate * nonJustifiedDays;
             if (nonJustifiedDays > 0) {
                 addPayRow(mainTable, "Déduction absences non justifiées (" + nonJustifiedDays + " jours)",
                         fmt(dailyRate), "", String.valueOf(nonJustifiedDays), "", fmt(deductionAbsence), normalFont, lightGray, borderColor);
@@ -158,8 +176,9 @@ public class PdfService {
             }
 
             double montantIrpp = payment.getMontantIrpp() != null ? payment.getMontantIrpp() : 0;
+            String irppRateLabel = payment.getIrppRate() != null ? fmtPercent(payment.getIrppRate()) : "";
             if (montantIrpp > 0) {
-                addPayRow(mainTable, "I.R.P.P", fmt(salaireBrutCotisable - deductionAbsence), "", "", "", fmt(montantIrpp), normalFont, lightGray, borderColor);
+                addPayRow(mainTable, "I.R.P.P", fmt(salaireBrutCotisable - deductionAbsence), irppRateLabel, "", "", fmt(montantIrpp), normalFont, lightGray, borderColor);
             }
 
             document.add(mainTable);
@@ -698,6 +717,11 @@ public class PdfService {
 
     private String fmtMoney(double v) {
         return String.format("%.3f", v).replace(".", ",");
+    }
+
+    /** Taux stocké en fraction (0.26) -> libellé pourcentage ("26.00") pour la colonne "Taux %". */
+    private String fmtPercent(double rate) {
+        return String.format("%.2f", rate * 100).replace(".", ",");
     }
 
     private String fmtMoney(Double v) {

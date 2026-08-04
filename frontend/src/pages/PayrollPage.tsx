@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Calculator, CheckCircle2, Download, Pencil, Plus, Receipt, Trash2 } from 'lucide-react';
+import { Calculator, CheckCircle2, Download, Eye, Pencil, Plus, Receipt, Trash2 } from 'lucide-react';
 import { paymentsApi } from '@/api/payments';
 import { personnelApi } from '@/api/personnel';
 import { companiesApi } from '@/api/companies';
@@ -26,6 +26,13 @@ const MONTHS: Month[] = [
 
 const CNSS_RATE = 0.0918; // matches the 9.18% rate PdfService labels on the payslip
 
+// Mirrors SalaryCalculationService's Tunisian IRPP bracket table (backend/.../SalaryCalculationService.java)
+// so "Suggest amounts" can preview the IRPP amount/rate client-side before saving.
+const IRPP_BRACKET_CEILINGS = [5000, 20000, 30000, 50000];
+const IRPP_BRACKET_RATES = [0, 0.26, 0.28, 0.32, 0.35];
+const PROFESSIONAL_ALLOWANCE_RATE = 0.1;
+const PROFESSIONAL_ALLOWANCE_ANNUAL_CAP = 2000;
+
 const EMPTY_FORM = {
   personnelId: '' as number | '',
   month: 'JANUARY' as Month,
@@ -33,7 +40,12 @@ const EMPTY_FORM = {
   paymentDate: '',
   montantCnss: '' as number | '',
   montantIrpp: '' as number | '',
+  /** Percentage (e.g. 26 for 26%) for display; converted to a 0-1 fraction in buildPayload. */
+  irppRate: '' as number | '',
   payed: '' as number | '',
+  justifiedAbsenceDays: '' as number | '',
+  unjustifiedAbsenceDays: '' as number | '',
+  absenceDeduction: '' as number | '',
 };
 
 function personnelName(p?: Personnel): string {
@@ -53,6 +65,29 @@ function absenceDayCount(a: Absence): number {
   return 1;
 }
 
+/** Annual progressive tax for a given taxable income, per IRPP_BRACKET_CEILINGS/RATES. */
+function annualBareme(annualTaxable: number): number {
+  let tax = 0;
+  let previousCeiling = 0;
+  for (let i = 0; i < IRPP_BRACKET_CEILINGS.length; i++) {
+    const ceiling = IRPP_BRACKET_CEILINGS[i];
+    if (annualTaxable <= ceiling) {
+      return tax + (annualTaxable - previousCeiling) * IRPP_BRACKET_RATES[i];
+    }
+    tax += (ceiling - previousCeiling) * IRPP_BRACKET_RATES[i];
+    previousCeiling = ceiling;
+  }
+  return tax + (annualTaxable - previousCeiling) * IRPP_BRACKET_RATES[IRPP_BRACKET_RATES.length - 1];
+}
+
+/** Marginal rate (highest bracket reached) for a given taxable income. */
+function marginalIrppRate(annualTaxable: number): number {
+  for (let i = 0; i < IRPP_BRACKET_CEILINGS.length; i++) {
+    if (annualTaxable <= IRPP_BRACKET_CEILINGS[i]) return IRPP_BRACKET_RATES[i];
+  }
+  return IRPP_BRACKET_RATES[IRPP_BRACKET_RATES.length - 1];
+}
+
 /** Rough estimate only (net salary suggestion) — always editable before saving. */
 function suggestAmounts(personnel: Personnel, month: Month, year: number) {
   const contract = personnel.contract;
@@ -62,16 +97,29 @@ function suggestAmounts(personnel: Personnel, month: Month, year: number) {
   const dailyRate = salaireBase / 22;
 
   const monthPrefix = `${year}-${String(MONTHS.indexOf(month) + 1).padStart(2, '0')}`;
-  const nonJustifiedDays = (personnel.absences ?? [])
+  const monthAbsences = (personnel.absences ?? []).filter((a) =>
+    (a.dateAbsence ?? a.startDate ?? '').startsWith(monthPrefix),
+  );
+  const justifiedDays = monthAbsences.filter(isJustified).reduce((sum, a) => sum + absenceDayCount(a), 0);
+  const nonJustifiedDays = monthAbsences
     .filter((a) => !isJustified(a))
-    .filter((a) => (a.dateAbsence ?? a.startDate ?? '').startsWith(monthPrefix))
     .reduce((sum, a) => sum + absenceDayCount(a), 0);
 
-  const deduction = dailyRate * nonJustifiedDays;
+  const deduction = Math.round(dailyRate * nonJustifiedDays * 1000) / 1000;
   const montantCnss = Math.round(grossBase * CNSS_RATE * 1000) / 1000;
-  const payed = Math.round((grossBase - deduction - montantCnss) * 1000) / 1000;
 
-  return { montantCnss, payed, nonJustifiedDays, grossBase };
+  // Same formula as SalaryCalculationService.compute: 10%-of-annual-income allowance
+  // (capped at 2000 TND/year) applied before the progressive bracket table.
+  const monthlyTaxableBeforeAllowance = Math.max(0, grossBase - montantCnss - deduction);
+  const annualBeforeAllowance = monthlyTaxableBeforeAllowance * 12;
+  const allowance = Math.min(annualBeforeAllowance * PROFESSIONAL_ALLOWANCE_RATE, PROFESSIONAL_ALLOWANCE_ANNUAL_CAP);
+  const annualTaxable = Math.max(0, annualBeforeAllowance - allowance);
+  const montantIrpp = Math.round((annualBareme(annualTaxable) / 12) * 1000) / 1000;
+  const irppRate = marginalIrppRate(annualTaxable);
+
+  const payed = Math.round((grossBase - deduction - montantCnss - montantIrpp) * 1000) / 1000;
+
+  return { montantCnss, montantIrpp, irppRate, payed, justifiedDays, nonJustifiedDays, deduction, grossBase };
 }
 
 type PaymentSortKey = 'employee' | 'period' | 'paymentDate' | 'netPay' | 'status';
@@ -99,6 +147,97 @@ function StatusBadge({ status }: { status?: string }) {
   );
 }
 
+/**
+ * Read-only payslip breakdown — surfaces absence days/deduction and the IRPP rate that the
+ * PDF (PdfService.generateFichePaie) also shows, without requiring a download. Payments
+ * created before this feature (or entered manually without "Suggest amounts") show "—" for
+ * fields that were never captured, rather than guessing.
+ */
+function PayslipDetailModal({
+  payment,
+  showEmployee,
+  onClose,
+}: {
+  payment: Payment;
+  showEmployee?: boolean;
+  onClose: () => void;
+}) {
+  useEscapeKey(onClose, true);
+
+  const contract = payment.contrat;
+  const salaireBase = contract?.salaireBase ?? 0;
+  const avantages = contract?.avantages ?? 0;
+  const gross = salaireBase + avantages;
+  const irppRateLabel = payment.irppRate != null ? `${(payment.irppRate * 100).toFixed(2)}%` : '—';
+  const tnd = (v?: number) => (v != null ? `${v.toFixed(3)} TND` : '—');
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>Payslip — {payment.month} {payment.year}</h2>
+        {showEmployee && <p className="page__subtitle">{personnelName(payment.personnel)}</p>}
+
+        <div className="contract-panel">
+          <div className="contract-panel__grid">
+            <div className="contract-panel__item">
+              <span className="contract-panel__label">Base salary</span>
+              <span className="contract-panel__value">{tnd(salaireBase || undefined)}</span>
+            </div>
+            <div className="contract-panel__item">
+              <span className="contract-panel__label">Benefits</span>
+              <span className="contract-panel__value">{tnd(avantages || undefined)}</span>
+            </div>
+            <div className="contract-panel__item">
+              <span className="contract-panel__label">Gross</span>
+              <span className="contract-panel__value">{tnd(gross || undefined)}</span>
+            </div>
+            <div className="contract-panel__item">
+              <span className="contract-panel__label">Justified absence days</span>
+              <span className="contract-panel__value">{payment.justifiedAbsenceDays ?? '—'}</span>
+            </div>
+            <div className="contract-panel__item">
+              <span className="contract-panel__label">Unjustified absence days</span>
+              <span className="contract-panel__value">{payment.unjustifiedAbsenceDays ?? '—'}</span>
+            </div>
+            <div className="contract-panel__item">
+              <span className="contract-panel__label">Absence deduction</span>
+              <span className="contract-panel__value">{tnd(payment.absenceDeduction)}</span>
+            </div>
+            <div className="contract-panel__item">
+              <span className="contract-panel__label">CNSS ({(CNSS_RATE * 100).toFixed(2)}%)</span>
+              <span className="contract-panel__value">{tnd(payment.montantCnss)}</span>
+            </div>
+            <div className="contract-panel__item">
+              <span className="contract-panel__label">IRPP ({irppRateLabel})</span>
+              <span className="contract-panel__value">{tnd(payment.montantIrpp)}</span>
+            </div>
+            <div className="contract-panel__item">
+              <span className="contract-panel__label">Net pay</span>
+              <span className="contract-panel__value">{tnd(payment.payed)}</span>
+            </div>
+            <div className="contract-panel__item">
+              <span className="contract-panel__label">Status</span>
+              <span className="contract-panel__value">
+                <StatusBadge status={payment.status} />
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="modal__actions">
+          <button type="button" className="btn btn--ghost" onClick={() => paymentsApi.downloadPayslipPdf(payment.id)}>
+            <Receipt size={16} aria-hidden="true" />
+            Download PDF
+          </button>
+          <button type="button" className="btn btn--primary" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PayrollPage() {
   const { user } = useAuth();
   const canManage = user?.role === 'ADMIN' || user?.role === 'COMPANY';
@@ -114,6 +253,7 @@ function MyPayslips() {
     queryFn: paymentsApi.getMine,
   });
 
+  const [viewing, setViewing] = useState<Payment | null>(null);
   const { page, setPage, pageCount, pageItems } = usePagination(payments ?? [], 10);
 
   return (
@@ -153,6 +293,11 @@ function MyPayslips() {
                   <td data-label="Status"><StatusBadge status={p.status} /></td>
                   <td className="data-table__actions" data-label="">
                     <IconButton
+                      icon={<Eye size={15} aria-hidden="true" />}
+                      label="View payslip details"
+                      onClick={() => setViewing(p)}
+                    />
+                    <IconButton
                       icon={<Receipt size={15} aria-hidden="true" />}
                       label="Download PDF"
                       onClick={() => paymentsApi.downloadPayslipPdf(p.id)}
@@ -166,6 +311,8 @@ function MyPayslips() {
       )}
 
       <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />
+
+      {viewing && <PayslipDetailModal payment={viewing} onClose={() => setViewing(null)} />}
     </div>
   );
 }
@@ -183,6 +330,7 @@ function ManagePayroll() {
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editing, setEditing] = useState<Payment | null>(null);
+  const [viewing, setViewing] = useState<Payment | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -268,7 +416,11 @@ function ManagePayroll() {
       paymentDate: f.paymentDate || undefined,
       montantCnss: f.montantCnss === '' ? undefined : Number(f.montantCnss),
       montantIrpp: f.montantIrpp === '' ? undefined : Number(f.montantIrpp),
+      irppRate: f.irppRate === '' ? undefined : Number(f.irppRate) / 100,
       payed: f.payed === '' ? undefined : Number(f.payed),
+      justifiedAbsenceDays: f.justifiedAbsenceDays === '' ? undefined : Number(f.justifiedAbsenceDays),
+      unjustifiedAbsenceDays: f.unjustifiedAbsenceDays === '' ? undefined : Number(f.unjustifiedAbsenceDays),
+      absenceDeduction: f.absenceDeduction === '' ? undefined : Number(f.absenceDeduction),
     };
   }
 
@@ -338,15 +490,32 @@ function ManagePayroll() {
       paymentDate: p.paymentDate ?? '',
       montantCnss: p.montantCnss ?? '',
       montantIrpp: p.montantIrpp ?? '',
+      irppRate: p.irppRate != null ? Math.round(p.irppRate * 10000) / 100 : '',
       payed: p.payed ?? '',
+      justifiedAbsenceDays: p.justifiedAbsenceDays ?? '',
+      unjustifiedAbsenceDays: p.unjustifiedAbsenceDays ?? '',
+      absenceDeduction: p.absenceDeduction ?? '',
     });
     setFormError(null);
   };
 
   const applySuggestion = () => {
     if (!selectedPersonnel) return;
-    const { montantCnss, payed } = suggestAmounts(selectedPersonnel, form.month, Number(form.year));
-    setForm((f) => ({ ...f, montantCnss, payed }));
+    const { montantCnss, montantIrpp, irppRate, payed, justifiedDays, nonJustifiedDays, deduction } = suggestAmounts(
+      selectedPersonnel,
+      form.month,
+      Number(form.year),
+    );
+    setForm((f) => ({
+      ...f,
+      montantCnss,
+      montantIrpp,
+      irppRate: Math.round(irppRate * 10000) / 100,
+      payed,
+      justifiedAbsenceDays: justifiedDays,
+      unjustifiedAbsenceDays: nonJustifiedDays,
+      absenceDeduction: deduction,
+    }));
   };
 
   const handleCreateSubmit = (e: FormEvent) => {
@@ -463,6 +632,11 @@ function ManagePayroll() {
                   <td data-label="Status"><StatusBadge status={p.status} /></td>
                   <td className="data-table__actions" data-label="">
                     <IconButton
+                      icon={<Eye size={15} aria-hidden="true" />}
+                      label="View payslip details"
+                      onClick={() => setViewing(p)}
+                    />
+                    <IconButton
                       icon={<Receipt size={15} aria-hidden="true" />}
                       label="Download payslip PDF"
                       onClick={() => paymentsApi.downloadPayslipPdf(p.id)}
@@ -481,7 +655,10 @@ function ManagePayroll() {
                               },
                             ]
                           : []),
-                        ...(isAdmin
+                        // A validated payment already notified the employee by email and stands
+                        // as a payslip record — only a DRAFT can be deleted (see
+                        // PaymentService#deletePayment for the matching server-side check).
+                        ...(p.status !== 'VALIDATED'
                           ? [
                               {
                                 label: 'Delete',
@@ -587,6 +764,54 @@ function ManagePayroll() {
                     />
                   </label>
                 </div>
+                <div className="field-row">
+                  <label className="field">
+                    <span>Justified absence days</span>
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={form.justifiedAbsenceDays}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, justifiedAbsenceDays: e.target.value ? Number(e.target.value) : '' }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Unjustified absence days</span>
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={form.unjustifiedAbsenceDays}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, unjustifiedAbsenceDays: e.target.value ? Number(e.target.value) : '' }))
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="field-row">
+                  <label className="field">
+                    <span>Absence deduction</span>
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={form.absenceDeduction}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, absenceDeduction: e.target.value ? Number(e.target.value) : '' }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span>IRPP rate (%)</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={form.irppRate}
+                      onChange={(e) => setForm((f) => ({ ...f, irppRate: e.target.value ? Number(e.target.value) : '' }))}
+                    />
+                  </label>
+                </div>
                 <label className="field">
                   <span>Net pay</span>
                   <input
@@ -598,8 +823,8 @@ function ManagePayroll() {
                 </label>
                 <p className="field-hint">
                   Amounts are never auto-computed by the server — the suggestion above is an
-                  estimate from the employee's contract and unjustified absences, always
-                  editable before saving.
+                  estimate from the employee's contract and absences that month (justified days,
+                  unjustified days, deduction, IRPP rate), always editable before saving.
                 </p>
               </div>
 
@@ -670,6 +895,54 @@ function ManagePayroll() {
                     />
                   </label>
                 </div>
+                <div className="field-row">
+                  <label className="field">
+                    <span>Justified absence days</span>
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={form.justifiedAbsenceDays}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, justifiedAbsenceDays: e.target.value ? Number(e.target.value) : '' }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Unjustified absence days</span>
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={form.unjustifiedAbsenceDays}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, unjustifiedAbsenceDays: e.target.value ? Number(e.target.value) : '' }))
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="field-row">
+                  <label className="field">
+                    <span>Absence deduction</span>
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={form.absenceDeduction}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, absenceDeduction: e.target.value ? Number(e.target.value) : '' }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span>IRPP rate (%)</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={form.irppRate}
+                      onChange={(e) => setForm((f) => ({ ...f, irppRate: e.target.value ? Number(e.target.value) : '' }))}
+                    />
+                  </label>
+                </div>
                 <label className="field">
                   <span>Net pay</span>
                   <input
@@ -702,7 +975,9 @@ function ManagePayroll() {
                 {generateError && <div className="alert alert--error">{generateError}</div>}
                 <p className="field-hint">
                   Creates a DRAFT payment for every employee with an active contract that month.
-                  CNSS (9.18%), IRPP and net pay are computed automatically from each contract;
+                  CNSS (9.18%), IRPP (with its bracket rate) and net pay are computed
+                  automatically from each contract, including a detailed breakdown of that
+                  month's justified/unjustified absence days and the resulting deduction;
                   employees who already have a payment for this period are skipped.
                 </p>
                 <div className="fieldset">
@@ -778,6 +1053,8 @@ function ManagePayroll() {
           </div>
         </div>
       )}
+
+      {viewing && <PayslipDetailModal payment={viewing} showEmployee onClose={() => setViewing(null)} />}
 
       <ConfirmDialog options={confirmOptions} onConfirm={handleConfirm} onCancel={closeConfirm} />
     </div>

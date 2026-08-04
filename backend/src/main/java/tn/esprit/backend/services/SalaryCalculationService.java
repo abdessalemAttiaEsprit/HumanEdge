@@ -23,8 +23,9 @@ public class SalaryCalculationService {
     private static final double[] BRACKET_CEILINGS = {5000, 20000, 30000, 50000};
     private static final double[] BRACKET_RATES = {0.0, 0.26, 0.28, 0.32, 0.35};
 
+    /** @param irppRate taux marginal du barème atteint par le revenu annuel imposable (ex. 0.26 = tranche à 26%) */
     public record SalaryBreakdown(double gross, double unjustifiedDeduction, double montantCnss,
-                                   double montantIrpp, double net) {}
+                                   double montantIrpp, double irppRate, double net) {}
 
     /**
      * @param salaireBase salaire de base du contrat (grille salariale)
@@ -44,9 +45,10 @@ public class SalaryCalculationService {
         double allowance = Math.min(annualBeforeAllowance * PROFESSIONAL_ALLOWANCE_RATE, PROFESSIONAL_ALLOWANCE_ANNUAL_CAP);
         double annualTaxable = Math.max(0, annualBeforeAllowance - allowance);
         double montantIrpp = round3(annualBareme(annualTaxable) / 12.0);
+        double irppRate = marginalRate(annualTaxable);
 
         double net = round3(gross - deduction - montantCnss - montantIrpp);
-        return new SalaryBreakdown(gross, deduction, montantCnss, montantIrpp, net);
+        return new SalaryBreakdown(gross, deduction, montantCnss, montantIrpp, irppRate, net);
     }
 
     private double annualBareme(double annualTaxable) {
@@ -61,6 +63,16 @@ public class SalaryCalculationService {
             previousCeiling = ceiling;
         }
         return tax + (annualTaxable - previousCeiling) * BRACKET_RATES[BRACKET_RATES.length - 1];
+    }
+
+    /** Taux marginal (tranche la plus haute atteinte) du revenu annuel imposable donné. */
+    private double marginalRate(double annualTaxable) {
+        for (int i = 0; i < BRACKET_CEILINGS.length; i++) {
+            if (annualTaxable <= BRACKET_CEILINGS[i]) {
+                return BRACKET_RATES[i];
+            }
+        }
+        return BRACKET_RATES[BRACKET_RATES.length - 1];
     }
 
     private static double round3(double value) {

@@ -325,8 +325,14 @@ export interface Payment {
   absences?: Absence[];
   montantCnss?: number;
   montantIrpp?: number;
+  /** Taux marginal IRPP appliqué (fraction, ex. 0.26 = tranche à 26%) — voir SalaryCalculationService. */
+  irppRate?: number;
   status?: string;
   payed?: number;
+  /** Snapshot des jours d'absence du mois retenus pour ce bulletin (voir PaymentService#generateMonthlyPayroll). */
+  justifiedAbsenceDays?: number;
+  unjustifiedAbsenceDays?: number;
+  absenceDeduction?: number;
   company?: Company;
   personnel?: Personnel;
   contrat?: Contract;

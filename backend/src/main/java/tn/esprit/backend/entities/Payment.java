@@ -38,9 +38,19 @@ public class Payment {
 
     private Double montantCnss;
     private Double montantIrpp;
+    /** Taux marginal IRPP appliqué (ex. 0.26 = tranche à 26%) — voir SalaryCalculationService. */
+    private Double irppRate;
     private String status;
 
     private Double payed;
+
+    // Détail des jours d'absence du mois retenus pour ce bulletin (voir
+    // PaymentService#generateMonthlyPayroll / SalaryCalculationService). Snapshot au moment du
+    // calcul plutôt qu'une dépendance à Payment.absences (jamais peuplée en pratique) : un
+    // bulletin déjà émis ne doit pas changer si les absences sont éditées après coup.
+    private Integer justifiedAbsenceDays;
+    private Integer unjustifiedAbsenceDays;
+    private Double absenceDeduction;
 
     @ManyToOne
     private Company company;

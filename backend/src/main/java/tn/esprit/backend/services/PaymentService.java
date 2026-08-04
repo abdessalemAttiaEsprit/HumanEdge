@@ -77,9 +77,13 @@ public class PaymentService {
         existingPayment.setAbsences(paymentDetails.getAbsences()); // Met à jour la liste des absences
         existingPayment.setMontantCnss(paymentDetails.getMontantCnss());
         existingPayment.setMontantIrpp(paymentDetails.getMontantIrpp());
+        existingPayment.setIrppRate(paymentDetails.getIrppRate());
         existingPayment.setStatus(paymentDetails.getStatus());
         existingPayment.setContrat(paymentDetails.getContrat());
         existingPayment.setPayed(paymentDetails.getPayed());
+        existingPayment.setJustifiedAbsenceDays(paymentDetails.getJustifiedAbsenceDays());
+        existingPayment.setUnjustifiedAbsenceDays(paymentDetails.getUnjustifiedAbsenceDays());
+        existingPayment.setAbsenceDeduction(paymentDetails.getAbsenceDeduction());
 
         // Ne réassigne personnel/company que si explicitement fournis, et seulement après avoir
         // vérifié que la nouvelle cible appartient bien à l'appelant — jamais faire confiance à
@@ -111,9 +115,17 @@ public class PaymentService {
         return saved;
     }
 
+    /**
+     * Un paiement déjà VALIDATED a déjà notifié l'employé par email (voir validatePayment) et
+     * sert de justificatif de paie : le supprimer casserait la traçabilité, donc seul un DRAFT
+     * peut être supprimé (par un ADMIN ou la COMPANY propriétaire, voir checkPaymentAccess).
+     */
     @Transactional
     public void deletePayment(Long id) {
         Payment payment = getPaymentById(id); // vérifie déjà la propriété
+        if ("VALIDATED".equals(payment.getStatus())) {
+            throw new BadRequestException("A validated payment cannot be deleted");
+        }
         paymentRepository.delete(payment);
     }
 
@@ -169,6 +181,8 @@ public class PaymentService {
 
             long unjustifiedDays = AbsenceQuotaCalculator.countAbsenceDaysByPredicate(
                     personnel.getAbsences(), monthStart, monthEnd, a -> !AbsenceQuotaCalculator.isJustified(a));
+            long justifiedDays = AbsenceQuotaCalculator.countJustifiedAbsenceDays(
+                    personnel.getAbsences(), monthStart, monthEnd);
             SalaryCalculationService.SalaryBreakdown salary = salaryCalculationService.compute(
                     nz(contract.getSalaireBase()), nz(contract.getAvantages()), unjustifiedDays);
 
@@ -178,7 +192,11 @@ public class PaymentService {
                     .status("DRAFT")
                     .montantCnss(salary.montantCnss())
                     .montantIrpp(salary.montantIrpp())
+                    .irppRate(salary.irppRate())
                     .payed(salary.net())
+                    .justifiedAbsenceDays((int) justifiedDays)
+                    .unjustifiedAbsenceDays((int) unjustifiedDays)
+                    .absenceDeduction(salary.unjustifiedDeduction())
                     .personnel(personnel)
                     .contrat(contract)
                     .company(personnel.getUser().getCompany())

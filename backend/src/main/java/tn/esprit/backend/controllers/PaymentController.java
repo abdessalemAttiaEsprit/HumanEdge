@@ -67,8 +67,9 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.validatePayment(id));
     }
 
+    /** DRAFT only — a VALIDATED payment cannot be deleted (see PaymentService#deletePayment). */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY')")
     public ResponseEntity<Void> deletePayment(@PathVariable Long id) {
         paymentService.deletePayment(id);
         return ResponseEntity.noContent().build();
