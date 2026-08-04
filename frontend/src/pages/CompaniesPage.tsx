@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Bomb, CheckCircle2, Download, Eye, Lock, Trash2, Unlock } from 'lucide-react';
 import { companiesApi } from '@/api/companies';
 import { fileUrl } from '@/api/axios';
 import { getErrorMessage } from '@/lib/errors';
@@ -8,11 +9,11 @@ import { usePagination } from '@/lib/usePagination';
 import { useEscapeKey } from '@/lib/useEscapeKey';
 import { useConfirm } from '@/lib/useConfirm';
 import { useSort } from '@/lib/useSort';
-import { IconButton } from '@/components/IconButton';
 import { Pagination } from '@/components/Pagination';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { SortableTh } from '@/components/SortableTh';
+import { RowActionsMenu } from '@/components/RowActionsMenu';
 import { useToast } from '@/components/ToastProvider';
 import type { Company } from '@/types';
 
@@ -177,7 +178,8 @@ export function CompaniesPage() {
           onChange={(e) => setSearch(e.target.value)}
         />
         <button className="btn btn--ghost" onClick={() => companiesApi.exportCsv()}>
-          ⬇️ Export CSV
+          <Download size={16} aria-hidden="true" />
+          Export CSV
         </button>
       </div>
 
@@ -233,34 +235,40 @@ export function CompaniesPage() {
                     )}
                   </td>
                   <td className="data-table__actions" data-label="">
-                    <IconButton icon="👁️" label="View details" onClick={() => setViewing(c)} />
-                    {!c.verified && (
-                      <IconButton
-                        icon="✅"
-                        label="Mark as verified"
-                        onClick={() => verifyMutation.mutate(c.idCompany)}
-                        disabled={verifyMutation.isPending}
-                      />
-                    )}
-                    <IconButton
-                      icon={c.active ? '🔒' : '🔓'}
-                      label={c.active ? 'Deactivate' : 'Activate'}
-                      onClick={() => toggleActiveMutation.mutate(c)}
-                      disabled={toggleActiveMutation.isPending}
-                    />
-                    <IconButton
-                      icon="🗑️"
-                      label="Delete"
-                      variant="danger"
-                      onClick={() => handleDelete(c)}
-                      disabled={deleteMutation.isPending}
-                    />
-                    <span className="data-table__actions-divider" aria-hidden="true" />
-                    <IconButton
-                      icon="💣"
-                      label="Force delete (cascade — also wipes users, personnel, contracts, payments…)"
-                      variant="danger"
-                      onClick={() => openForceDelete(c)}
+                    <RowActionsMenu
+                      ariaLabel={`Actions for ${c.companyName}`}
+                      items={[
+                        { label: 'View details', icon: <Eye size={15} aria-hidden="true" />, onClick: () => setViewing(c) },
+                        ...(c.verified
+                          ? []
+                          : [
+                              {
+                                label: 'Mark as verified',
+                                icon: <CheckCircle2 size={15} aria-hidden="true" />,
+                                disabled: verifyMutation.isPending,
+                                onClick: () => verifyMutation.mutate(c.idCompany),
+                              },
+                            ]),
+                        {
+                          label: c.active ? 'Deactivate' : 'Activate',
+                          icon: c.active ? <Lock size={15} aria-hidden="true" /> : <Unlock size={15} aria-hidden="true" />,
+                          disabled: toggleActiveMutation.isPending,
+                          onClick: () => toggleActiveMutation.mutate(c),
+                        },
+                        {
+                          label: 'Delete',
+                          icon: <Trash2 size={15} aria-hidden="true" />,
+                          danger: true,
+                          disabled: deleteMutation.isPending,
+                          onClick: () => handleDelete(c),
+                        },
+                        {
+                          label: 'Force delete (cascade)',
+                          icon: <Bomb size={15} aria-hidden="true" />,
+                          danger: true,
+                          onClick: () => openForceDelete(c),
+                        },
+                      ]}
                     />
                   </td>
                 </tr>

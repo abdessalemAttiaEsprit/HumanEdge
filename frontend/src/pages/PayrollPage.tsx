@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Calculator, CheckCircle2, Download, Pencil, Plus, Receipt, Trash2 } from 'lucide-react';
 import { paymentsApi } from '@/api/payments';
 import { personnelApi } from '@/api/personnel';
 import { companiesApi } from '@/api/companies';
@@ -14,6 +15,7 @@ import { Pagination } from '@/components/Pagination';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { SortableTh } from '@/components/SortableTh';
+import { RowActionsMenu } from '@/components/RowActionsMenu';
 import { useToast } from '@/components/ToastProvider';
 import type { Absence, Month, Payment, PayrollGenerationSummary, Personnel } from '@/types';
 
@@ -150,7 +152,11 @@ function MyPayslips() {
                   <td data-label="Net pay">{p.payed != null ? `${p.payed.toFixed(3)} TND` : '—'}</td>
                   <td data-label="Status"><StatusBadge status={p.status} /></td>
                   <td className="data-table__actions" data-label="">
-                    <IconButton icon="🧾" label="Download PDF" onClick={() => paymentsApi.downloadPayslipPdf(p.id)} />
+                    <IconButton
+                      icon={<Receipt size={15} aria-hidden="true" />}
+                      label="Download PDF"
+                      onClick={() => paymentsApi.downloadPayslipPdf(p.id)}
+                    />
                   </td>
                 </tr>
               ))}
@@ -389,13 +395,16 @@ function ManagePayroll() {
         </div>
         <div className="page__header-actions">
           <button className="btn btn--ghost" onClick={() => paymentsApi.exportCsv()}>
-            ⬇️ Export CSV
+            <Download size={16} aria-hidden="true" />
+            Export CSV
           </button>
           <button className="btn btn--ghost" onClick={openGenerateModal}>
-            🧮 Generate payroll
+            <Calculator size={16} aria-hidden="true" />
+            Generate payroll
           </button>
           <button className="btn btn--primary" onClick={openAddModal}>
-            + Add payment
+            <Plus size={16} aria-hidden="true" />
+            Add payment
           </button>
         </div>
       </div>
@@ -453,25 +462,38 @@ function ManagePayroll() {
                   <td data-label="Net pay">{p.payed != null ? `${p.payed.toFixed(3)} TND` : '—'}</td>
                   <td data-label="Status"><StatusBadge status={p.status} /></td>
                   <td className="data-table__actions" data-label="">
-                    <IconButton icon="✏️" label="Edit" onClick={() => openEditModal(p)} />
-                    {p.status !== 'VALIDATED' && (
-                      <IconButton
-                        icon="✅"
-                        label="Validate"
-                        onClick={() => validateMutation.mutate(p.id)}
-                        disabled={validateMutation.isPending}
-                      />
-                    )}
-                    <IconButton icon="🧾" label="Download payslip PDF" onClick={() => paymentsApi.downloadPayslipPdf(p.id)} />
-                    {isAdmin && (
-                      <IconButton
-                        icon="🗑️"
-                        label="Delete"
-                        variant="danger"
-                        onClick={() => handleDelete(p)}
-                        disabled={deleteMutation.isPending}
-                      />
-                    )}
+                    <IconButton
+                      icon={<Receipt size={15} aria-hidden="true" />}
+                      label="Download payslip PDF"
+                      onClick={() => paymentsApi.downloadPayslipPdf(p.id)}
+                    />
+                    <RowActionsMenu
+                      ariaLabel={`Actions for the payment of ${personnelName(p.personnel)}`}
+                      items={[
+                        { label: 'Edit', icon: <Pencil size={15} aria-hidden="true" />, onClick: () => openEditModal(p) },
+                        ...(p.status !== 'VALIDATED'
+                          ? [
+                              {
+                                label: 'Validate',
+                                icon: <CheckCircle2 size={15} aria-hidden="true" />,
+                                disabled: validateMutation.isPending,
+                                onClick: () => validateMutation.mutate(p.id),
+                              },
+                            ]
+                          : []),
+                        ...(isAdmin
+                          ? [
+                              {
+                                label: 'Delete',
+                                icon: <Trash2 size={15} aria-hidden="true" />,
+                                danger: true,
+                                disabled: deleteMutation.isPending,
+                                onClick: () => handleDelete(p),
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

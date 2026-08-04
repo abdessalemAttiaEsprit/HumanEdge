@@ -17,8 +17,7 @@ helm install argocd argo/argo-cd --namespace argocd
 ## Récupérer le mot de passe admin initial
 
 ```bash
-kubectl -n argocd get secret argocd-initial-admin-secret \
-  -o jsonpath='{.data.password}' | base64 -d
+kubectl -n argocd get secret argocd-initial-admin-secret  -o jsonpath='{.data.password}' | base64 -d
 ```
 
 ## Accéder à l'UI (sans exposer Argo CD publiquement, pour ne pas ajouter un 2e Ingress)

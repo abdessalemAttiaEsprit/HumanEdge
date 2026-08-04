@@ -2,16 +2,18 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
+import { Trash2, UserPlus } from 'lucide-react';
 import { interviewsApi } from '@/api/interviews';
 import { candidatesApi } from '@/api/candidates';
 import { useAuth } from '@/auth/useAuth';
 import { getErrorMessage } from '@/lib/errors';
 import { useConfirm } from '@/lib/useConfirm';
 import { useSort } from '@/lib/useSort';
-import { IconButton } from '@/components/IconButton';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { SortableTh } from '@/components/SortableTh';
+import { RowActionsMenu } from '@/components/RowActionsMenu';
+import { InterviewCalendar } from '@/components/InterviewCalendar';
 import { useToast } from '@/components/ToastProvider';
 import type { Interview, InterviewStatus } from '@/types';
 
@@ -141,6 +143,8 @@ function MyInterviews() {
           </table>
         </div>
       )}
+
+      {sorted.length > 0 && <InterviewCalendar interviews={sorted} />}
     </div>
   );
 }
@@ -296,19 +300,26 @@ function ManageInterviews() {
                     </select>
                   </td>
                   <td className="data-table__actions" data-label="">
-                    {iv.status === 'COMPLETED' && (
-                      <IconButton
-                        icon="➕"
-                        label="Suggestion: add this candidate as an employee"
-                        onClick={() => handleAddAsEmployee(iv)}
-                      />
-                    )}
-                    <IconButton
-                      icon="🗑️"
-                      label="Delete"
-                      variant="danger"
-                      onClick={() => handleDelete(iv)}
-                      disabled={deleteMutation.isPending}
+                    <RowActionsMenu
+                      ariaLabel={`Actions for the interview with ${candidateName(iv)}`}
+                      items={[
+                        ...(iv.status === 'COMPLETED'
+                          ? [
+                              {
+                                label: 'Add as employee',
+                                icon: <UserPlus size={15} aria-hidden="true" />,
+                                onClick: () => handleAddAsEmployee(iv),
+                              },
+                            ]
+                          : []),
+                        {
+                          label: 'Delete',
+                          icon: <Trash2 size={15} aria-hidden="true" />,
+                          danger: true,
+                          disabled: deleteMutation.isPending,
+                          onClick: () => handleDelete(iv),
+                        },
+                      ]}
                     />
                   </td>
                 </tr>
@@ -317,6 +328,8 @@ function ManageInterviews() {
           </table>
         </div>
       )}
+
+      {filtered.length > 0 && <InterviewCalendar interviews={sorted} />}
 
       <ConfirmDialog options={confirmOptions} onConfirm={handleConfirm} onCancel={closeConfirm} />
     </div>

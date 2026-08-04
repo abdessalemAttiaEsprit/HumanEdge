@@ -1,5 +1,6 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { Fragment, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronDown, Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { contractsApi } from '@/api/contracts';
 import { personnelApi } from '@/api/personnel';
 import { paymentsApi } from '@/api/payments';
@@ -7,11 +8,11 @@ import { getErrorMessage } from '@/lib/errors';
 import { usePagination } from '@/lib/usePagination';
 import { useConfirm } from '@/lib/useConfirm';
 import { useSort } from '@/lib/useSort';
-import { IconButton } from '@/components/IconButton';
 import { Pagination } from '@/components/Pagination';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { SortableTh } from '@/components/SortableTh';
+import { RowActionsMenu } from '@/components/RowActionsMenu';
 import { useToast } from '@/components/ToastProvider';
 import type { Contract, ContractCreateRequest, ContractUpdateRequest, Personnel, TypeContrat } from '@/types';
 
@@ -46,6 +47,10 @@ function personnelName(p?: Personnel): string {
   return `${p.user.firstname} ${p.user.lastname}`;
 }
 
+function formatAmount(value?: number): string | undefined {
+  return value != null ? `${value.toFixed(3)} TND` : undefined;
+}
+
 export function ContractsPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -58,6 +63,9 @@ export function ContractsPage() {
   const [createForm, setCreateForm] = useState(EMPTY_CREATE);
   const [editForm, setEditForm] = useState<EditState | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const toggleExpand = (id: number) => setExpandedId((cur) => (cur === id ? null : id));
 
   const { data: contracts, isLoading, isError } = useQuery({
     queryKey: ['contracts'],
@@ -231,10 +239,12 @@ export function ContractsPage() {
         </div>
         <div className="page__header-actions">
           <button className="btn btn--ghost" onClick={() => contractsApi.exportCsv()}>
-            ⬇️ Export CSV
+            <Download size={16} aria-hidden="true" />
+            Export CSV
           </button>
           <button className="btn btn--primary" onClick={openAddModal}>
-            + Add contract
+            <Plus size={16} aria-hidden="true" />
+            Add contract
           </button>
         </div>
       </div>
@@ -249,7 +259,7 @@ export function ContractsPage() {
         />
       </div>
 
-      {isLoading && <TableSkeleton columns={8} />}
+      {isLoading && <TableSkeleton columns={7} />}
       {isError && <p className="jobs__status">Unable to load contracts.</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
@@ -264,6 +274,7 @@ export function ContractsPage() {
           <table className="data-table">
             <thead>
               <tr>
+                <th className="w-icon"></th>
                 <SortableTh
                   label="Employee"
                   sortKey="employee"
@@ -275,60 +286,90 @@ export function ContractsPage() {
                 <SortableTh label="Type" sortKey="type" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <SortableTh label="Start" sortKey="start" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <SortableTh label="End" sortKey="end" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh
-                  label="Category"
-                  sortKey="category"
-                  activeKey={sortKey}
-                  direction={direction}
-                  onSort={toggleSort}
-                />
-                <SortableTh
-                  label="Base salary"
-                  sortKey="salary"
-                  activeKey={sortKey}
-                  direction={direction}
-                  onSort={toggleSort}
-                />
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {pageItems.map((c) => {
                 const employee = personnelByContractId.get(c.idContract);
+                const expanded = expandedId === c.idContract;
                 return (
-                  <tr key={c.idContract}>
-                    <td data-label="Employee">
-                      {employee ? (
-                        personnelName(employee)
-                      ) : (
-                        <span className="badge badge--muted">Unassigned</span>
-                      )}
-                    </td>
-                    <td data-label="Role">{c.work || '—'}</td>
-                    <td data-label="Type">
-                      {c.typeContrat ? (
-                        <span className="badge badge--soft">{TYPE_LABEL[c.typeContrat]}</span>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td data-label="Start">{c.dateDebut || '—'}</td>
-                    <td data-label="End">{c.dateFin || '—'}</td>
-                    <td data-label="Category">
-                      {c.categorie} {c.echelon ? `· step ${c.echelon}` : ''}
-                    </td>
-                    <td data-label="Base salary">{c.salaireBase != null ? `${c.salaireBase.toFixed(3)} TND` : '—'}</td>
-                    <td className="data-table__actions" data-label="">
-                      <IconButton icon="✏️" label="Edit" onClick={() => openEditModal(c)} />
-                      <IconButton
-                        icon="🗑️"
-                        label="Delete"
-                        variant="danger"
-                        onClick={() => handleDelete(c)}
-                        disabled={deleteMutation.isPending}
-                      />
-                    </td>
-                  </tr>
+                  <Fragment key={c.idContract}>
+                    <tr className={expanded ? 'data-table__row--expanded' : ''}>
+                      <td data-label="">
+                        <button
+                          type="button"
+                          className={`data-table__expand-toggle${expanded ? ' data-table__expand-toggle--open' : ''}`}
+                          onClick={() => toggleExpand(c.idContract)}
+                          aria-label={expanded ? 'Hide salary details' : 'Show salary details'}
+                          title={expanded ? 'Hide salary details' : 'Show salary details'}
+                        >
+                          <ChevronDown size={16} aria-hidden="true" />
+                        </button>
+                      </td>
+                      <td data-label="Employee">
+                        {employee ? (
+                          personnelName(employee)
+                        ) : (
+                          <span className="badge badge--muted">Unassigned</span>
+                        )}
+                      </td>
+                      <td data-label="Role">{c.work || '—'}</td>
+                      <td data-label="Type">
+                        {c.typeContrat ? (
+                          <span className="badge badge--soft">{TYPE_LABEL[c.typeContrat]}</span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td data-label="Start">{c.dateDebut || '—'}</td>
+                      <td data-label="End">{c.dateFin || '—'}</td>
+                      <td className="data-table__actions" data-label="">
+                        <RowActionsMenu
+                          ariaLabel={`Actions for the contract of ${personnelName(employee)}`}
+                          items={[
+                            { label: 'Edit', icon: <Pencil size={15} aria-hidden="true" />, onClick: () => openEditModal(c) },
+                            {
+                              label: 'Delete',
+                              icon: <Trash2 size={15} aria-hidden="true" />,
+                              danger: true,
+                              disabled: deleteMutation.isPending,
+                              onClick: () => handleDelete(c),
+                            },
+                          ]}
+                        />
+                      </td>
+                    </tr>
+                    {expanded && (
+                      <tr className="data-table__expanded-row">
+                        <td colSpan={7}>
+                          <div className="contract-panel">
+                            <div className="contract-panel__grid">
+                              <div className="contract-panel__item">
+                                <span className="contract-panel__label">Category</span>
+                                <span className="contract-panel__value">
+                                  {c.categorie} {c.echelon ? `· step ${c.echelon}` : ''}
+                                </span>
+                              </div>
+                              {[
+                                ['Base salary', formatAmount(c.salaireBase)],
+                                ['Supplementary salary', formatAmount(c.salaireComplementaire)],
+                                ['Overtime hourly rate', formatAmount(c.tauxHoraireSup)],
+                                ['Allowances', formatAmount(c.avantages)],
+                              ]
+                                .filter((entry): entry is [string, string] => !!entry[1])
+                                .map(([label, value]) => (
+                                  <div className="contract-panel__item" key={label}>
+                                    <span className="contract-panel__label">{label}</span>
+                                    <span className="contract-panel__value">{value}</span>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>

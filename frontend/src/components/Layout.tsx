@@ -1,9 +1,11 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
 import { useAuth } from '@/auth/useAuth';
 import { navItemsForRole } from '@/config/navigation';
 import { fileUrl } from '@/api/axios';
 import { useTheme } from '@/lib/useTheme';
 import { NotificationBell } from './NotificationBell';
+import { ThemeSwitch } from './ThemeSwitch';
 
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Administrator',
@@ -30,39 +32,14 @@ export function Layout() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="sidebar__brand">
-          <img className="sidebar__brand-full" src="/assets/logo.png" alt="HumanEdge" />
-          <img className="sidebar__brand-icon" src="/assets/favicon.png" alt="HumanEdge" />
-        </div>
-        <nav className="sidebar__nav">
-          {items.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.path === '/dashboard'}
-              className={({ isActive }) => `nav-link${isActive ? ' nav-link--active' : ''}`}
-            >
-              <span className="nav-link__icon">{item.icon}</span>
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
-
       <div className="app-main">
         <header className="topbar">
+          <div className="topbar__brand">
+            <img className="topbar__brand-logo" src="/assets/favicon.png" alt="HumanEdge" />
+          </div>
           <div className="topbar__role">{ROLE_LABEL[user.role] ?? user.role}</div>
           <div className="topbar__user">
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={toggleTheme}
-              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              <span aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span>
-            </button>
+            <ThemeSwitch theme={theme} onToggle={toggleTheme} />
             <NotificationBell />
             <Link to="/profile" className="topbar__user-link" title="My profile">
               {avatar ? (
@@ -78,6 +55,7 @@ export function Layout() {
               </div>
             </Link>
             <button className="btn btn--ghost" onClick={handleLogout}>
+              <LogOut size={16} aria-hidden="true" />
               Log out
             </button>
           </div>
@@ -87,6 +65,22 @@ export function Layout() {
           <Outlet />
         </main>
       </div>
+
+      <nav className="bottom-nav">
+        {items.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            end={item.path === '/dashboard'}
+            className={({ isActive }) => `bottom-nav__link${isActive ? ' bottom-nav__link--active' : ''}`}
+          >
+            <span className="bottom-nav__icon">
+              {item.iconSrc ? <img src={item.iconSrc} alt="" aria-hidden="true" /> : item.icon}
+            </span>
+            <span className="bottom-nav__label">{item.label}</span>
+          </NavLink>
+        ))}
+      </nav>
     </div>
   );
 }

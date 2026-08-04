@@ -12,7 +12,8 @@
       "Bash(kill 124)",
       "Bash(taskkill //F //IM java.exe //T)",
       "Bash(powershell -Command 'Get-Process | Where-Object {$_.ProcessName -like '\\\\''*mysql*'\\\\''} | Select-Object ProcessName,Id,StartTime')",
-      "Bash(./mvnw.cmd -q -o clean package -DskipTests)"
+      "Bash(./mvnw.cmd -q -o clean package -DskipTests)",
+      "Bash(gcloud container *)"
     ]
   }
 }

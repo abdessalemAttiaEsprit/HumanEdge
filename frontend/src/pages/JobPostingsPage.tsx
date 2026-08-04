@@ -1,24 +1,27 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { Fragment, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
+import { CalendarCheck, ChevronDown, Eye, FileText, Lock, Pencil, Plus, Trash2, Unlock } from 'lucide-react';
 import { jobPostingsApi } from '@/api/jobPostings';
 import { publicJobsApi } from '@/api/publicJobs';
 import { companiesApi } from '@/api/companies';
 import { candidatesApi } from '@/api/candidates';
 import { applicationsApi } from '@/api/applications';
+import { interviewsApi } from '@/api/interviews';
 import { useAuth } from '@/auth/useAuth';
 import { getErrorMessage } from '@/lib/errors';
 import { useConfirm } from '@/lib/useConfirm';
+import { useEscapeKey } from '@/lib/useEscapeKey';
 import { useSort } from '@/lib/useSort';
-import { IconButton } from '@/components/IconButton';
 import { Pagination } from '@/components/Pagination';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { SortableTh } from '@/components/SortableTh';
+import { RowActionsMenu } from '@/components/RowActionsMenu';
 import { useToast } from '@/components/ToastProvider';
 import { usePagination } from '@/lib/usePagination';
-import type { Company, JobPosting, JobPostingCreateRequest, PublicJobResponse, TypeContrat } from '@/types';
+import type { Application, Company, JobPosting, JobPostingCreateRequest, PublicJobResponse, TypeContrat } from '@/types';
 
 const TYPE_LABEL: Record<TypeContrat, string> = {
   CDI: 'Permanent',
@@ -71,6 +74,201 @@ function getJobSortValue(j: JobPosting, key: JobSortKey): string | number {
     case 'status':
       return j.status ?? '';
   }
+}
+
+function applicantName(a: Application): string {
+  const c = a.candidate;
+  if (!c) return '—';
+  return [c.firstName, c.lastName].filter(Boolean).join(' ') || '—';
+}
+
+function applicationStatusBadgeClass(status?: string): string {
+  if (status === 'ACCEPTED') return 'badge badge--success';
+  if (status === 'REJECTED') return 'badge badge--danger';
+  if (status === 'SHORTLISTED') return 'badge badge--warning';
+  if (status === 'UNDER_REVIEW') return 'badge badge--soft';
+  return 'badge badge--muted';
+}
+
+interface JobPostingRowProps {
+  job: JobPosting;
+  isAdmin: boolean;
+  columnCount: number;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onEdit: () => void;
+  onToggleStatus: () => void;
+  statusPending: boolean;
+  onDelete: () => void;
+  deletePending: boolean;
+  onViewCandidateCv: (a: Application) => void;
+  onViewCandidateProfile: (a: Application) => void;
+  onAcceptCandidate: (a: Application) => void;
+  onDeleteApplication: (a: Application) => void;
+}
+
+function JobPostingRow({
+  job,
+  isAdmin,
+  columnCount,
+  expanded,
+  onToggleExpand,
+  onEdit,
+  onToggleStatus,
+  statusPending,
+  onDelete,
+  deletePending,
+  onViewCandidateCv,
+  onViewCandidateProfile,
+  onAcceptCandidate,
+  onDeleteApplication,
+}: JobPostingRowProps) {
+  const { data: applications, isLoading: applicationsLoading } = useQuery({
+    queryKey: ['applications', 'by-job', job.id],
+    queryFn: () => applicationsApi.listByJob(job.id),
+    enabled: expanded,
+  });
+
+  return (
+    <Fragment>
+      <tr
+        className={`data-table__row--clickable${expanded ? ' data-table__row--expanded' : ''}`}
+        onClick={onToggleExpand}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggleExpand();
+          }
+        }}
+        tabIndex={0}
+        role="button"
+        aria-expanded={expanded}
+      >
+        <td data-label="">
+          <span
+            className={`data-table__expand-toggle${expanded ? ' data-table__expand-toggle--open' : ''}`}
+            aria-hidden="true"
+          >
+            <ChevronDown size={16} aria-hidden="true" />
+          </span>
+        </td>
+        <td data-label="Title">{job.title}</td>
+        <td data-label="Department">{job.department || '—'}</td>
+        <td data-label="Type">{job.jobType ? TYPE_LABEL[job.jobType] : '—'}</td>
+        {isAdmin && <td data-label="Company">{job.createdByCompany?.companyName ?? '—'}</td>}
+        <td data-label="Deadline">{job.deadline ? job.deadline.slice(0, 10) : '—'}</td>
+        <td data-label="Status">
+          {job.status === 'OPEN' ? (
+            <span className="badge badge--success">Open</span>
+          ) : (
+            <span className="badge badge--muted">{job.status || 'Closed'}</span>
+          )}
+        </td>
+        <td className="data-table__actions" data-label="" onClick={(e) => e.stopPropagation()}>
+          <RowActionsMenu
+            ariaLabel={`Actions for ${job.title}`}
+            items={[
+              { label: 'Edit', icon: <Pencil size={15} aria-hidden="true" />, onClick: onEdit },
+              {
+                label: job.status === 'OPEN' ? 'Close' : 'Reopen',
+                icon:
+                  job.status === 'OPEN' ? <Lock size={15} aria-hidden="true" /> : <Unlock size={15} aria-hidden="true" />,
+                disabled: statusPending,
+                onClick: onToggleStatus,
+              },
+              {
+                label: 'Delete',
+                icon: <Trash2 size={15} aria-hidden="true" />,
+                danger: true,
+                disabled: deletePending,
+                onClick: onDelete,
+              },
+            ]}
+          />
+        </td>
+      </tr>
+      {expanded && (
+        <tr className="data-table__expanded-row">
+          <td colSpan={columnCount}>
+            <div className="contract-panel">
+              <div className="contract-panel__grid">
+                <div className="contract-panel__item">
+                  <span className="contract-panel__label">Description</span>
+                  <span className="contract-panel__value">{job.description || '—'}</span>
+                </div>
+                <div className="contract-panel__item">
+                  <span className="contract-panel__label">Required skills</span>
+                  <span className="contract-panel__value">
+                    {job.requiredSkills?.length ? job.requiredSkills.join(', ') : '—'}
+                  </span>
+                </div>
+              </div>
+
+              <h4 className="contract-panel__section-title">Candidates for this posting</h4>
+              {applicationsLoading && <p className="field-hint">Loading candidates…</p>}
+              {!applicationsLoading && (applications?.length ?? 0) === 0 && (
+                <p className="field-hint">No applications yet.</p>
+              )}
+              {!applicationsLoading && (applications?.length ?? 0) > 0 && (
+                <table className="data-table data-table--nested">
+                  <thead>
+                    <tr>
+                      <th>Candidate</th>
+                      <th>Status</th>
+                      <th>Applied</th>
+                      <th>AI score</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {applications!.map((a) => (
+                      <tr key={a.id} onClick={(e) => e.stopPropagation()}>
+                        <td data-label="Candidate">{applicantName(a)}</td>
+                        <td data-label="Status">
+                          <span className={applicationStatusBadgeClass(a.status)}>{a.status || '—'}</span>
+                        </td>
+                        <td data-label="Applied">{a.appliedDate ? a.appliedDate.slice(0, 10) : '—'}</td>
+                        <td data-label="AI score">{a.aiScore != null ? a.aiScore.toFixed(1) : '—'}</td>
+                        <td className="data-table__actions" data-label="">
+                          <RowActionsMenu
+                            ariaLabel={`Actions for the candidature of ${applicantName(a)}`}
+                            items={[
+                              {
+                                label: 'View CV',
+                                icon: <FileText size={15} aria-hidden="true" />,
+                                disabled: !a.candidate?.cvFileId,
+                                onClick: () => onViewCandidateCv(a),
+                              },
+                              {
+                                label: 'Profile',
+                                icon: <Eye size={15} aria-hidden="true" />,
+                                onClick: () => onViewCandidateProfile(a),
+                              },
+                              {
+                                label: 'Accept → schedule interview',
+                                icon: <CalendarCheck size={15} aria-hidden="true" />,
+                                onClick: () => onAcceptCandidate(a),
+                              },
+                              {
+                                label: 'Delete',
+                                icon: <Trash2 size={15} aria-hidden="true" />,
+                                danger: true,
+                                onClick: () => onDeleteApplication(a),
+                              },
+                            ]}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  );
 }
 
 export function JobPostingsPage() {
@@ -236,6 +434,14 @@ function ManageJobPostings() {
   const [companyId, setCompanyId] = useState<number | ''>('');
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [viewingCandidateApp, setViewingCandidateApp] = useState<Application | null>(null);
+  const [scheduling, setScheduling] = useState<Application | null>(null);
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleLocation, setScheduleLocation] = useState('');
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+
+  const toggleExpand = (id: number) => setExpandedId((cur) => (cur === id ? null : id));
 
   // ADMIN voit toutes les offres de la plateforme (navigation) ; COMPANY récupère
   // directement les siennes via un endpoint scopé côté serveur plutôt que de télécharger
@@ -293,6 +499,28 @@ function ManageJobPostings() {
       toast.showSuccess('Job posting deleted.');
     },
     onError: (err) => toast.showError(getErrorMessage(err, 'Unable to delete the job posting')),
+  });
+
+  const deleteApplicationMutation = useMutation({
+    mutationFn: applicationsApi.remove,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      toast.showSuccess('Application deleted.');
+    },
+    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to delete this application')),
+  });
+
+  const scheduleMutation = useMutation({
+    mutationFn: ({ id, date, location }: { id: number; date: string; location: string }) =>
+      interviewsApi.schedule(id, date, location),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({ queryKey: ['interviews'] });
+      setScheduling(null);
+      setScheduleError(null);
+      toast.showSuccess('Interview scheduled.');
+    },
+    onError: (err) => setScheduleError(getErrorMessage(err, 'Unable to schedule the interview')),
   });
 
   const statusMutation = useMutation({
@@ -360,6 +588,38 @@ function ManageJobPostings() {
     statusMutation.mutate({ id: job.id, status: next });
   };
 
+  const handleViewCandidateCv = (a: Application) => {
+    if (!a.candidate) return;
+    candidatesApi.downloadCv(a.candidate.id, a.candidate.cvFileId);
+  };
+
+  const openScheduleForApplication = (a: Application) => {
+    setScheduling(a);
+    setScheduleDate('');
+    setScheduleLocation('');
+    setScheduleError(null);
+  };
+
+  const handleScheduleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!scheduling) return;
+    setScheduleError(null);
+    scheduleMutation.mutate({ id: scheduling.id, date: `${scheduleDate}:00`, location: scheduleLocation });
+  };
+
+  const handleDeleteApplication = (a: Application) => {
+    requestConfirm({
+      title: 'Delete application',
+      message: `Delete the application from ${applicantName(a)}? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: () => deleteApplicationMutation.mutate(a.id),
+    });
+  };
+
+  useEscapeKey(() => setViewingCandidateApp(null), !!viewingCandidateApp);
+  useEscapeKey(() => setScheduling(null), !!scheduling);
+
   return (
     <div>
       <div className="page__header page__header--row">
@@ -368,7 +628,8 @@ function ManageJobPostings() {
           <p className="page__subtitle">Publish and manage your open positions.</p>
         </div>
         <button className="btn btn--primary" onClick={openAddModal}>
-          + Add job posting
+          <Plus size={16} aria-hidden="true" />
+          Add job posting
         </button>
       </div>
 
@@ -382,7 +643,7 @@ function ManageJobPostings() {
         />
       </div>
 
-      {isLoading && <TableSkeleton columns={isAdmin ? 7 : 6} />}
+      {isLoading && <TableSkeleton columns={isAdmin ? 8 : 7} />}
       {isError && <p className="jobs__status">Unable to load job postings.</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
@@ -397,6 +658,7 @@ function ManageJobPostings() {
           <table className="data-table">
             <thead>
               <tr>
+                <th className="w-icon"></th>
                 <SortableTh label="Title" sortKey="title" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <SortableTh
                   label="Department"
@@ -428,36 +690,23 @@ function ManageJobPostings() {
             </thead>
             <tbody>
               {pageItems.map((job) => (
-                <tr key={job.id}>
-                  <td data-label="Title">{job.title}</td>
-                  <td data-label="Department">{job.department || '—'}</td>
-                  <td data-label="Type">{job.jobType ? TYPE_LABEL[job.jobType] : '—'}</td>
-                  {isAdmin && <td data-label="Company">{job.createdByCompany?.companyName ?? '—'}</td>}
-                  <td data-label="Deadline">{job.deadline ? job.deadline.slice(0, 10) : '—'}</td>
-                  <td data-label="Status">
-                    {job.status === 'OPEN' ? (
-                      <span className="badge badge--success">Open</span>
-                    ) : (
-                      <span className="badge badge--muted">{job.status || 'Closed'}</span>
-                    )}
-                  </td>
-                  <td className="data-table__actions" data-label="">
-                    <IconButton icon="✏️" label="Edit" onClick={() => openEditModal(job)} />
-                    <IconButton
-                      icon={job.status === 'OPEN' ? '🔒' : '🔓'}
-                      label={job.status === 'OPEN' ? 'Close' : 'Reopen'}
-                      onClick={() => toggleStatus(job)}
-                      disabled={statusMutation.isPending}
-                    />
-                    <IconButton
-                      icon="🗑️"
-                      label="Delete"
-                      variant="danger"
-                      onClick={() => handleDelete(job)}
-                      disabled={deleteMutation.isPending}
-                    />
-                  </td>
-                </tr>
+                <JobPostingRow
+                  key={job.id}
+                  job={job}
+                  isAdmin={isAdmin}
+                  columnCount={isAdmin ? 8 : 7}
+                  expanded={expandedId === job.id}
+                  onToggleExpand={() => toggleExpand(job.id)}
+                  onEdit={() => openEditModal(job)}
+                  onToggleStatus={() => toggleStatus(job)}
+                  statusPending={statusMutation.isPending}
+                  onDelete={() => handleDelete(job)}
+                  deletePending={deleteMutation.isPending}
+                  onViewCandidateCv={handleViewCandidateCv}
+                  onViewCandidateProfile={setViewingCandidateApp}
+                  onAcceptCandidate={openScheduleForApplication}
+                  onDeleteApplication={handleDeleteApplication}
+                />
               ))}
             </tbody>
           </table>
@@ -621,6 +870,88 @@ function ManageJobPostings() {
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={updateMutation.isPending}>
                   {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {viewingCandidateApp && (
+        <div className="modal-overlay" onClick={() => setViewingCandidateApp(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>{applicantName(viewingCandidateApp)}</h2>
+            <div className="detail-grid">
+              <div className="detail-grid__item">
+                <span>Email</span>
+                <strong>{viewingCandidateApp.candidate?.email || '—'}</strong>
+              </div>
+              <div className="detail-grid__item">
+                <span>Phone</span>
+                <strong>{viewingCandidateApp.candidate?.phoneNumber || '—'}</strong>
+              </div>
+              <div className="detail-grid__item">
+                <span>CIN</span>
+                <strong>{viewingCandidateApp.candidate?.cin || '—'}</strong>
+              </div>
+              <div className="detail-grid__item">
+                <span>Experience</span>
+                <strong>
+                  {viewingCandidateApp.candidate?.yearsOfExperience != null
+                    ? `${viewingCandidateApp.candidate.yearsOfExperience} yrs`
+                    : '—'}
+                </strong>
+              </div>
+              <div className="detail-grid__item">
+                <span>Applied for</span>
+                <strong>{viewingCandidateApp.jobPosting?.title || '—'}</strong>
+              </div>
+              <div className="detail-grid__item">
+                <span>Status</span>
+                <strong>{viewingCandidateApp.status || '—'}</strong>
+              </div>
+            </div>
+            <div className="modal__actions">
+              <button type="button" className="btn btn--ghost" onClick={() => setViewingCandidateApp(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {scheduling && (
+        <div className="modal-overlay" onClick={() => setScheduling(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Schedule interview — {applicantName(scheduling)}</h2>
+            <form onSubmit={handleScheduleSubmit}>
+              {scheduleError && <div className="alert alert--error">{scheduleError}</div>}
+              <div className="fieldset">
+                <label className="field">
+                  <span>Date &amp; time</span>
+                  <input
+                    type="datetime-local"
+                    value={scheduleDate}
+                    onChange={(e) => setScheduleDate(e.target.value)}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Location</span>
+                  <input
+                    value={scheduleLocation}
+                    onChange={(e) => setScheduleLocation(e.target.value)}
+                    placeholder="e.g. Office 3B or a video call link"
+                    required
+                  />
+                </label>
+              </div>
+              <div className="modal__actions">
+                <button type="button" className="btn btn--ghost" onClick={() => setScheduling(null)}>
+                  Cancel
+                </button>
+                <button className="btn btn--primary" type="submit" disabled={scheduleMutation.isPending}>
+                  {scheduleMutation.isPending ? 'Scheduling…' : 'Accept & schedule interview'}
                 </button>
               </div>
             </form>

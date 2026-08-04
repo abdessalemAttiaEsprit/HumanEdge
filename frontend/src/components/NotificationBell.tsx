@@ -85,7 +85,7 @@ export function NotificationBell() {
         aria-label="Notifications"
         title="Notifications"
       >
-        <span aria-hidden="true">🔔</span>
+        <img src="/assets/icons/notifications.png" alt="" aria-hidden="true" />
         {!!unreadCount && unreadCount > 0 && (
           <span className="notification-bell__badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
         )}

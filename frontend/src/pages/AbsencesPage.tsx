@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { BarChart3, Download, Paperclip, Pencil, Plus, Trash2 } from 'lucide-react';
 import { absencesApi } from '@/api/absences';
 import { personnelApi } from '@/api/personnel';
 import { useAuth } from '@/auth/useAuth';
@@ -12,6 +13,7 @@ import { Pagination } from '@/components/Pagination';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { SortableTh } from '@/components/SortableTh';
+import { RowActionsMenu } from '@/components/RowActionsMenu';
 import { useToast } from '@/components/ToastProvider';
 import type { Absence, AbsenceCreateRequest, Personnel, QuotaSnapshot } from '@/types';
 
@@ -226,7 +228,7 @@ function MyAbsences() {
                   <td data-label="Justification">
                     {a.justification ? (
                       <IconButton
-                        icon="📎"
+                        icon={<Paperclip size={15} aria-hidden="true" />}
                         label="Download justification"
                         onClick={() => absencesApi.downloadJustification(a.idAbsence, a.justification)}
                       />
@@ -511,10 +513,12 @@ function ManagerAbsences() {
         </div>
         <div className="page__header-actions">
           <button className="btn btn--ghost" onClick={() => absencesApi.exportCsv()}>
-            ⬇️ Export CSV
+            <Download size={16} aria-hidden="true" />
+            Export CSV
           </button>
           <button className="btn btn--primary" onClick={openAddModal}>
-            + Add absence
+            <Plus size={16} aria-hidden="true" />
+            Add absence
           </button>
         </div>
       </div>
@@ -573,26 +577,31 @@ function ManagerAbsences() {
                       )}
                     </td>
                     <td className="data-table__actions" data-label="">
-                      <IconButton icon="✏️" label="Edit" onClick={() => openEditModal(a)} />
                       {a.justification && (
                         <IconButton
-                          icon="📎"
+                          icon={<Paperclip size={15} aria-hidden="true" />}
                           label="Download justification"
                           onClick={() => absencesApi.downloadJustification(a.idAbsence, a.justification)}
                         />
                       )}
-                      <IconButton
-                        icon="📊"
-                        label="View quota"
-                        disabled={!employee}
-                        onClick={() => employee && setQuotaFor(employee)}
-                      />
-                      <IconButton
-                        icon="🗑️"
-                        label="Delete"
-                        variant="danger"
-                        onClick={() => handleDelete(a)}
-                        disabled={deleteMutation.isPending}
+                      <RowActionsMenu
+                        ariaLabel={`Actions for the absence of ${personnelName(employee)}`}
+                        items={[
+                          { label: 'Edit', icon: <Pencil size={15} aria-hidden="true" />, onClick: () => openEditModal(a) },
+                          {
+                            label: 'View quota',
+                            icon: <BarChart3 size={15} aria-hidden="true" />,
+                            disabled: !employee,
+                            onClick: () => employee && setQuotaFor(employee),
+                          },
+                          {
+                            label: 'Delete',
+                            icon: <Trash2 size={15} aria-hidden="true" />,
+                            danger: true,
+                            disabled: deleteMutation.isPending,
+                            onClick: () => handleDelete(a),
+                          },
+                        ]}
                       />
                     </td>
                   </tr>
@@ -694,6 +703,7 @@ function ManagerAbsences() {
                     className="btn btn--ghost btn--sm"
                     onClick={() => absencesApi.downloadJustification(editing.idAbsence, editing.justification)}
                   >
+                    <Paperclip size={14} aria-hidden="true" />
                     Download current justification
                   </button>
                 )}

@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
+import { Bot, CalendarClock, ChevronDown, Download, Eye, Trash2 } from 'lucide-react';
 import { applicationsApi } from '@/api/applications';
 import { candidatesApi } from '@/api/candidates';
 import { interviewsApi } from '@/api/interviews';
@@ -11,11 +12,11 @@ import { usePagination } from '@/lib/usePagination';
 import { useEscapeKey } from '@/lib/useEscapeKey';
 import { useConfirm } from '@/lib/useConfirm';
 import { useSort } from '@/lib/useSort';
-import { IconButton } from '@/components/IconButton';
 import { Pagination } from '@/components/Pagination';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { SortableTh } from '@/components/SortableTh';
+import { RowActionsMenu } from '@/components/RowActionsMenu';
 import { useToast } from '@/components/ToastProvider';
 import type { Application, ApplicationStatus } from '@/types';
 
@@ -300,7 +301,8 @@ function ManageApplications() {
             onClick={() => applicationsApi.exportCsv()}
             title="Export the visible applications to a CSV file"
           >
-            ⬇️ Export CSV
+            <Download size={16} aria-hidden="true" />
+            Export CSV
           </button>
           <button
             type="button"
@@ -397,7 +399,11 @@ function ManageApplications() {
                             title={expandedFeedbackId === a.id ? 'Hide AI feedback' : 'Show AI feedback'}
                             aria-label={expandedFeedbackId === a.id ? 'Hide AI feedback' : 'Show AI feedback'}
                           >
-                            {expandedFeedbackId === a.id ? '▲' : '▼'}
+                            <ChevronDown
+                              size={14}
+                              aria-hidden="true"
+                              style={{ transform: expandedFeedbackId === a.id ? 'rotate(180deg)' : undefined }}
+                            />
                           </button>
                         )}
                       </div>
@@ -418,20 +424,29 @@ function ManageApplications() {
                       </select>
                     </td>
                     <td className="data-table__actions" data-label="">
-                      <IconButton icon="👁️" label="View" onClick={() => setViewing(a)} />
-                      <IconButton
-                        icon="🤖"
-                        label="Evaluate (AI)"
-                        onClick={() => evaluateMutation.mutate(a.id)}
-                        disabled={evaluateMutation.isPending}
-                      />
-                      <IconButton icon="📅" label="Schedule interview" onClick={() => openSchedule(a)} />
-                      <IconButton
-                        icon="🗑️"
-                        label="Delete"
-                        variant="danger"
-                        onClick={() => handleDelete(a)}
-                        disabled={deleteMutation.isPending}
+                      <RowActionsMenu
+                        ariaLabel={`Actions for the application from ${candidateName(a)}`}
+                        items={[
+                          { label: 'View', icon: <Eye size={15} aria-hidden="true" />, onClick: () => setViewing(a) },
+                          {
+                            label: 'Evaluate (AI)',
+                            icon: <Bot size={15} aria-hidden="true" />,
+                            disabled: evaluateMutation.isPending,
+                            onClick: () => evaluateMutation.mutate(a.id),
+                          },
+                          {
+                            label: 'Schedule interview',
+                            icon: <CalendarClock size={15} aria-hidden="true" />,
+                            onClick: () => openSchedule(a),
+                          },
+                          {
+                            label: 'Delete',
+                            icon: <Trash2 size={15} aria-hidden="true" />,
+                            danger: true,
+                            disabled: deleteMutation.isPending,
+                            onClick: () => handleDelete(a),
+                          },
+                        ]}
                       />
                     </td>
                   </tr>

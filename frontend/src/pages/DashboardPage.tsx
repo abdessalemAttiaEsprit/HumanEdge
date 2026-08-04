@@ -1,16 +1,21 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { Users, CalendarX2, Briefcase } from 'lucide-react';
 import { useAuth } from '@/auth/useAuth';
 import { navItemsForRole } from '@/config/navigation';
 import { personnelApi } from '@/api/personnel';
 import { paymentsApi } from '@/api/payments';
 import { companiesApi } from '@/api/companies';
 import { subscriptionsApi } from '@/api/subscriptions';
+import { absencesApi } from '@/api/absences';
+import { jobPostingsApi } from '@/api/jobPostings';
+import { applicationsApi } from '@/api/applications';
+import { interviewsApi } from '@/api/interviews';
 import { formatInt, formatTnd, formatDateFr } from '@/lib/format';
 import { BarChart, StackedBarChart, type StackedDatum } from '@/components/charts';
 import { TableSkeleton } from '@/components/TableSkeleton';
-import type { Month, Payment, Personnel } from '@/types';
+import type { Absence, Interview, Month, Personnel } from '@/types';
 
 const CNSS_RATE = 0.0918; // fixed employee CNSS rate — see PayrollPage.suggestAmounts
 
@@ -23,8 +28,8 @@ const MONTH_SHORT: Record<Month, string> = {
   JULY: 'Jul', AUGUST: 'Aug', SEPTEMBER: 'Sep', OCTOBER: 'Oct', NOVEMBER: 'Nov', DECEMBER: 'Dec',
 };
 
-function personnelName(p: Personnel): string {
-  return p.user ? `${p.user.firstname} ${p.user.lastname}` : '—';
+function formatDateTime(v?: string): string {
+  return v ? v.replace('T', ' ').slice(0, 16) : '—';
 }
 
 export function DashboardPage() {
@@ -73,6 +78,29 @@ function CompanyDashboard({ firstname }: { firstname: string }) {
     queryKey: ['payments'],
     queryFn: paymentsApi.list,
   });
+
+  // Requêtes dédiées aux Quick stats (voir QuickStatsDomains) : absences, offres
+  // d'emploi et candidatures/entretiens de l'entreprise. Les query keys sont
+  // partagées avec les pages dédiées (Absences/JobPostings/Applications/Interviews)
+  // pour réutiliser leur cache au lieu de re-fetcher les mêmes données.
+  const { data: absences, isLoading: absencesLoading } = useQuery({
+    queryKey: ['absences'],
+    queryFn: absencesApi.list,
+  });
+  const { data: companyJobPostings, isLoading: jobPostingsLoading } = useQuery({
+    queryKey: ['job-postings', 'mine'],
+    queryFn: jobPostingsApi.myCompanyList,
+  });
+  const { data: applications, isLoading: applicationsLoading } = useQuery({
+    queryKey: ['applications'],
+    queryFn: applicationsApi.list,
+  });
+  const { data: interviews, isLoading: interviewsLoading } = useQuery({
+    queryKey: ['interviews'],
+    queryFn: interviewsApi.list,
+  });
+  const quickStatsLoading =
+    personnelLoading || absencesLoading || jobPostingsLoading || applicationsLoading || interviewsLoading;
 
   const years = useMemo(() => {
     const set = new Set((payments ?? []).map((p) => p.year));
@@ -126,19 +154,6 @@ function CompanyDashboard({ firstname }: { firstname: string }) {
       .sort((a, b) => b.value - a.value);
   }, [personnelList]);
 
-  const latestPayByPersonnel = useMemo(() => {
-    const map = new Map<number, Payment>();
-    (payments ?? []).forEach((p) => {
-      if (!p.personnel) return;
-      const id = p.personnel.idPersonnel;
-      const current = map.get(id);
-      if (!current || p.year > current.year || (p.year === current.year && MONTHS.indexOf(p.month!) > MONTHS.indexOf(current.month!))) {
-        map.set(id, p);
-      }
-    });
-    return map;
-  }, [payments]);
-
   const loading = personnelLoading || paymentsLoading;
 
   return (
@@ -154,6 +169,17 @@ function CompanyDashboard({ firstname }: { firstname: string }) {
         <StatTile label={`CNSS contributions (${(CNSS_RATE * 100).toFixed(2)}%)`} value={formatTnd(totals.cnss)} />
         <StatTile label={`IRPP (${selectedYear})`} value={formatTnd(totals.irpp)} />
       </div>
+
+      {quickStatsLoading && <p className="jobs__status">Loading quick stats…</p>}
+      {!quickStatsLoading && (
+        <QuickStatsDomains
+          personnelList={personnelList}
+          absences={absences}
+          jobPostingsCount={(companyJobPostings ?? []).length}
+          applicationsCount={(applications ?? []).length}
+          interviews={interviews}
+        />
+      )}
 
       <div className="dashboard-grid">
         <div className="chart-card">
@@ -189,53 +215,6 @@ function CompanyDashboard({ firstname }: { firstname: string }) {
           )}
         </div>
       </div>
-
-      <div className="page__header" style={{ marginTop: 32 }}>
-        <h2 style={{ margin: 0 }}>Personnel</h2>
-      </div>
-
-      {loading && <p className="jobs__status">Loading personnel…</p>}
-      {!loading && (personnelList ?? []).length === 0 && (
-        <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
-          <p>No personnel records yet.</p>
-        </div>
-      )}
-      {!loading && (personnelList ?? []).length > 0 && (
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>CIN</th>
-                <th>Contract</th>
-                <th>Latest net pay</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(personnelList ?? []).map((p) => {
-                const latest = latestPayByPersonnel.get(p.idPersonnel);
-                return (
-                  <tr key={p.idPersonnel}>
-                    <td data-label="Name">{personnelName(p)}</td>
-                    <td data-label="Email">{p.user?.email ?? '—'}</td>
-                    <td data-label="CIN">{p.cin}</td>
-                    <td data-label="Contract">
-                      {p.contract ? (
-                        <span className="badge badge--soft">{p.contract.typeContrat}</span>
-                      ) : (
-                        <span className="badge badge--muted">None</span>
-                      )}
-                    </td>
-                    <td data-label="Latest net pay">{latest?.payed != null ? formatTnd(latest.payed) : '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }
@@ -245,8 +224,11 @@ function planLabel(code: string): string {
 }
 
 // ============================================================================
-// ADMIN: platform-wide overview across every company — companies, personnel, payroll,
-// subscriptions (MRR, plan breakdown). See SubscriptionController for the global endpoint.
+// ADMIN: platform-wide overview across every company — délibérément limité aux données
+// qui décrivent les entreprises elles-mêmes (nombre, vérification, abonnement/MRR) : pas
+// de personnel, pas de masse salariale, pas de détails internes par entreprise (voir
+// [[hr-deployment-infra]] côté rôles — ADMIN est cantonné au Dashboard). See
+// SubscriptionController for the global subscription endpoint.
 // ============================================================================
 function AdminDashboard({ firstname }: { firstname: string }) {
   const { data: companies, isLoading: companiesLoading, isError: companiesError } = useQuery({
@@ -254,28 +236,15 @@ function AdminDashboard({ firstname }: { firstname: string }) {
     queryFn: companiesApi.list,
   });
 
-  const { data: personnelList, isLoading: personnelLoading, isError: personnelError } = useQuery({
-    queryKey: ['personnel'],
-    queryFn: personnelApi.list,
-  });
-
-  const { data: payments, isLoading: paymentsLoading, isError: paymentsError } = useQuery({
-    queryKey: ['payments'],
-    queryFn: paymentsApi.list,
-  });
-
   const { data: subscriptions, isLoading: subscriptionsLoading, isError: subscriptionsError } = useQuery({
     queryKey: ['subscriptions'],
     queryFn: subscriptionsApi.list,
   });
 
-  // Le tableau Companies n'a besoin que de companies/personnel/subscriptions (staff count +
-  // plan par ligne) - le coupler à `payments` (utilisé seulement par le graphique payroll)
-  // le bloquait inutilement en "Loading companies…" si les payments étaient lents/en erreur.
-  const companiesSectionLoading = companiesLoading || personnelLoading || subscriptionsLoading;
-  const companiesSectionError = companiesError || personnelError || subscriptionsError;
-  const chartsLoading = paymentsLoading || subscriptionsLoading;
-  const chartsError = paymentsError || subscriptionsError;
+  const companiesSectionLoading = companiesLoading || subscriptionsLoading;
+  const companiesSectionError = companiesError || subscriptionsError;
+  const chartsLoading = subscriptionsLoading;
+  const chartsError = subscriptionsError;
 
   const activeSubscriptions = useMemo(
     () => (subscriptions ?? []).filter((s) => s.status === 'ACTIVE'),
@@ -293,34 +262,13 @@ function AdminDashboard({ firstname }: { firstname: string }) {
     return [...counts.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
   }, [activeSubscriptions]);
 
-  const currentYear = new Date().getFullYear();
-  const yearPayments = useMemo(() => (payments ?? []).filter((p) => p.year === currentYear), [payments, currentYear]);
-
-  const monthlyData: StackedDatum[] = useMemo(
-    () =>
-      MONTHS.map((m) => {
-        const monthPayments = yearPayments.filter((p) => p.month === m);
-        return {
-          label: MONTH_SHORT[m],
-          values: {
-            net: monthPayments.reduce((s, p) => s + (p.payed ?? 0), 0),
-            cnss: monthPayments.reduce((s, p) => s + (p.montantCnss ?? 0), 0),
-            irpp: monthPayments.reduce((s, p) => s + (p.montantIrpp ?? 0), 0),
-          },
-        };
-      }),
-    [yearPayments],
+  // Nombre d'entreprises vérifiées — remplace l'ancien total "Personnel (all companies)"
+  // (retiré : le rôle ADMIN ne doit plus voir de statistiques de personnel, voir en-tête
+  // de fonction). Purement dérivé de Company.verified, aucune donnée RH derrière.
+  const verifiedCompaniesCount = useMemo(
+    () => (companies ?? []).filter((c) => c.verified).length,
+    [companies],
   );
-
-  const staffCountByCompany = useMemo(() => {
-    const counts = new Map<number, number>();
-    (personnelList ?? []).forEach((p) => {
-      const id = p.user?.company?.idCompany;
-      if (id == null) return;
-      counts.set(id, (counts.get(id) ?? 0) + 1);
-    });
-    return counts;
-  }, [personnelList]);
 
   const subscriptionByCompany = useMemo(() => {
     const map = new Map<number, (typeof activeSubscriptions)[number]>();
@@ -339,45 +287,27 @@ function AdminDashboard({ firstname }: { firstname: string }) {
 
       <div className="stat-grid">
         <StatTile label="Companies" value={formatInt((companies ?? []).length)} />
-        <StatTile label="Personnel (all companies)" value={formatInt((personnelList ?? []).length)} />
+        <StatTile label="Verified companies" value={formatInt(verifiedCompaniesCount)} />
         <StatTile label="Active subscriptions" value={formatInt(activeSubscriptions.length)} />
         <StatTile label="MRR" value={formatTnd(mrr)} />
       </div>
 
-      <div className="dashboard-grid">
-        <div className="chart-card">
-          <h2 className="chart-card__title">Active subscriptions by plan</h2>
-          {chartsError && <p className="jobs__status">Unable to load subscriptions.</p>}
-          {!chartsLoading && !chartsError && planBreakdown.length > 0 && (
-            <BarChart data={planBreakdown} formatValue={formatInt} />
-          )}
-          {!chartsLoading && !chartsError && planBreakdown.length === 0 && (
-            <p className="jobs__status">No active subscriptions.</p>
-          )}
-        </div>
-
-        <div className="chart-card">
-          <h2 className="chart-card__title">Payroll across all companies ({currentYear})</h2>
-          {chartsError && <p className="jobs__status">Unable to load payroll data.</p>}
-          {!chartsLoading && !chartsError && (
-            <StackedBarChart
-              data={monthlyData}
-              series={[
-                { key: 'net', label: 'Net pay', color: '#3b5bdb' },
-                { key: 'cnss', label: 'CNSS', color: '#1baf7a' },
-                { key: 'irpp', label: 'IRPP', color: '#eda100' },
-              ]}
-              formatValue={(v) => `${Math.round(v)}`}
-            />
-          )}
-        </div>
+      <div className="chart-card" style={{ maxWidth: 480 }}>
+        <h2 className="chart-card__title">Active subscriptions by plan</h2>
+        {chartsError && <p className="jobs__status">Unable to load subscriptions.</p>}
+        {!chartsLoading && !chartsError && planBreakdown.length > 0 && (
+          <BarChart data={planBreakdown} formatValue={formatInt} />
+        )}
+        {!chartsLoading && !chartsError && planBreakdown.length === 0 && (
+          <p className="jobs__status">No active subscriptions.</p>
+        )}
       </div>
 
       <div className="page__header" style={{ marginTop: 32 }}>
         <h2 style={{ margin: 0 }}>Companies</h2>
       </div>
 
-      {companiesSectionLoading && <TableSkeleton columns={6} />}
+      {companiesSectionLoading && <TableSkeleton columns={5} />}
       {!companiesSectionLoading && companiesSectionError && (
         <p className="jobs__status">Unable to load companies.</p>
       )}
@@ -393,7 +323,6 @@ function AdminDashboard({ firstname }: { firstname: string }) {
             <thead>
               <tr>
                 <th>Company</th>
-                <th>Personnel</th>
                 <th>Plan</th>
                 <th>Subscription</th>
                 <th>Verified</th>
@@ -406,7 +335,6 @@ function AdminDashboard({ firstname }: { firstname: string }) {
                 return (
                   <tr key={c.idCompany}>
                     <td data-label="Company">{c.companyName}</td>
-                    <td data-label="Personnel">{formatInt(staffCountByCompany.get(c.idCompany) ?? 0)}</td>
                     <td data-label="Plan">{sub ? planLabel(sub.plan) : '—'}</td>
                     <td data-label="Subscription">
                       {sub ? (
@@ -448,6 +376,148 @@ function StatTile({ label, value }: { label: string; value: string }) {
     <div className="stat-tile">
       <span className="stat-tile__label">{label}</span>
       <span className="stat-tile__value">{value}</span>
+    </div>
+  );
+}
+
+// =============================================================================
+// Quick stats — regroupées par domaine métier plutôt que noyées dans une seule
+// grille : (1) Personnel (rôles/échelons + masse salariale de base), (2) Absences
+// (justifiées vs non justifiées), (3) Recrutement (offres, candidatures, prochain
+// entretien). Réservé au dashboard Company (données de sa propre entreprise) : le
+// dashboard Admin ne montre plus de données personnel/RH par entreprise, seulement
+// des statistiques au niveau entreprise (nombre, vérification, abonnement).
+// =============================================================================
+function QuickStatsDomains({
+  personnelList,
+  absences,
+  jobPostingsCount,
+  applicationsCount,
+  interviews,
+}: {
+  personnelList?: Personnel[];
+  absences?: Absence[];
+  jobPostingsCount: number;
+  applicationsCount: number;
+  interviews?: Interview[];
+}) {
+  // --- Domaine Personnel : répartition par rôle (Contract.categorie) et par
+  // échelon (Contract.echelon), plus la somme des salaires de base des contrats.
+  const roleBreakdown = useMemo(() => {
+    const counts = new Map<string, number>();
+    (personnelList ?? []).forEach((p) => {
+      const label = p.contract?.categorie || 'Unassigned';
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    });
+    return [...counts.entries()]
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [personnelList]);
+
+  const echelonBreakdown = useMemo(() => {
+    const counts = new Map<number | 'Unassigned', number>();
+    (personnelList ?? []).forEach((p) => {
+      const key = p.contract?.echelon ?? 'Unassigned';
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+    return [...counts.entries()]
+      .sort((a, b) => {
+        if (a[0] === 'Unassigned') return 1;
+        if (b[0] === 'Unassigned') return -1;
+        return (a[0] as number) - (b[0] as number);
+      })
+      .map(([key, value]) => ({ label: key === 'Unassigned' ? key : `Échelon ${key}`, value }));
+  }, [personnelList]);
+
+  const totalBaseSalary = useMemo(
+    () => (personnelList ?? []).reduce((sum, p) => sum + (p.contract?.salaireBase ?? 0), 0),
+    [personnelList],
+  );
+
+  // --- Domaine Absences : une absence est "justifiée" dès qu'un justificatif a
+  // été déposé (voir Absence.justification / absencesApi.uploadJustification).
+  const justifiedCount = (absences ?? []).filter((a) => !!a.justification).length;
+  const unjustifiedCount = (absences ?? []).length - justifiedCount;
+
+  // --- Domaine Recrutement : offres publiées, candidatures reçues, et l'entretien
+  // planifié le plus proche (on exclut les entretiens annulés ou déjà passés).
+  const nextInterview = useMemo(() => {
+    const now = Date.now();
+    return [...(interviews ?? [])]
+      .filter((iv) => iv.status !== 'CANCELLED' && iv.interviewDate && new Date(iv.interviewDate).getTime() >= now)
+      .sort((a, b) => (a.interviewDate ?? '').localeCompare(b.interviewDate ?? ''))[0];
+  }, [interviews]);
+
+  return (
+    <div className="quick-stats-domains">
+      <div className="domain-row domain-row--personnel">
+        <div className="domain-row__icon">
+          <Users size={20} aria-hidden="true" />
+        </div>
+        <div className="domain-row__content">
+          <h3 className="domain-row__title">Personnel — roles &amp; échelons</h3>
+          <div className="domain-row__metrics">
+            <div className="domain-row__metric">
+              <span className="domain-row__metric-value">{formatTnd(totalBaseSalary)}</span>
+              <span className="domain-row__metric-label">Base salary total</span>
+            </div>
+          </div>
+          <div className="domain-row__breakdowns">
+            <div>
+              <p className="quick-stats__label">By role (category)</p>
+              <BarChart data={roleBreakdown} formatValue={formatInt} />
+            </div>
+            <div>
+              <p className="quick-stats__label">By échelon (pay grade)</p>
+              <BarChart data={echelonBreakdown} formatValue={formatInt} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="domain-row domain-row--absences">
+        <div className="domain-row__icon">
+          <CalendarX2 size={20} aria-hidden="true" />
+        </div>
+        <div className="domain-row__content">
+          <h3 className="domain-row__title">Absences</h3>
+          <div className="domain-row__metrics">
+            <div className="domain-row__metric">
+              <span className="domain-row__metric-value">{formatInt(justifiedCount)}</span>
+              <span className="domain-row__metric-label">Justified</span>
+            </div>
+            <div className="domain-row__metric">
+              <span className="domain-row__metric-value">{formatInt(unjustifiedCount)}</span>
+              <span className="domain-row__metric-label">Unjustified</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="domain-row domain-row--recruitment">
+        <div className="domain-row__icon">
+          <Briefcase size={20} aria-hidden="true" />
+        </div>
+        <div className="domain-row__content">
+          <h3 className="domain-row__title">Recruitment</h3>
+          <div className="domain-row__metrics">
+            <div className="domain-row__metric">
+              <span className="domain-row__metric-value">{formatInt(jobPostingsCount)}</span>
+              <span className="domain-row__metric-label">Job postings</span>
+            </div>
+            <div className="domain-row__metric">
+              <span className="domain-row__metric-value">{formatInt(applicationsCount)}</span>
+              <span className="domain-row__metric-label">Applications</span>
+            </div>
+            <div className="domain-row__metric">
+              <span className="domain-row__metric-value">
+                {nextInterview ? formatDateTime(nextInterview.interviewDate) : 'None scheduled'}
+              </span>
+              <span className="domain-row__metric-label">Next interview</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

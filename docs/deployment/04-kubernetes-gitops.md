@@ -7,10 +7,10 @@ directement à l'API GCP.
 ## 4.1 Ingress-nginx (contrôleur d'entrée)
 
 ```bash
+
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update
-helm install ingress-nginx ingress-nginx/ingress-nginx \
-  --namespace ingress-nginx --create-namespace
+helm install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
 ```
 - `helm repo add`/`update` : voir explication détaillée en [03-secrets.md](03-secrets.md#31-installer-le-contrôleur-dans-le-cluster)
   - même mécanique, dépôt différent.
@@ -42,8 +42,7 @@ dans ce cas les hosts dans `infra/k8s/base/ingress.yaml` et `overlays/*/patch-co
 ```bash
 helm repo add jetstack https://charts.jetstack.io
 helm repo update
-helm install cert-manager jetstack/cert-manager \
-  --namespace cert-manager --create-namespace --set installCRDs=true
+helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set installCRDs=true
 ```
 - Même mécanique Helm que 4.1, dépôt `jetstack` (mainteneur officiel de cert-manager).
 - `--set installCRDs=true` : cert-manager définit ses propres types de ressources

@@ -25,7 +25,7 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 import { NAV_ITEMS } from '@/config/navigation';
 
 export function App() {
-  // Modules shown in the signed-in sidebar (dashboard/personnel/contracts/absences/jobs
+  // Modules shown in the signed-in bottom nav (dashboard/personnel/contracts/absences/jobs
   // excluded: they have their own explicit route below).
   const moduleItems = NAV_ITEMS.filter(
     (item) =>
@@ -59,25 +59,37 @@ export function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
+          {/* Profil = self-service de compte (ex: changer son mot de passe), reste ouvert à
+              tous les rôles y compris ADMIN, même si ADMIN est sinon cantonné au Dashboard. */}
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/jobs" element={<JobPostingsPage />} />
 
-          <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+          {/* ADMIN cantonné au Dashboard pour l'instant (voir navigation.ts) : chaque groupe
+              ci-dessous a perdu 'ADMIN' de ses allowedRoles, donc un accès direct par URL
+              (ex: /jobs, /companies) redirige ADMIN vers /unauthorized comme n'importe quel
+              rôle non autorisé. */}
+          <Route element={<ProtectedRoute allowedRoles={['COMPANY', 'EMPLOYE', 'GUEST']} />}>
+            <Route path="/jobs" element={<JobPostingsPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={[]} />}>
             <Route path="/companies" element={<CompaniesPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'COMPANY']} />}>
+          <Route element={<ProtectedRoute allowedRoles={['COMPANY']} />}>
             <Route path="/personnel" element={<PersonnelPage />} />
             <Route path="/contracts" element={<ContractsPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'COMPANY', 'EMPLOYE']} />}>
+          <Route element={<ProtectedRoute allowedRoles={['COMPANY', 'EMPLOYE']} />}>
             <Route path="/absences" element={<AbsencesPage />} />
             <Route path="/payments" element={<PayrollPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'COMPANY', 'GUEST']} />}>
+          <Route element={<ProtectedRoute allowedRoles={['GUEST']} />}>
             <Route path="/candidates" element={<CandidatesPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={['COMPANY', 'GUEST']} />}>
             <Route path="/applications" element={<ApplicationsPage />} />
             <Route path="/interviews" element={<InterviewsPage />} />
           </Route>

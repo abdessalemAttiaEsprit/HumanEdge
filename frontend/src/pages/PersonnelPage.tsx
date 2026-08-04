@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, CircleDot, Circle, FileSignature, FileText, Pencil, Phone, Trash2 } from 'lucide-react';
+import { ChevronDown, CircleDot, Circle, Download, FileSignature, FileText, Pencil, Phone, Plus, Trash2 } from 'lucide-react';
 import { personnelApi } from '@/api/personnel';
 import { companiesApi } from '@/api/companies';
 import { fileUrl } from '@/api/axios';
@@ -293,10 +293,12 @@ export function PersonnelPage() {
         </div>
         <div className="page__header-actions">
           <button className="btn btn--ghost" onClick={() => personnelApi.exportCsv()}>
-            ⬇️ Export CSV
+            <Download size={16} aria-hidden="true" />
+            Export CSV
           </button>
           <button className="btn btn--primary" onClick={openAddModal}>
-            + Add personnel
+            <Plus size={16} aria-hidden="true" />
+            Add personnel
           </button>
         </div>
       </div>
@@ -313,7 +315,7 @@ export function PersonnelPage() {
 
       {deleteError && <div className="alert alert--error">{deleteError}</div>}
 
-      {isLoading && <TableSkeleton columns={isAdmin ? 8 : 7} />}
+      {isLoading && <TableSkeleton columns={isAdmin ? 7 : 6} />}
       {isError && <p className="jobs__status">Unable to load personnel records.</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
@@ -348,14 +350,13 @@ export function PersonnelPage() {
                   direction={direction}
                   onSort={toggleSort}
                 />
-                <th>Documents</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {pageItems.map((p) => {
                 const expanded = expandedId === p.idPersonnel;
-                const columnCount = isAdmin ? 8 : 7;
+                const columnCount = isAdmin ? 7 : 6;
                 return (
                   <Fragment key={p.idPersonnel}>
                     <tr className={expanded ? 'data-table__row--expanded' : ''}>
@@ -378,7 +379,7 @@ export function PersonnelPage() {
                         )}
                         <span className="data-table__name-cell-info">
                           {fullName(p)}
-                          <span className="data-table__name-cell-sub">{p.matricule || 'No matricule yet'}</span>
+                          {p.matricule && <span className="data-table__name-cell-sub">{p.matricule}</span>}
                         </span>
                       </td>
                       <td data-label="Email">{p.user?.email ?? '—'}</td>
@@ -418,8 +419,7 @@ export function PersonnelPage() {
                           label="Download attestation"
                           onClick={() => personnelApi.downloadAttestationPdf(p.idPersonnel)}
                         />
-                      </td>
-                      <td className="data-table__actions" data-label="">
+                        <span className="data-table__actions-divider" />
                         <RowActionsMenu
                           ariaLabel={`Actions for ${fullName(p)}`}
                           items={[
