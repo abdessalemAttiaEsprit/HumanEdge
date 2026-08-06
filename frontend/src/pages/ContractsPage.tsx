@@ -235,7 +235,11 @@ export function ContractsPage() {
       <div className="page__header page__header--row">
         <div>
           <h1>Contracts</h1>
-          <p className="page__subtitle">Manage employee work contracts and salary grid assignment.</p>
+          <p className="page__subtitle">
+            Create and manage employment contracts for your staff, with salary automatically
+            derived from the official pay grid based on category and echelon. Track contract
+            type, start and end dates, and benefits in one consolidated view.
+          </p>
         </div>
         <div className="page__header-actions">
           <button className="btn btn--ghost" onClick={() => contractsApi.exportCsv()}>

@@ -343,7 +343,10 @@ function BrowseJobPostings() {
     <div>
       <div className="page__header">
         <h1>Job Postings</h1>
-        <p className="page__subtitle">Open positions across HumanEdge partner companies.</p>
+        <p className="page__subtitle">
+          Browse open positions posted by companies on HumanEdge. Open a listing to see the
+          full description and required skills, and apply directly with a cover letter.
+        </p>
       </div>
 
       {isLoading && <p className="jobs__status">Loading job openings…</p>}
@@ -625,7 +628,11 @@ function ManageJobPostings() {
       <div className="page__header page__header--row">
         <div>
           <h1>Job Postings</h1>
-          <p className="page__subtitle">Publish and manage your open positions.</p>
+          <p className="page__subtitle">
+            Publish and manage your company's open positions, and review every application
+            received for each one without leaving the page. Shortlist candidates, schedule
+            interviews, and track hiring progress from a single view.
+          </p>
         </div>
         <button className="btn btn--primary" onClick={openAddModal}>
           <Plus size={16} aria-hidden="true" />

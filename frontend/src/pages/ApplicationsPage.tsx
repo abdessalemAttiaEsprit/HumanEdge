@@ -104,7 +104,11 @@ function MyApplications() {
     <div>
       <div className="page__header">
         <h1>My applications</h1>
-        <p className="page__subtitle">Track the status of the jobs you've applied to.</p>
+        <p className="page__subtitle">
+          Track the status of every job you've applied to, from submission through review to
+          a final decision. You'll see your interview details here as soon as a company
+          shortlists your application.
+        </p>
       </div>
 
       {isLoading && <TableSkeleton columns={5} />}
@@ -292,7 +296,12 @@ function ManageApplications() {
       <div className="page__header page__header--row">
         <div>
           <h1>Applications</h1>
-          <p className="page__subtitle">Review candidates, evaluate with AI, and schedule interviews.</p>
+          <p className="page__subtitle">
+            Review every application received for your job postings, evaluate candidates
+            with AI-assisted scoring, and move promising profiles forward by scheduling an
+            interview. Update application status as candidates progress through your hiring
+            pipeline.
+          </p>
         </div>
         <div className="page__header-actions">
           <button

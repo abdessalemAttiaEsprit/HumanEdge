@@ -912,6 +912,8 @@ h3 {
 }
 .page__subtitle {
   margin: 0;
+  max-width: 720px;
+  line-height: 1.5;
   color: var(--text-muted);
 }
 
@@ -1411,6 +1413,43 @@ td:nth-child(3n + 2) .skeleton-bar {
 }
 .badge--danger {
   background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* ------------------------------- Attendance -------------------------------- */
+.attendance-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.attendance-toggle__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.attendance-toggle__btn:disabled {
+  cursor: default;
+}
+.attendance-toggle__btn:not(:disabled):hover {
+  border-color: var(--text-muted);
+}
+.attendance-toggle__btn--present.is-active {
+  background: var(--success-soft);
+  border-color: transparent;
+  color: var(--success);
+}
+.attendance-toggle__btn--absent.is-active {
+  background: var(--danger-soft);
+  border-color: transparent;
   color: var(--danger);
 }
 

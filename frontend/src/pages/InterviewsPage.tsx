@@ -102,7 +102,11 @@ function MyInterviews() {
     <div>
       <div className="page__header">
         <h1>My interviews</h1>
-        <p className="page__subtitle">Upcoming and past interviews for your applications.</p>
+        <p className="page__subtitle">
+          Keep track of every interview scheduled for your applications, upcoming and past,
+          with date, time, and location at a glance. Use the calendar below the table to see
+          them laid out by day.
+        </p>
       </div>
 
       {isLoading && <TableSkeleton columns={5} />}
@@ -227,8 +231,10 @@ function ManageInterviews() {
       <div className="page__header">
         <h1>Interviews</h1>
         <p className="page__subtitle">
-          All scheduled interviews. New interviews are scheduled from the{' '}
-          <Link to="/applications">Applications</Link> page.
+          Review every interview scheduled across your job postings and update its status as
+          it happens. New interviews are scheduled from the{' '}
+          <Link to="/applications">Applications</Link> page once a candidate is shortlisted;
+          use the calendar below the table to spot scheduling conflicts at a glance.
         </p>
       </div>
 

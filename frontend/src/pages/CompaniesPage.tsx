@@ -166,7 +166,11 @@ export function CompaniesPage() {
     <div>
       <div className="page__header">
         <h1>Companies</h1>
-        <p className="page__subtitle">Review, verify and manage registered companies.</p>
+        <p className="page__subtitle">
+          Review every company registered on HumanEdge, verify their information, and manage
+          account status. Verification confirms a company's legitimacy before its staff can
+          fully operate on the platform.
+        </p>
       </div>
 
       <div className="toolbar">

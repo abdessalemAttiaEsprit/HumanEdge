@@ -13,6 +13,7 @@ import { ProfilePage } from '@/pages/ProfilePage';
 import { CompaniesPage } from '@/pages/CompaniesPage';
 import { PersonnelPage } from '@/pages/PersonnelPage';
 import { ContractsPage } from '@/pages/ContractsPage';
+import { AttendancePage } from '@/pages/AttendancePage';
 import { AbsencesPage } from '@/pages/AbsencesPage';
 import { JobPostingsPage } from '@/pages/JobPostingsPage';
 import { PayrollPage } from '@/pages/PayrollPage';
@@ -34,6 +35,7 @@ export function App() {
         '/companies',
         '/personnel',
         '/contracts',
+        '/attendance',
         '/absences',
         '/jobs',
         '/payments',
@@ -78,6 +80,7 @@ export function App() {
           <Route element={<ProtectedRoute allowedRoles={['COMPANY']} />}>
             <Route path="/personnel" element={<PersonnelPage />} />
             <Route path="/contracts" element={<ContractsPage />} />
+            <Route path="/attendance" element={<AttendancePage />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={['COMPANY', 'EMPLOYE']} />}>

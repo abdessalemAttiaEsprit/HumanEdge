@@ -195,7 +195,11 @@ function MyAbsences() {
       <div className="page__header page__header--row">
         <div>
           <h1>My absences</h1>
-          <p className="page__subtitle">Your absence history and remaining quota.</p>
+          <p className="page__subtitle">
+            View your absence history and track your remaining leave balance, including days
+            carried over from previous years. Upload a supporting document to have an
+            absence marked as justified.
+          </p>
         </div>
         <button className="btn btn--primary" onClick={() => setShowAddModal(true)}>
           + Request absence
@@ -509,7 +513,11 @@ function ManagerAbsences() {
       <div className="page__header page__header--row">
         <div>
           <h1>Absences</h1>
-          <p className="page__subtitle">Track and manage employee absences.</p>
+          <p className="page__subtitle">
+            Record and review employee absences, distinguishing justified leave from
+            unplanned time off. Each entry counts against that employee's leave quota and,
+            where applicable, feeds into their next payroll deduction.
+          </p>
         </div>
         <div className="page__header-actions">
           <button className="btn btn--ghost" onClick={() => absencesApi.exportCsv()}>

@@ -260,7 +260,10 @@ function MyPayslips() {
     <div>
       <div className="page__header">
         <h1>My payslips</h1>
-        <p className="page__subtitle">Your payment history.</p>
+        <p className="page__subtitle">
+          Browse your payment history and download any payslip as a PDF. Each one details
+          your gross salary, absence deductions, CNSS and IRPP contributions, and net pay.
+        </p>
       </div>
 
       {isLoading && <TableSkeleton columns={5} />}
@@ -560,7 +563,12 @@ function ManagePayroll() {
       <div className="page__header page__header--row">
         <div>
           <h1>Payroll</h1>
-          <p className="page__subtitle">Record and validate employee payments.</p>
+          <p className="page__subtitle">
+            Generate, review, and validate monthly payroll for your staff. Amounts are
+            computed automatically from each contract and that month's absences — including
+            CNSS contributions and the progressive IRPP tax bracket — and stay fully editable
+            until validated.
+          </p>
         </div>
         <div className="page__header-actions">
           <button className="btn btn--ghost" onClick={() => paymentsApi.exportCsv()}>

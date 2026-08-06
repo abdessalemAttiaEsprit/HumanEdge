@@ -51,7 +51,11 @@ export function DashboardPage() {
     <div className="page">
       <div className="page__header">
         <h1>Hello {user.firstname} 👋</h1>
-        <p className="page__subtitle">Here is your workspace.</p>
+        <p className="page__subtitle">
+          Your personal workspace, with quick access to the modules relevant to your role.
+          Use the shortcuts below to manage your day-to-day HR tasks — absences, payslips,
+          and open positions — without digging through menus.
+        </p>
       </div>
 
       <div className="card-grid">
@@ -160,7 +164,11 @@ function CompanyDashboard({ firstname }: { firstname: string }) {
     <div className="page">
       <div className="page__header">
         <h1>Hello {firstname} 👋</h1>
-        <p className="page__subtitle">Quick statistics for your company.</p>
+        <p className="page__subtitle">
+          A real-time snapshot of your company's HR activity: headcount and payroll by role
+          and pay grade, absence trends, and recruitment pipeline health. Use it to spot
+          issues early and track payroll costs across the year.
+        </p>
       </div>
 
       <div className="stat-grid">
@@ -282,7 +290,11 @@ function AdminDashboard({ firstname }: { firstname: string }) {
     <div className="page">
       <div className="page__header">
         <h1>Hello {firstname} 👋</h1>
-        <p className="page__subtitle">Platform-wide overview across every company.</p>
+        <p className="page__subtitle">
+          A platform-wide view across every company on HumanEdge: registration and
+          verification status, active subscriptions, and recurring revenue. Use it to
+          monitor platform health without drilling into any single company's internal data.
+        </p>
       </div>
 
       <div className="stat-grid">

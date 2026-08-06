@@ -129,7 +129,11 @@ export function CandidatesPage() {
       <div>
         <div className="page__header">
           <h1>My candidate profile</h1>
-          <p className="page__subtitle">Create your profile so recruiters and your future applications can find you.</p>
+          <p className="page__subtitle">
+            Create your candidate profile once to apply for any position on HumanEdge.
+            Recruiters see this information, along with your CV, whenever you submit an
+            application.
+          </p>
         </div>
         <div className="table-wrap" style={{ padding: 24 }}>
           <form onSubmit={handleCreateSubmit}>
@@ -213,7 +217,11 @@ export function CandidatesPage() {
       <div className="page__header page__header--row">
         <div>
           <h1>My candidate profile</h1>
-          <p className="page__subtitle">This is what recruiters see when you apply to a job.</p>
+          <p className="page__subtitle">
+            This is the profile recruiters see whenever you apply to a job posting. Keep
+            your experience and contact details up to date, and attach a current CV, to make
+            the best impression.
+          </p>
         </div>
         <button className="btn btn--primary" onClick={openEdit}>
           Edit profile

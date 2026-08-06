@@ -289,7 +289,11 @@ export function PersonnelPage() {
       <div className="page__header page__header--row">
         <div>
           <h1>Personnel</h1>
-          <p className="page__subtitle">Manage your company's employee records.</p>
+          <p className="page__subtitle">
+            Manage your company's employee records from a single place: personal details,
+            contract status, and documents for each employee. Every profile links directly
+            to that employee's contract and absence history for quick reference.
+          </p>
         </div>
         <div className="page__header-actions">
           <button className="btn btn--ghost" onClick={() => personnelApi.exportCsv()}>
