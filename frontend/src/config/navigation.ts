@@ -22,7 +22,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Companies', path: '/companies', roles: [], icon: '🏢' },
   { label: 'Personnel', path: '/personnel', roles: ['COMPANY'], icon: '👥', iconSrc: '/assets/nav-icons/personnel.png' },
   { label: 'Contracts', path: '/contracts', roles: ['COMPANY'], icon: '📄', iconSrc: '/assets/nav-icons/contracts.png' },
-  { label: 'Attendance', path: '/attendance', roles: ['COMPANY'], icon: '🕒' },
+  { label: 'Attendance', path: '/attendance', roles: ['COMPANY'], icon: '🕒', iconSrc: '/assets/nav-icons/attendance.png' },
   { label: 'Absences', path: '/absences', roles: ['COMPANY', 'EMPLOYE'], icon: '🗓️', iconSrc: '/assets/nav-icons/absences.png' },
   { label: 'Payroll', path: '/payments', roles: ['COMPANY', 'EMPLOYE'], icon: '💰', iconSrc: '/assets/nav-icons/payroll.png' },
   { label: 'Job Postings', path: '/jobs', roles: ['COMPANY', 'EMPLOYE', 'GUEST'], icon: '📢', iconSrc: '/assets/nav-icons/job-postings.png' },
