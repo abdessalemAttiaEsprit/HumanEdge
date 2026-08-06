@@ -1,5 +1,18 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Briefcase,
+  Building2,
+  Calendar,
+  Camera,
+  Clock,
+  CreditCard,
+  FileText,
+  Hash,
+  Lock,
+  ShieldCheck,
+  User as UserIcon,
+} from 'lucide-react';
 import { useAuth } from '@/auth/useAuth';
 import { accountApi } from '@/api/account';
 import { authApi } from '@/api/auth';
@@ -14,41 +27,87 @@ import { useToast } from '@/components/ToastProvider';
 import { useEscapeKey } from '@/lib/useEscapeKey';
 import { useConfirm } from '@/lib/useConfirm';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import type { CompanyUpdateRequest, SubscriptionPaymentRequest } from '@/types';
+import type { AuthResponse, CompanyUpdateRequest, Role, SubscriptionPaymentRequest } from '@/types';
 
+const ROLE_LABEL: Record<Role, string> = {
+  ADMIN: 'Administrator',
+  COMPANY: 'Company account',
+  EMPLOYE: 'Employee',
+  GUEST: 'Candidate',
+};
+
+type TabKey = 'account' | 'company' | 'subscription' | 'employee' | 'security';
+
+interface TabDef {
+  key: TabKey;
+  label: string;
+  icon: React.ReactNode;
+}
+
+// ============================================================================
+// Profile — cover header (avatar, role, at-a-glance facts) + tabbed sections
+// below it. Each tab maps to a real, functional part of account self-service;
+// there is no equivalent in this app for generic "posts/followers" content, so
+// those are intentionally left out rather than faked.
+// ============================================================================
 export function ProfilePage() {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<TabKey>('account');
   if (!user) return null;
+
+  const tabs: TabDef[] = [
+    { key: 'account', label: 'Account', icon: <UserIcon size={15} aria-hidden="true" /> },
+    ...(user.role === 'COMPANY'
+      ? [
+          { key: 'company' as const, label: 'Company', icon: <Building2 size={15} aria-hidden="true" /> },
+          { key: 'subscription' as const, label: 'Subscription', icon: <CreditCard size={15} aria-hidden="true" /> },
+        ]
+      : []),
+    ...(user.role === 'EMPLOYE'
+      ? [{ key: 'employee' as const, label: 'Employee record', icon: <Briefcase size={15} aria-hidden="true" /> }]
+      : []),
+    { key: 'security', label: 'Security', icon: <Lock size={15} aria-hidden="true" /> },
+  ];
 
   return (
     <div className="page">
-      <div className="page__header">
-        <h1>My profile</h1>
-        <p className="page__subtitle">Manage your account details.</p>
-      </div>
+      <div className="card profile-card">
+        <ProfileHeader user={user} />
 
-      <div className="profile-stack">
-        <AccountCard />
-        {user.role === 'COMPANY' && user.companyId && (
-          <>
-            <CompanyCard companyId={user.companyId} />
-            <SubscriptionCard companyId={user.companyId} />
-          </>
-        )}
-        {user.role === 'EMPLOYE' && <EmployeeCard />}
-        <PasswordCard />
+        <div className="profile-tabs">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={`profile-tab${activeTab === tab.key ? ' is-active' : ''}`}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="profile-panel">
+          {activeTab === 'account' && <AccountCard user={user} />}
+          {activeTab === 'company' && user.companyId && <CompanyCard companyId={user.companyId} />}
+          {activeTab === 'subscription' && user.companyId && <SubscriptionCard companyId={user.companyId} />}
+          {activeTab === 'employee' && <EmployeeCard />}
+          {activeTab === 'security' && <PasswordCard />}
+        </div>
       </div>
     </div>
   );
 }
 
 // ============================================================================
-// Account: avatar (shown in the top bar) + read-only identity.
+// Header: cover banner + avatar (click to change photo) + name/role, and a row
+// of at-a-glance facts that vary by role — real data only, so ADMIN/GUEST (no
+// company or contract to summarize) simply show no stats row.
 // ============================================================================
-function AccountCard() {
-  const { user, updateAvatar } = useAuth();
+function ProfileHeader({ user }: { user: AuthResponse }) {
+  const { updateAvatar } = useAuth();
   const [error, setError] = useState<string | null>(null);
-  if (!user) return null;
 
   const avatarMutation = useMutation({
     mutationFn: accountApi.uploadAvatar,
@@ -70,27 +129,120 @@ function AccountCard() {
   };
 
   return (
-    <div className="chart-card">
-      <h2 className="chart-card__title">Account</h2>
-      {error && <div className="alert alert--error">{error}</div>}
+    <div className="profile-header">
+      <div className="profile-header__cover" />
 
-      <div className="field-with-preview">
-        {avatar ? (
-          <img className="avatar avatar--lg" src={avatar} alt={user.firstname} />
-        ) : (
-          <span className="avatar avatar--lg avatar--initials">{initials || '?'}</span>
-        )}
-        <label className="field">
-          <span>Profile picture (shown in the top bar)</span>
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/gif"
-            onChange={handleFileChange}
-            disabled={avatarMutation.isPending}
-          />
-        </label>
+      <div className="profile-header__body">
+        <div className="profile-header__identity">
+          <label className="profile-header__avatar-upload" title="Change photo">
+            {avatar ? (
+              <img className="avatar avatar--xl" src={avatar} alt={user.firstname} />
+            ) : (
+              <span className="avatar avatar--xl avatar--initials">{initials || '?'}</span>
+            )}
+            <span className="profile-header__avatar-edit">
+              <Camera size={13} aria-hidden="true" />
+            </span>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/gif"
+              onChange={handleFileChange}
+              disabled={avatarMutation.isPending}
+            />
+          </label>
+          <div className="profile-header__name">
+            {user.firstname} {user.lastname}
+          </div>
+          <div className="profile-header__role">{ROLE_LABEL[user.role]}</div>
+        </div>
+
+        {user.role === 'COMPANY' && user.companyId && <CompanyQuickStats companyId={user.companyId} />}
+        {user.role === 'EMPLOYE' && <EmployeeQuickStats />}
       </div>
 
+      {error && (
+        <div className="alert alert--error" style={{ margin: '0 24px 20px' }}>
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CompanyQuickStats({ companyId }: { companyId: number }) {
+  const { data: company } = useQuery({
+    queryKey: ['company', companyId],
+    queryFn: () => companiesApi.getById(companyId),
+  });
+  const { data: subscription } = useQuery({
+    queryKey: ['company-subscription', companyId],
+    queryFn: () => companiesApi.getSubscription(companyId),
+  });
+  const planLabel = subscription ? subscription.plan.charAt(0) + subscription.plan.slice(1).toLowerCase() : '—';
+
+  return (
+    <div className="profile-header__stats">
+      <div className="profile-header__stat">
+        <ShieldCheck size={16} aria-hidden="true" />
+        <span className="profile-header__stat-value">{company?.verified ? 'Verified' : 'Pending'}</span>
+        <span className="profile-header__stat-label">Verification</span>
+      </div>
+      <div className="profile-header__stat">
+        <CreditCard size={16} aria-hidden="true" />
+        <span className="profile-header__stat-value">{planLabel}</span>
+        <span className="profile-header__stat-label">Plan</span>
+      </div>
+      <div className="profile-header__stat">
+        <Calendar size={16} aria-hidden="true" />
+        <span className="profile-header__stat-value">{company?.createdAt ? formatDateFr(company.createdAt) : '—'}</span>
+        <span className="profile-header__stat-label">Member since</span>
+      </div>
+    </div>
+  );
+}
+
+function EmployeeQuickStats() {
+  const { data: personnel } = useQuery({ queryKey: ['personnel', 'me'], queryFn: personnelApi.getMine });
+  const contract = personnel?.contract;
+  const years = contract?.dateDebut ? yearsSince(contract.dateDebut) : null;
+
+  return (
+    <div className="profile-header__stats">
+      <div className="profile-header__stat">
+        <Hash size={16} aria-hidden="true" />
+        <span className="profile-header__stat-value">{personnel?.matricule ?? '—'}</span>
+        <span className="profile-header__stat-label">Matricule</span>
+      </div>
+      <div className="profile-header__stat">
+        <FileText size={16} aria-hidden="true" />
+        <span className="profile-header__stat-value">{contract?.typeContrat ?? '—'}</span>
+        <span className="profile-header__stat-label">Contract</span>
+      </div>
+      <div className="profile-header__stat">
+        <Clock size={16} aria-hidden="true" />
+        <span className="profile-header__stat-value">{years != null ? `${years} yr${years === 1 ? '' : 's'}` : '—'}</span>
+        <span className="profile-header__stat-label">Seniority</span>
+      </div>
+    </div>
+  );
+}
+
+function yearsSince(dateStr: string): number {
+  const start = new Date(dateStr);
+  const now = new Date();
+  let years = now.getFullYear() - start.getFullYear();
+  const monthDiff = now.getMonth() - start.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < start.getDate())) years--;
+  return Math.max(0, years);
+}
+
+// ============================================================================
+// Account: read-only identity (avatar/upload now lives in the header above).
+// ============================================================================
+function AccountCard({ user }: { user: AuthResponse }) {
+  return (
+    <div>
+      <h2 className="profile-panel__title">Account</h2>
       {user.role !== 'COMPANY' && (
         <div className="field-row">
           <label className="field">
@@ -181,16 +333,16 @@ function CompanyCard({ companyId }: { companyId: number }) {
 
   if (isLoading || !form) {
     return (
-      <div className="chart-card">
-        <h2 className="chart-card__title">Company</h2>
+      <div>
+        <h2 className="profile-panel__title">Company</h2>
         <p className="jobs__status">Loading your company…</p>
       </div>
     );
   }
 
   return (
-    <div className="chart-card">
-      <h2 className="chart-card__title">Company</h2>
+    <div>
+      <h2 className="profile-panel__title">Company</h2>
       {error && <div className="alert alert--error">{error}</div>}
       {saved && !error && <div className="alert alert--success">Company details saved.</div>}
 
@@ -357,8 +509,8 @@ function SubscriptionCard({ companyId }: { companyId: number }) {
 
   if (isLoading) {
     return (
-      <div className="chart-card">
-        <h2 className="chart-card__title">Subscription</h2>
+      <div>
+        <h2 className="profile-panel__title">Subscription</h2>
         <p className="jobs__status">Loading…</p>
       </div>
     );
@@ -368,9 +520,9 @@ function SubscriptionCard({ companyId }: { companyId: number }) {
   const isActive = subscription?.status === 'ACTIVE';
 
   return (
-    <div className="chart-card">
+    <div>
       <div className="chart-card__header">
-        <h2 className="chart-card__title">Subscription</h2>
+        <h2 className="profile-panel__title">Subscription</h2>
         {subscription && (
           <span className={isActive ? 'badge badge--success' : 'badge badge--muted'}>{subscription.status}</span>
         )}
@@ -490,8 +642,8 @@ function EmployeeCard() {
 
   if (isLoading || !personnel) {
     return (
-      <div className="chart-card">
-        <h2 className="chart-card__title">Employee record</h2>
+      <div>
+        <h2 className="profile-panel__title">Employee record</h2>
         <p className="jobs__status">Loading your record…</p>
       </div>
     );
@@ -500,8 +652,8 @@ function EmployeeCard() {
   const contract = personnel.contract;
 
   return (
-    <div className="chart-card">
-      <h2 className="chart-card__title">Employee record</h2>
+    <div>
+      <h2 className="profile-panel__title">Employee record</h2>
       {error && <div className="alert alert--error">{error}</div>}
       {saved && !error && <div className="alert alert--success">Profile saved.</div>}
 
@@ -558,7 +710,7 @@ function EmployeeCard() {
 
       {contract && (
         <>
-          <h3 className="chart-card__title" style={{ marginTop: 20 }}>Contract</h3>
+          <h3 className="profile-panel__title" style={{ marginTop: 20 }}>Contract</h3>
           <div className="field-row">
             <label className="field">
               <span>Type</span>
@@ -612,8 +764,8 @@ function PasswordCard() {
   };
 
   return (
-    <div className="chart-card">
-      <h2 className="chart-card__title">Password</h2>
+    <div>
+      <h2 className="profile-panel__title">Password</h2>
       {error && <div className="alert alert--error">{error}</div>}
       {saved && !error && <div className="alert alert--success">Password changed.</div>}
 
