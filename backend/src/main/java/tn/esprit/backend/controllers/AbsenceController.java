@@ -44,7 +44,7 @@ public class AbsenceController {
     @GetMapping("/export.csv")
     @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY')")
     public ResponseEntity<byte[]> exportAbsencesCsv() {
-        List<String> headers = List.of("Employee", "Date", "Start date", "End date", "Reason", "Justified");
+        List<String> headers = List.of("Employee", "Date", "Start date", "End date", "Reason", "Justified", "Status");
         List<List<String>> rows = new ArrayList<>();
         for (Absence a : absenceService.getAllAbsences()) {
             String employee = a.getPersonnel() != null && a.getPersonnel().getUser() != null
@@ -58,7 +58,8 @@ public class AbsenceController {
                     a.getStartDate() != null ? a.getStartDate().toString() : "",
                     a.getEndDate() != null ? a.getEndDate().toString() : "",
                     a.getReason() != null ? a.getReason() : "",
-                    justified ? "Yes" : "No"));
+                    justified ? "Yes" : "No",
+                    a.getStatus() != null ? a.getStatus().name() : "APPROVED"));
         }
         byte[] csv = csvExportService.toCsv(headers, rows);
         return ResponseEntity.ok()
@@ -150,5 +151,23 @@ public class AbsenceController {
     public ResponseEntity<Void> deleteAbsence(@PathVariable Long id) {
         absenceService.deleteAbsence(id);
         return ResponseEntity.noContent().build(); // Statut 204 No Content
+    }
+
+    /**
+     * PUT /api/absences/{id}/approve : Approuve une demande de congé PENDING soumise par un employé.
+     */
+    @PutMapping("/{id}/approve")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY')")
+    public ResponseEntity<Absence> approveAbsence(@PathVariable Long id) {
+        return ResponseEntity.ok(absenceService.approveAbsence(id));
+    }
+
+    /**
+     * PUT /api/absences/{id}/reject : Rejette une demande de congé PENDING soumise par un employé.
+     */
+    @PutMapping("/{id}/reject")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY')")
+    public ResponseEntity<Absence> rejectAbsence(@PathVariable Long id) {
+        return ResponseEntity.ok(absenceService.rejectAbsence(id));
     }
 }

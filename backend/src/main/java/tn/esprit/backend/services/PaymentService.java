@@ -6,6 +6,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import tn.esprit.backend.entities.Absence;
 import tn.esprit.backend.entities.Contract;
 import tn.esprit.backend.entities.Payment;
 import tn.esprit.backend.entities.Personnel;
@@ -179,10 +180,15 @@ public class PaymentService {
                 contractRepository.save(contract);
             }
 
+            // Une demande de congé PENDING (pas encore décidée par le manager) ou REJECTED ne doit
+            // jamais réduire la paie : seules les absences APPROVED (ou sans statut, saisies avant
+            // ce workflow) comptent — voir AbsenceQuotaCalculator#isApproved.
+            List<Absence> approvedAbsences = personnel.getAbsences() == null ? List.of()
+                    : personnel.getAbsences().stream().filter(AbsenceQuotaCalculator::isApproved).toList();
             long unjustifiedDays = AbsenceQuotaCalculator.countAbsenceDaysByPredicate(
-                    personnel.getAbsences(), monthStart, monthEnd, a -> !AbsenceQuotaCalculator.isJustified(a));
+                    approvedAbsences, monthStart, monthEnd, a -> !AbsenceQuotaCalculator.isJustified(a));
             long justifiedDays = AbsenceQuotaCalculator.countJustifiedAbsenceDays(
-                    personnel.getAbsences(), monthStart, monthEnd);
+                    approvedAbsences, monthStart, monthEnd);
             SalaryCalculationService.SalaryBreakdown salary = salaryCalculationService.compute(
                     nz(contract.getSalaireBase()), nz(contract.getAvantages()), unjustifiedDays);
 

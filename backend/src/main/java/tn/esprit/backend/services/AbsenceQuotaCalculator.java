@@ -3,6 +3,7 @@ package tn.esprit.backend.services;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import tn.esprit.backend.entities.Absence;
+import tn.esprit.backend.entities.Enum.AbsenceStatus;
 import tn.esprit.backend.entities.Personnel;
 
 import java.time.LocalDate;
@@ -91,6 +92,11 @@ public class AbsenceQuotaCalculator {
      * est reporté sur l'année suivante, plafonné par {@link #carryoverCapDays} si configuré.
      */
     private Balance computeBalance(LocalDate contractStart, List<Absence> absences, LocalDate asOfDate) {
+        // Une demande PENDING/REJECTED ne consomme jamais de quota : seule une absence APPROVED
+        // (ou sans statut, absences saisies avant l'introduction du workflow) compte ici.
+        List<Absence> approvedAbsences = absences == null ? List.of()
+                : absences.stream().filter(AbsenceQuotaCalculator::isApproved).toList();
+
         double carriedOver = 0;
         int startYear = contractStart.getYear();
         int targetYear = asOfDate.getYear();
@@ -100,7 +106,7 @@ public class AbsenceQuotaCalculator {
             LocalDate yearEnd = LocalDate.of(year, 12, 31);
 
             double earnedInYear = monthsBetweenInclusive(YearMonth.from(yearStart), YearMonth.from(yearEnd)) * Math.max(0, monthlyQuotaDays);
-            long usedInYear = countJustifiedAbsenceDays(absences, yearStart, yearEnd);
+            long usedInYear = countJustifiedAbsenceDays(approvedAbsences, yearStart, yearEnd);
             double balanceEndOfYear = Math.max(0, carriedOver + earnedInYear - usedInYear);
 
             carriedOver = capCarryover(balanceEndOfYear);
@@ -108,7 +114,7 @@ public class AbsenceQuotaCalculator {
 
         LocalDate currentYearStart = yearStartBounded(targetYear, contractStart);
         double earnedThisYear = monthsBetweenInclusive(YearMonth.from(currentYearStart), YearMonth.from(asOfDate)) * Math.max(0, monthlyQuotaDays);
-        long usedThisYear = countJustifiedAbsenceDays(absences, currentYearStart, asOfDate);
+        long usedThisYear = countJustifiedAbsenceDays(approvedAbsences, currentYearStart, asOfDate);
         double remaining = Math.max(0, carriedOver + earnedThisYear - usedThisYear);
 
         return new Balance(carriedOver, earnedThisYear, usedThisYear, remaining);
@@ -135,12 +141,25 @@ public class AbsenceQuotaCalculator {
     }
 
     /**
-     * Ce projet n'a pas de statut d'absence (PENDING/APPROVED/...) : une absence est
-     * considérée justifiée dès qu'un motif est renseigné, comme déjà appliqué dans
-     * PdfService pour le calcul des bulletins de paie.
+     * "Justifiée" est indépendant du statut d'approbation de la demande (voir {@link #isApproved})
+     * : une absence est considérée justifiée dès qu'un justificatif a été déposé, comme déjà
+     * appliqué dans PdfService pour le calcul des bulletins de paie. Un appelant qui veut savoir
+     * si une absence doit réellement compter (quota, paie) doit combiner les deux — voir
+     * {@link #countJustifiedAbsenceDays} qui n'est jamais appelé ici sans avoir déjà filtré par
+     * {@link #isApproved} en amont (voir computeBalance / PaymentService#generateMonthlyPayroll).
      */
     public static boolean isJustified(Absence absence) {
         return absence != null && absence.getJustification() != null && !absence.getJustification().isBlank();
+    }
+
+    /**
+     * Une demande PENDING (soumise par l'employé, pas encore décidée) ou REJECTED ne doit jamais
+     * compter pour le quota ou la paie. Un statut null (absences créées avant l'introduction du
+     * workflow, ou directement par un COMPANY/ADMIN qui n'ont jamais de statut PENDING) est traité
+     * comme APPROVED pour rester rétro-compatible.
+     */
+    public static boolean isApproved(Absence absence) {
+        return absence != null && (absence.getStatus() == null || absence.getStatus() == AbsenceStatus.APPROVED);
     }
 
     private static long monthsBetweenInclusive(YearMonth start, YearMonth end) {
