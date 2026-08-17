@@ -41,6 +41,10 @@ jobs:
         working-directory: frontend
         run: npm run typecheck
 
+      - name: Run unit tests
+        working-directory: frontend
+        run: npm test
+
       - name: Compute image tag
         id: meta
         run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
