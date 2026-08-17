@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Users, CalendarX2, Briefcase } from 'lucide-react';
 import { useAuth } from '@/auth/useAuth';
 import { useLanguage } from '@/i18n/useLanguage';
@@ -13,9 +13,13 @@ import { absencesApi } from '@/api/absences';
 import { jobPostingsApi } from '@/api/jobPostings';
 import { applicationsApi } from '@/api/applications';
 import { interviewsApi } from '@/api/interviews';
+import { messagesApi } from '@/api/messages';
 import { formatInt, formatTnd, formatDateFr } from '@/lib/format';
+import { getErrorMessage } from '@/lib/errors';
 import { BarChart, StackedBarChart, type StackedDatum } from '@/components/charts';
 import { TableSkeleton } from '@/components/TableSkeleton';
+import { timeAgo } from '@/components/NotificationBell';
+import { useToast } from '@/components/ToastProvider';
 import type { Absence, Interview, Month, Personnel } from '@/types';
 
 const CNSS_RATE = 0.0918; // fixed employee CNSS rate — see PayrollPage.suggestAmounts
@@ -44,6 +48,10 @@ export function DashboardPage() {
 
   if (user.role === 'ADMIN') {
     return <AdminDashboard firstname={user.firstname} />;
+  }
+
+  if (user.role === 'EMPLOYE') {
+    return <EmployeeDashboard firstname={user.firstname} />;
   }
 
   // Cartes d'accès rapide : les modules du rôle, hors tableau de bord lui-même.
@@ -218,6 +226,89 @@ function CompanyDashboard({ firstname }: { firstname: string }) {
               ]}
               formatValue={(v) => `${Math.round(v)}`}
             />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// EMPLOYE: le dashboard n'affiche qu'un espace de messagerie vers l'entreprise
+// (voir MessageController côté backend) — envoyer un message crée une notification
+// pour tous les comptes COMPANY de l'entreprise (cloche du header), c'est le seul
+// canal de retour : pas de fil de discussion bidirectionnel ici.
+// ============================================================================
+function EmployeeDashboard({ firstname }: { firstname: string }) {
+  const { t } = useLanguage();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const [content, setContent] = useState('');
+
+  const { data: messages, isLoading, isError } = useQuery({
+    queryKey: ['messages', 'mine'],
+    queryFn: messagesApi.list,
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: messagesApi.send,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages', 'mine'] });
+      setContent('');
+      toast.showSuccess(t.dashboard.employee.successSent);
+    },
+    onError: (err) => toast.showError(getErrorMessage(err, t.dashboard.employee.errorSend)),
+  });
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    const trimmed = content.trim();
+    if (!trimmed) return;
+    sendMutation.mutate({ content: trimmed });
+  };
+
+  return (
+    <div className="page">
+      <div className="page__header">
+        <h1>{t.dashboard.greeting(firstname)} 👋</h1>
+        <p className="page__subtitle">{t.dashboard.employee.subtitle}</p>
+      </div>
+
+      <div className="message-space">
+        <form className="chart-card" onSubmit={handleSubmit}>
+          <h2 className="chart-card__title">{t.dashboard.employee.composerTitle}</h2>
+          <label className="field">
+            <textarea
+              rows={3}
+              maxLength={1000}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder={t.dashboard.employee.placeholder}
+            />
+          </label>
+          <div className="message-composer__actions">
+            <button type="submit" className="btn btn--primary" disabled={!content.trim() || sendMutation.isPending}>
+              {sendMutation.isPending ? t.dashboard.employee.sending : t.dashboard.employee.send}
+            </button>
+          </div>
+        </form>
+
+        <div className="chart-card">
+          <h2 className="chart-card__title">{t.dashboard.employee.historyTitle}</h2>
+          {isLoading && <p className="jobs__status">{t.dashboard.employee.loading}</p>}
+          {isError && <p className="jobs__status">{t.dashboard.employee.errorLoad}</p>}
+          {!isLoading && !isError && (messages ?? []).length === 0 && (
+            <p className="jobs__status">{t.dashboard.employee.noMessagesYet}</p>
+          )}
+          {!isLoading && !isError && (messages ?? []).length > 0 && (
+            <ul className="message-list">
+              {(messages ?? []).map((m) => (
+                <li key={m.id} className="message-list__item">
+                  <p className="message-list__content">{m.content}</p>
+                  <span className="message-list__time">{timeAgo(m.createdAt, t)}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </div>

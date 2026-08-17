@@ -509,6 +509,18 @@ export interface AppNotification {
   read: boolean;
 }
 
+// GET /api/messages/me — espace de messagerie du dashboard EMPLOYE (message vers l'entreprise).
+export interface EmployeeMessage {
+  id: number;
+  content: string;
+  createdAt: string;
+}
+
+// POST /api/messages
+export interface MessageCreateRequest {
+  content: string;
+}
+
 // GET /api/absences/quota/{personnelId} — AbsenceQuotaCalculator.QuotaSnapshot.
 export interface QuotaSnapshot {
   monthlyQuotaDays: number;

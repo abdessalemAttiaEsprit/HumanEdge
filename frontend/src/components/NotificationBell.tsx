@@ -6,7 +6,7 @@ import type { Messages } from '@/i18n/en';
 
 const PAGE_SIZE = 20;
 
-function timeAgo(iso: string, t: Messages): string {
+export function timeAgo(iso: string, t: Messages): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const minutes = Math.floor(diffMs / 60000);
   if (minutes < 1) return t.notificationBell.justNow;

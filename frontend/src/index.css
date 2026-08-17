@@ -2060,6 +2060,46 @@ td:nth-child(3n + 2) .skeleton-bar {
   font-size: 0.9rem;
 }
 
+/* Espace de messagerie EMPLOYE (DashboardPage) — formulaire d'envoi + historique, tous deux
+   dans une .chart-card pour rester visuellement cohérent avec le reste du dashboard. */
+.message-space {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 640px;
+}
+.message-composer__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.message-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.message-list__item {
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.message-list__item:last-child {
+  border-bottom: none;
+}
+.message-list__content {
+  margin: 0 0 4px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.message-list__time {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
 /* Ranked horizontal bar list (e.g. personnel by contract type) */
 .hbar-chart {
   display: flex;
