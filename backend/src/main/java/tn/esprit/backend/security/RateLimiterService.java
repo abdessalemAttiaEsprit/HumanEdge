@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class RateLimiterService {
 
-    private static final int MAX_ATTEMPTS = 5;
+    private static final int MAX_ATTEMPTS = 10;
     private static final Duration LOCKOUT_DURATION = Duration.ofMinutes(15);
 
     private record Attempts(int count, Instant lockedUntil) {}

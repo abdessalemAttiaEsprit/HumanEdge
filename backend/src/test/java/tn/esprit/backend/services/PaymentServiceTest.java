@@ -34,9 +34,10 @@ import static org.mockito.Mockito.when;
 
 /**
  * Couvre les règles métier de PaymentService qui ne sont pas de simples pass-through CRUD :
- * la garde de suppression (un bulletin VALIDATED ne se supprime jamais), l'idempotence de la
- * génération automatique de la paie, et le fait que la vérification d'accès à la création
- * recharge toujours l'entité réelle plutôt que de faire confiance au JSON du client.
+ * les gardes de suppression et de modification (un bulletin VALIDATED ne se supprime ni ne se
+ * modifie jamais), l'idempotence de la génération automatique de la paie, et le fait que la
+ * vérification d'accès à la création recharge toujours l'entité réelle plutôt que de faire
+ * confiance au JSON du client.
  */
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
@@ -87,6 +88,20 @@ class PaymentServiceTest {
         paymentService.deletePayment(1L);
 
         verify(paymentRepository).delete(draft);
+    }
+
+    // ---- updatePayment ----
+
+    @Test
+    void updatePaymentRejectsAValidatedPayment() {
+        Payment validated = paymentWithStatus("VALIDATED");
+        when(paymentRepository.findById(1L)).thenReturn(Optional.of(validated));
+
+        assertThatThrownBy(() -> paymentService.updatePayment(1L, new Payment()))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("validated");
+
+        verify(paymentRepository, never()).save(any());
     }
 
     // ---- getAllPayments / getPaymentById ----

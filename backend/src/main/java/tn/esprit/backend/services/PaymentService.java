@@ -68,9 +68,17 @@ public class PaymentService {
         return paymentRepository.findByPersonnel_User_IdUserOrderByYearDesc(userId);
     }
 
+    /**
+     * Un paiement déjà VALIDATED a déjà notifié l'employé par email (voir validatePayment) et
+     * sert de justificatif de paie : le modifier casserait la traçabilité au même titre que le
+     * supprimer (voir deletePayment) - seul un DRAFT peut donc être mis à jour.
+     */
     @Transactional
     public Payment updatePayment(Long id, Payment paymentDetails) {
         Payment existingPayment = getPaymentById(id); // vérifie déjà la propriété
+        if ("VALIDATED".equals(existingPayment.getStatus())) {
+            throw new BadRequestException("A validated payment cannot be modified");
+        }
 
         existingPayment.setPaymentDate(paymentDetails.getPaymentDate());
         existingPayment.setMonth(paymentDetails.getMonth());

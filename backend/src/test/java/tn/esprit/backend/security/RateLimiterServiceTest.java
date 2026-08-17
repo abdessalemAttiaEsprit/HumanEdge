@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Couvre le garde-fou anti-brute-force utilisé par AuthService pour le login et la
- * vérification OTP : verrouillage après 5 échecs consécutifs, remise à zéro sur succès.
+ * vérification OTP : verrouillage après 10 échecs consécutifs, remise à zéro sur succès.
  */
 class RateLimiterServiceTest {
 
@@ -17,7 +17,7 @@ class RateLimiterServiceTest {
     @Test
     void allowsRequestsBelowTheFailureThreshold() {
         String key = "login:user1@demo.tn";
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 9; i++) {
             rateLimiter.recordFailure(key);
         }
 
@@ -25,9 +25,9 @@ class RateLimiterServiceTest {
     }
 
     @Test
-    void locksOutAfterFiveConsecutiveFailures() {
+    void locksOutAfterTenConsecutiveFailures() {
         String key = "login:user2@demo.tn";
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 10; i++) {
             rateLimiter.recordFailure(key);
         }
 
@@ -39,7 +39,7 @@ class RateLimiterServiceTest {
     @Test
     void aSuccessClearsThePreviousFailureCount() {
         String key = "login:user3@demo.tn";
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 9; i++) {
             rateLimiter.recordFailure(key);
         }
         rateLimiter.recordSuccess(key);
@@ -52,7 +52,7 @@ class RateLimiterServiceTest {
     void tracksEachKeyIndependently() {
         String lockedKey = "login:locked@demo.tn";
         String freshKey = "login:fresh@demo.tn";
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 10; i++) {
             rateLimiter.recordFailure(lockedKey);
         }
 

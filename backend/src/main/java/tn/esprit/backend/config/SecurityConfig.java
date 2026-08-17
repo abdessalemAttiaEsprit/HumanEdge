@@ -68,7 +68,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+                        // Uniquement les images (avatars/logos, affichés via <img src> qui ne peut pas
+                        // porter d'en-tête Authorization) : les PDF/CV/justificatifs stockés dans le même
+                        // dossier passent tous par des endpoints authentifiés + vérifiés par OwnershipGuard
+                        // (ex. AbsenceController#downloadJustification), jamais par ce chemin statique -
+                        // donc explicitement fermé ci-dessous plutôt que de retomber sur anyRequest().authenticated(),
+                        // qui n'aurait vérifié qu'un JWT valide sans vérifier la propriété du fichier précis.
+                        .requestMatchers(HttpMethod.GET, "/uploads/*.png", "/uploads/*.jpg", "/uploads/*.jpeg", "/uploads/*.gif").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/uploads/*.pdf", "/uploads/*.doc", "/uploads/*.docx").denyAll()
                         .requestMatchers(HttpMethod.GET, "/api/job/public").permitAll()
                         .requestMatchers(
                                 "/v3/api-docs/**",

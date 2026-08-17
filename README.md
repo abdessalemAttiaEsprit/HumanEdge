@@ -48,8 +48,11 @@ Prérequis : Docker + Docker Compose.
 
 ```bash
 cp .env.example .env
-# éditer .env : renseigner MAIL_USERNAME/MAIL_PASSWORD (App Password Gmail,
-# voir les commentaires dans .env.example) - nécessaire pour les emails MFA/reset
+# éditer .env :
+# - MAIL_USERNAME/MAIL_PASSWORD (App Password Gmail, voir les commentaires dans .env.example)
+#   - nécessaire pour les emails MFA/reset
+# - JWT_SECRET/MYSQL_ROOT_PASSWORD : n'importe quelle valeur aléatoire locale, ex.
+#   `openssl rand -base64 48` - jamais de valeur déjà commitée dans l'historique git
 
 docker compose up --build
 ```
