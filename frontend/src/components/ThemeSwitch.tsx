@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import type { Theme } from '@/lib/useTheme';
 
 interface ThemeSwitchProps {
@@ -7,6 +8,7 @@ interface ThemeSwitchProps {
 
 /** Sliding Day/Night switch (topbar) - visual style inspired by a stock day/night toggle asset. */
 export function ThemeSwitch({ theme, onToggle }: ThemeSwitchProps) {
+  const { t } = useLanguage();
   const isNight = theme === 'dark';
   return (
     <button
@@ -15,11 +17,11 @@ export function ThemeSwitch({ theme, onToggle }: ThemeSwitchProps) {
       onClick={onToggle}
       role="switch"
       aria-checked={isNight}
-      title={isNight ? 'Switch to light mode' : 'Switch to dark mode'}
-      aria-label={isNight ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={isNight ? t.themeSwitch.switchToLight : t.themeSwitch.switchToDark}
+      aria-label={isNight ? t.themeSwitch.switchToLight : t.themeSwitch.switchToDark}
     >
-      <span className="theme-switch__label theme-switch__label--day">Day</span>
-      <span className="theme-switch__label theme-switch__label--night">Night</span>
+      <span className="theme-switch__label theme-switch__label--day">{t.themeSwitch.day}</span>
+      <span className="theme-switch__label theme-switch__label--night">{t.themeSwitch.night}</span>
       <span className="theme-switch__thumb" />
     </button>
   );

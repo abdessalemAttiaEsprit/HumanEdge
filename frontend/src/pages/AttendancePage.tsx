@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, X } from 'lucide-react';
 import { personnelApi } from '@/api/personnel';
 import { absencesApi } from '@/api/absences';
+import { useLanguage } from '@/i18n/useLanguage';
 import { getErrorMessage } from '@/lib/errors';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { useToast } from '@/components/ToastProvider';
@@ -20,7 +21,7 @@ function todayIso(): string {
  * The absence (if any) covering the given date — either a single-day `dateAbsence` match, or a
  * multi-day `startDate`/`endDate` range that includes it (e.g. registered vacation).
  */
-function absenceCoveringDate(absences: Absence[] | undefined, dateIso: string): Absence | undefined {
+export function absenceCoveringDate(absences: Absence[] | undefined, dateIso: string): Absence | undefined {
   return (absences ?? []).find((a) => {
     if (a.dateAbsence) return a.dateAbsence === dateIso;
     if (a.startDate && a.endDate) return dateIso >= a.startDate && dateIso <= a.endDate;
@@ -37,6 +38,7 @@ function absenceCoveringDate(absences: Absence[] | undefined, dateIso: string): 
  * toggled from here — they're managed from the Absences page instead.
  */
 export function AttendancePage() {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const toast = useToast();
   const [date, setDate] = useState(todayIso());
@@ -53,9 +55,9 @@ export function AttendancePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['personnel'] });
       queryClient.invalidateQueries({ queryKey: ['absences'] });
-      toast.showSuccess('Marked absent.');
+      toast.showSuccess(t.attendance.markedAbsent);
     },
-    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to mark this employee absent')),
+    onError: (err) => toast.showError(getErrorMessage(err, t.attendance.errorMarkAbsent)),
   });
 
   const markPresentMutation = useMutation({
@@ -63,9 +65,9 @@ export function AttendancePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['personnel'] });
       queryClient.invalidateQueries({ queryKey: ['absences'] });
-      toast.showSuccess('Marked present.');
+      toast.showSuccess(t.attendance.markedPresent);
     },
-    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to mark this employee present')),
+    onError: (err) => toast.showError(getErrorMessage(err, t.attendance.errorMarkPresent)),
   });
 
   const filtered = useMemo(() => {
@@ -81,19 +83,15 @@ export function AttendancePage() {
   return (
     <div>
       <div className="page__header">
-        <h1>Attendance</h1>
-        <p className="page__subtitle">
-          Mark each employee present or absent for a chosen day, at a glance. Marking someone
-          absent records an unjustified absence for that date, which counts against their
-          leave quota and next payroll deduction just like an entry from the Absences page.
-        </p>
+        <h1>{t.attendance.title}</h1>
+        <p className="page__subtitle">{t.attendance.subtitle}</p>
       </div>
 
       <div className="toolbar">
         <input
           className="toolbar__search"
           type="search"
-          placeholder="Search by employee…"
+          placeholder={t.attendance.searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -104,27 +102,27 @@ export function AttendancePage() {
           value={date}
           max={todayIso()}
           onChange={(e) => setDate(e.target.value)}
-          aria-label="Date"
+          aria-label={t.attendance.dateLabel}
         />
       </div>
 
       <div className="stat-grid" style={{ marginBottom: 16 }}>
         <div className="stat-tile">
-          <span className="stat-tile__label">Present</span>
+          <span className="stat-tile__label">{t.attendance.present}</span>
           <span className="stat-tile__value">{presentCount}</span>
         </div>
         <div className="stat-tile">
-          <span className="stat-tile__label">Absent</span>
+          <span className="stat-tile__label">{t.attendance.absent}</span>
           <span className="stat-tile__value">{absentCount}</span>
         </div>
       </div>
 
       {isLoading && <TableSkeleton columns={4} />}
-      {isError && <p className="jobs__status">Unable to load personnel.</p>}
+      {isError && <p className="jobs__status">{t.attendance.errorLoad}</p>}
       {!isLoading && !isError && filtered.length === 0 && (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
-          <p>{search ? 'No employees match your search.' : 'No personnel records yet.'}</p>
+          <span className="placeholder-box__badge">{t.common.noRecords}</span>
+          <p>{search ? t.attendance.noneMatchSearch : t.attendance.noneYet}</p>
         </div>
       )}
 
@@ -133,10 +131,10 @@ export function AttendancePage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Employee</th>
-                <th>Matricule</th>
-                <th>Contract</th>
-                <th>Status</th>
+                <th>{t.attendance.columnEmployee}</th>
+                <th>{t.attendance.columnMatricule}</th>
+                <th>{t.attendance.columnContract}</th>
+                <th>{t.attendance.columnStatus}</th>
               </tr>
             </thead>
             <tbody>
@@ -147,16 +145,18 @@ export function AttendancePage() {
 
                 return (
                   <tr key={p.idPersonnel}>
-                    <td data-label="Employee">{personnelName(p)}</td>
-                    <td data-label="Matricule">{p.matricule || '—'}</td>
-                    <td data-label="Contract">
+                    <td data-label={t.attendance.columnEmployee}>{personnelName(p)}</td>
+                    <td data-label={t.attendance.columnMatricule}>{p.matricule || '—'}</td>
+                    <td data-label={t.attendance.columnContract}>
                       {p.contract ? (
-                        <span className="badge badge--soft">{p.contract.typeContrat}</span>
+                        <span className="badge badge--soft">
+                          {p.contract.typeContrat ? t.contractTypes[p.contract.typeContrat] : '—'}
+                        </span>
                       ) : (
-                        <span className="badge badge--muted">None</span>
+                        <span className="badge badge--muted">{t.attendance.none}</span>
                       )}
                     </td>
-                    <td data-label="Status">
+                    <td data-label={t.attendance.columnStatus}>
                       <div className="attendance-toggle">
                         <button
                           type="button"
@@ -165,7 +165,7 @@ export function AttendancePage() {
                           onClick={() => covering && markPresentMutation.mutate(covering.idAbsence)}
                         >
                           <Check size={14} aria-hidden="true" />
-                          Present
+                          {t.attendance.present}
                         </button>
                         <button
                           type="button"
@@ -174,11 +174,11 @@ export function AttendancePage() {
                           onClick={() => markAbsentMutation.mutate(p.idPersonnel)}
                         >
                           <X size={14} aria-hidden="true" />
-                          Absent
+                          {t.attendance.absent}
                         </button>
                         {isRangeEntry && (
-                          <span className="badge badge--muted" title="Manage from the Absences page">
-                            On leave
+                          <span className="badge badge--muted" title={t.attendance.manageFromAbsences}>
+                            {t.attendance.onLeave}
                           </span>
                         )}
                       </div>

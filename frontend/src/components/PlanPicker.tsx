@@ -1,3 +1,4 @@
+import { useLanguage } from '@/i18n/useLanguage';
 import type { SubscriptionPlan } from '@/types';
 
 /** Clickable plan-card grid, shared between company registration and subscription management. */
@@ -10,6 +11,7 @@ export function PlanPicker({
   selected: string;
   onSelect: (code: string) => void;
 }) {
+  const { t } = useLanguage();
   return (
     <div className="plan-grid">
       {Object.values(plans ?? {}).map((plan) => (
@@ -19,7 +21,9 @@ export function PlanPicker({
           onClick={() => onSelect(plan.code)}
         >
           <span className="plan-card__label">{plan.label}</span>
-          <span className="plan-card__price">{plan.monthlyPrice.toFixed(0)} TND/mo</span>
+          <span className="plan-card__price">
+            {plan.monthlyPrice.toFixed(0)} {t.planPicker.perMonth}
+          </span>
           <span className="plan-card__description">{plan.description}</span>
         </div>
       ))}

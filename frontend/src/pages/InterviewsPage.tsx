@@ -6,6 +6,7 @@ import { Trash2, UserPlus } from 'lucide-react';
 import { interviewsApi } from '@/api/interviews';
 import { candidatesApi } from '@/api/candidates';
 import { useAuth } from '@/auth/useAuth';
+import { useLanguage } from '@/i18n/useLanguage';
 import { getErrorMessage } from '@/lib/errors';
 import { useConfirm } from '@/lib/useConfirm';
 import { useSort } from '@/lib/useSort';
@@ -62,6 +63,7 @@ export function InterviewsPage() {
 // GUEST: read-only list of the candidate's own interviews.
 // ============================================================================
 function MyInterviews() {
+  const { t } = useLanguage();
   const { data: me, isLoading: meLoading, error: meError } = useQuery({
     queryKey: ['candidate', 'me'],
     queryFn: candidatesApi.getMine,
@@ -80,18 +82,19 @@ function MyInterviews() {
     [interviews],
   );
 
-  if (meLoading) return <p className="jobs__status">Loading…</p>;
+  if (meLoading) return <p className="jobs__status">{t.interviews.my.loading}</p>;
 
   if (!hasProfile) {
     return (
       <div>
         <div className="page__header">
-          <h1>My interviews</h1>
+          <h1>{t.interviews.my.title}</h1>
         </div>
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">Profile required</span>
+          <span className="placeholder-box__badge">{t.interviews.my.profileRequired}</span>
           <p>
-            Create your <Link to="/candidates">candidate profile</Link> first.
+            {t.interviews.my.profileRequiredPrefix} <Link to="/candidates">{t.interviews.my.candidateProfile}</Link>{' '}
+            {t.interviews.my.profileRequiredSuffix}
           </p>
         </div>
       </div>
@@ -101,21 +104,17 @@ function MyInterviews() {
   return (
     <div>
       <div className="page__header">
-        <h1>My interviews</h1>
-        <p className="page__subtitle">
-          Keep track of every interview scheduled for your applications, upcoming and past,
-          with date, time, and location at a glance. Use the calendar below the table to see
-          them laid out by day.
-        </p>
+        <h1>{t.interviews.my.title}</h1>
+        <p className="page__subtitle">{t.interviews.my.subtitle}</p>
       </div>
 
       {isLoading && <TableSkeleton columns={5} />}
-      {isError && <p className="jobs__status">Unable to load your interviews.</p>}
+      {isError && <p className="jobs__status">{t.interviews.my.errorLoad}</p>}
 
       {!isLoading && !isError && sorted.length === 0 && (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
-          <p>No interviews scheduled yet.</p>
+          <span className="placeholder-box__badge">{t.common.noRecords}</span>
+          <p>{t.interviews.my.noneYet}</p>
         </div>
       )}
 
@@ -124,22 +123,24 @@ function MyInterviews() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Job</th>
-                <th>Company</th>
-                <th>Date &amp; time</th>
-                <th>Location</th>
-                <th>Status</th>
+                <th>{t.interviews.my.columnJob}</th>
+                <th>{t.interviews.my.columnCompany}</th>
+                <th>{t.interviews.my.columnDateTime}</th>
+                <th>{t.interviews.my.columnLocation}</th>
+                <th>{t.interviews.my.columnStatus}</th>
               </tr>
             </thead>
             <tbody>
               {sorted.map((iv) => (
                 <tr key={iv.id}>
-                  <td data-label="Job">{iv.job?.title || '—'}</td>
-                  <td data-label="Company">{iv.job?.createdByCompany?.companyName || '—'}</td>
-                  <td data-label="Date & time">{formatDateTime(iv.interviewDate)}</td>
-                  <td data-label="Location">{iv.interviewLocation || '—'}</td>
-                  <td data-label="Status">
-                    <span className={interviewStatusBadgeClass(iv.status)}>{iv.status || '—'}</span>
+                  <td data-label={t.interviews.my.columnJob}>{iv.job?.title || '—'}</td>
+                  <td data-label={t.interviews.my.columnCompany}>{iv.job?.createdByCompany?.companyName || '—'}</td>
+                  <td data-label={t.interviews.my.columnDateTime}>{formatDateTime(iv.interviewDate)}</td>
+                  <td data-label={t.interviews.my.columnLocation}>{iv.interviewLocation || '—'}</td>
+                  <td data-label={t.interviews.my.columnStatus}>
+                    <span className={interviewStatusBadgeClass(iv.status)}>
+                      {iv.status ? t.interviewStatus[iv.status as InterviewStatus] ?? iv.status : '—'}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -158,6 +159,7 @@ function MyInterviews() {
 // from the Applications page, which needs an application to attach them to).
 // ============================================================================
 function ManageInterviews() {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const toast = useToast();
@@ -173,18 +175,18 @@ function ManageInterviews() {
     mutationFn: ({ id, status }: { id: number; status: InterviewStatus }) => interviewsApi.updateStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['interviews'] });
-      toast.showSuccess('Interview status updated.');
+      toast.showSuccess(t.interviews.manage.statusUpdatedSuccess);
     },
-    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to update the interview status')),
+    onError: (err) => toast.showError(getErrorMessage(err, t.interviews.manage.errorStatus)),
   });
 
   const deleteMutation = useMutation({
     mutationFn: interviewsApi.remove,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['interviews'] });
-      toast.showSuccess('Interview deleted.');
+      toast.showSuccess(t.interviews.manage.deletedSuccess);
     },
-    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to delete the interview')),
+    onError: (err) => toast.showError(getErrorMessage(err, t.interviews.manage.errorDelete)),
   });
 
   const filtered = useMemo(() => {
@@ -203,9 +205,9 @@ function ManageInterviews() {
 
   const handleDelete = (iv: Interview) => {
     requestConfirm({
-      title: 'Delete interview',
-      message: `Delete the interview with ${candidateName(iv)} for "${iv.job?.title}"?`,
-      confirmLabel: 'Delete',
+      title: t.interviews.manage.deleteTitle,
+      message: t.interviews.manage.deleteMessage(candidateName(iv), iv.job?.title ?? ''),
+      confirmLabel: t.interviews.manage.delete,
       variant: 'danger',
       onConfirm: () => deleteMutation.mutate(iv.id),
     });
@@ -229,12 +231,10 @@ function ManageInterviews() {
   return (
     <div>
       <div className="page__header">
-        <h1>Interviews</h1>
+        <h1>{t.interviews.manage.title}</h1>
         <p className="page__subtitle">
-          Review every interview scheduled across your job postings and update its status as
-          it happens. New interviews are scheduled from the{' '}
-          <Link to="/applications">Applications</Link> page once a candidate is shortlisted;
-          use the calendar below the table to spot scheduling conflicts at a glance.
+          {t.interviews.manage.subtitlePrefix} <Link to="/applications">{t.interviews.manage.applicationsLink}</Link>{' '}
+          {t.interviews.manage.subtitleSuffix}
         </p>
       </div>
 
@@ -242,19 +242,19 @@ function ManageInterviews() {
         <input
           className="toolbar__search"
           type="search"
-          placeholder="Search by candidate, job, status…"
+          placeholder={t.interviews.manage.searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
       {isLoading && <TableSkeleton columns={6} />}
-      {isError && <p className="jobs__status">Unable to load interviews.</p>}
+      {isError && <p className="jobs__status">{t.interviews.manage.errorLoad}</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
-          <p>{search ? 'No interviews match your search.' : 'No interviews scheduled yet.'}</p>
+          <span className="placeholder-box__badge">{t.common.noRecords}</span>
+          <p>{search ? t.interviews.manage.noneMatchSearch : t.interviews.manage.noneYet}</p>
         </div>
       )}
 
@@ -264,33 +264,33 @@ function ManageInterviews() {
             <thead>
               <tr>
                 <SortableTh
-                  label="Candidate"
+                  label={t.interviews.manage.columnCandidate}
                   sortKey="candidate"
                   activeKey={sortKey}
                   direction={direction}
                   onSort={toggleSort}
                 />
-                <SortableTh label="Job" sortKey="job" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label="Date & time" sortKey="date" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.interviews.manage.columnJob} sortKey="job" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.interviews.manage.columnDateTime} sortKey="date" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <SortableTh
-                  label="Location"
+                  label={t.interviews.manage.columnLocation}
                   sortKey="location"
                   activeKey={sortKey}
                   direction={direction}
                   onSort={toggleSort}
                 />
-                <SortableTh label="Status" sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.interviews.manage.columnStatus} sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {sorted.map((iv) => (
                 <tr key={iv.id}>
-                  <td data-label="Candidate">{candidateName(iv)}</td>
-                  <td data-label="Job">{iv.job?.title || '—'}</td>
-                  <td data-label="Date & time">{formatDateTime(iv.interviewDate)}</td>
-                  <td data-label="Location">{iv.interviewLocation || '—'}</td>
-                  <td data-label="Status">
+                  <td data-label={t.interviews.manage.columnCandidate}>{candidateName(iv)}</td>
+                  <td data-label={t.interviews.manage.columnJob}>{iv.job?.title || '—'}</td>
+                  <td data-label={t.interviews.manage.columnDateTime}>{formatDateTime(iv.interviewDate)}</td>
+                  <td data-label={t.interviews.manage.columnLocation}>{iv.interviewLocation || '—'}</td>
+                  <td data-label={t.interviews.manage.columnStatus}>
                     <select
                       className="table-select"
                       aria-label={`Status for the interview with ${candidateName(iv)}`}
@@ -300,7 +300,7 @@ function ManageInterviews() {
                     >
                       {STATUS_OPTIONS.map((s) => (
                         <option key={s} value={s}>
-                          {s}
+                          {t.interviewStatus[s]}
                         </option>
                       ))}
                     </select>
@@ -312,14 +312,14 @@ function ManageInterviews() {
                         ...(iv.status === 'COMPLETED'
                           ? [
                               {
-                                label: 'Add as employee',
+                                label: t.interviews.manage.addAsEmployee,
                                 icon: <UserPlus size={15} aria-hidden="true" />,
                                 onClick: () => handleAddAsEmployee(iv),
                               },
                             ]
                           : []),
                         {
-                          label: 'Delete',
+                          label: t.interviews.manage.delete,
                           icon: <Trash2 size={15} aria-hidden="true" />,
                           danger: true,
                           disabled: deleteMutation.isPending,

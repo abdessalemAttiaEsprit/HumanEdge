@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { authApi } from '@/api/auth';
+import { useLanguage } from '@/i18n/useLanguage';
 import { AuthLayout } from '@/components/AuthLayout';
 import { getErrorMessage } from '@/lib/errors';
 
 export function ResetPasswordPage() {
+  const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') ?? '';
 
@@ -17,12 +19,10 @@ export function ResetPasswordPage() {
   if (!token) {
     return (
       <AuthLayout>
-        <h1>Invalid link</h1>
-        <p className="auth-shell__subtitle">
-          This password reset link is missing its token. Request a new one below.
-        </p>
+        <h1>{t.resetPassword.invalidLink}</h1>
+        <p className="auth-shell__subtitle">{t.resetPassword.invalidLinkDesc}</p>
         <p className="auth-shell__footer">
-          <Link to="/forgot-password">Request a new link</Link>
+          <Link to="/forgot-password">{t.resetPassword.requestNewLink}</Link>
         </p>
       </AuthLayout>
     );
@@ -33,7 +33,7 @@ export function ResetPasswordPage() {
     setError(null);
 
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t.resetPassword.passwordsMismatch);
       return;
     }
 
@@ -42,7 +42,7 @@ export function ResetPasswordPage() {
       await authApi.resetPassword({ token, newPassword });
       setDone(true);
     } catch (err) {
-      setError(getErrorMessage(err, 'Unable to reset the password'));
+      setError(getErrorMessage(err, t.resetPassword.errorReset));
     } finally {
       setLoading(false);
     }
@@ -51,10 +51,10 @@ export function ResetPasswordPage() {
   if (done) {
     return (
       <AuthLayout>
-        <h1>Password updated</h1>
-        <p className="auth-shell__subtitle">You can now sign in with your new password.</p>
+        <h1>{t.resetPassword.passwordUpdated}</h1>
+        <p className="auth-shell__subtitle">{t.resetPassword.passwordUpdatedDesc}</p>
         <p className="auth-shell__footer">
-          <Link to="/login">Go to sign in</Link>
+          <Link to="/login">{t.resetPassword.goToSignIn}</Link>
         </p>
       </AuthLayout>
     );
@@ -63,13 +63,13 @@ export function ResetPasswordPage() {
   return (
     <AuthLayout>
       <form onSubmit={handleSubmit}>
-        <h1>Choose a new password</h1>
+        <h1>{t.resetPassword.title}</h1>
 
         {error && <div className="alert alert--error">{error}</div>}
 
         <div className="auth-fields">
           <label className="field">
-            <span>New password</span>
+            <span>{t.resetPassword.newPassword}</span>
             <input
               type="password"
               value={newPassword}
@@ -82,7 +82,7 @@ export function ResetPasswordPage() {
           </label>
 
           <label className="field">
-            <span>Confirm password</span>
+            <span>{t.resetPassword.confirmPassword}</span>
             <input
               type="password"
               value={confirmPassword}
@@ -95,7 +95,7 @@ export function ResetPasswordPage() {
         </div>
 
         <button className="btn btn--primary btn--block" type="submit" disabled={loading}>
-          {loading ? 'Updating…' : 'Update password'}
+          {loading ? t.resetPassword.updating : t.resetPassword.updatePassword}
         </button>
       </form>
     </AuthLayout>

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { candidatesApi } from '@/api/candidates';
+import { useLanguage } from '@/i18n/useLanguage';
 import { getErrorMessage } from '@/lib/errors';
 import { useEscapeKey } from '@/lib/useEscapeKey';
 import type { Candidate, CandidateCreateRequest, CandidateUpdateRequest } from '@/types';
@@ -50,6 +51,7 @@ function formFromCandidate(c: Candidate): typeof EMPTY_FORM {
 // longer get a dedicated candidate-browsing view here; they see candidates via the
 // Applications and Job Postings pages instead.
 export function CandidatesPage() {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -69,7 +71,7 @@ export function CandidatesPage() {
       queryClient.invalidateQueries({ queryKey: ['candidate', 'me'] });
       setFormError(null);
     },
-    onError: (err) => setFormError(getErrorMessage(err, 'Unable to create your profile')),
+    onError: (err) => setFormError(getErrorMessage(err, t.candidates.errorCreate)),
   });
 
   const updateMutation = useMutation({
@@ -80,7 +82,7 @@ export function CandidatesPage() {
       setEditing(false);
       setFormError(null);
     },
-    onError: (err) => setFormError(getErrorMessage(err, 'Unable to update your profile')),
+    onError: (err) => setFormError(getErrorMessage(err, t.candidates.errorUpdate)),
   });
 
   const uploadCvMutation = useMutation({
@@ -89,7 +91,7 @@ export function CandidatesPage() {
       queryClient.invalidateQueries({ queryKey: ['candidate', 'me'] });
       setCvError(null);
     },
-    onError: (err) => setCvError(getErrorMessage(err, 'Unable to upload your CV')),
+    onError: (err) => setCvError(getErrorMessage(err, t.candidates.errorUploadCv)),
   });
 
   const handleCreateSubmit = (e: FormEvent) => {
@@ -122,18 +124,14 @@ export function CandidatesPage() {
 
   useEscapeKey(() => setEditing(false), editing);
 
-  if (isLoading) return <p className="jobs__status">Loading your profile…</p>;
+  if (isLoading) return <p className="jobs__status">{t.candidates.loading}</p>;
 
   if (!hasProfile) {
     return (
       <div>
         <div className="page__header">
-          <h1>My candidate profile</h1>
-          <p className="page__subtitle">
-            Create your candidate profile once to apply for any position on HumanEdge.
-            Recruiters see this information, along with your CV, whenever you submit an
-            application.
-          </p>
+          <h1>{t.candidates.createTitle}</h1>
+          <p className="page__subtitle">{t.candidates.createSubtitle}</p>
         </div>
         <div className="table-wrap" style={{ padding: 24 }}>
           <form onSubmit={handleCreateSubmit}>
@@ -141,7 +139,7 @@ export function CandidatesPage() {
             <div className="fieldset">
               <div className="field-row">
                 <label className="field">
-                  <span>First name</span>
+                  <span>{t.candidates.firstName}</span>
                   <input
                     value={form.firstName}
                     onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
@@ -149,7 +147,7 @@ export function CandidatesPage() {
                   />
                 </label>
                 <label className="field">
-                  <span>Last name</span>
+                  <span>{t.candidates.lastName}</span>
                   <input
                     value={form.lastName}
                     onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
@@ -158,7 +156,7 @@ export function CandidatesPage() {
                 </label>
               </div>
               <label className="field">
-                <span>Email</span>
+                <span>{t.candidates.email}</span>
                 <input
                   type="email"
                   value={form.email}
@@ -168,20 +166,20 @@ export function CandidatesPage() {
               </label>
               <div className="field-row">
                 <label className="field">
-                  <span>Phone</span>
+                  <span>{t.candidates.phone}</span>
                   <input
                     value={form.phoneNumber}
                     onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))}
                   />
                 </label>
                 <label className="field">
-                  <span>CIN</span>
+                  <span>{t.candidates.cin}</span>
                   <input value={form.cin} onChange={(e) => setForm((f) => ({ ...f, cin: e.target.value }))} />
                 </label>
               </div>
               <div className="field-row">
                 <label className="field">
-                  <span>Date of birth</span>
+                  <span>{t.candidates.dateOfBirth}</span>
                   <input
                     type="date"
                     value={form.dateOfBirth}
@@ -189,7 +187,7 @@ export function CandidatesPage() {
                   />
                 </label>
                 <label className="field">
-                  <span>Years of experience</span>
+                  <span>{t.candidates.yearsOfExperience}</span>
                   <input
                     type="number"
                     min={0}
@@ -201,7 +199,7 @@ export function CandidatesPage() {
             </div>
             <div className="modal__actions modal__actions--start">
               <button className="btn btn--primary" type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? 'Creating…' : 'Create my profile'}
+                {createMutation.isPending ? t.candidates.creating : t.candidates.createProfile}
               </button>
             </div>
           </form>
@@ -216,48 +214,44 @@ export function CandidatesPage() {
     <div>
       <div className="page__header page__header--row">
         <div>
-          <h1>My candidate profile</h1>
-          <p className="page__subtitle">
-            This is the profile recruiters see whenever you apply to a job posting. Keep
-            your experience and contact details up to date, and attach a current CV, to make
-            the best impression.
-          </p>
+          <h1>{t.candidates.title}</h1>
+          <p className="page__subtitle">{t.candidates.subtitle}</p>
         </div>
         <button className="btn btn--primary" onClick={openEdit}>
-          Edit profile
+          {t.candidates.editProfile}
         </button>
       </div>
 
       <div className="table-wrap" style={{ padding: 24 }}>
         <div className="detail-grid">
           <div className="detail-grid__item">
-            <span>Name</span>
+            <span>{t.candidates.name}</span>
             <strong>{candidateName(me)}</strong>
           </div>
           <div className="detail-grid__item">
-            <span>Email</span>
+            <span>{t.candidates.email}</span>
             <strong>{me.email || '—'}</strong>
           </div>
           <div className="detail-grid__item">
-            <span>Phone</span>
+            <span>{t.candidates.phone}</span>
             <strong>{me.phoneNumber || '—'}</strong>
           </div>
           <div className="detail-grid__item">
-            <span>CIN</span>
+            <span>{t.candidates.cin}</span>
             <strong>{me.cin || '—'}</strong>
           </div>
           <div className="detail-grid__item">
-            <span>Date of birth</span>
+            <span>{t.candidates.dateOfBirth}</span>
             <strong>{me.dateOfBirth || '—'}</strong>
           </div>
           <div className="detail-grid__item">
-            <span>Years of experience</span>
+            <span>{t.candidates.yearsOfExperience}</span>
             <strong>{me.yearsOfExperience ?? '—'}</strong>
           </div>
         </div>
 
         <label className="field" style={{ maxWidth: 360 }}>
-          <span>CV / résumé</span>
+          <span>{t.candidates.cvLabel}</span>
           <input type="file" accept=".pdf,.doc,.docx" onChange={handleCvChange} />
         </label>
         {cvError && <div className="alert alert--error">{cvError}</div>}
@@ -267,23 +261,23 @@ export function CandidatesPage() {
             className="btn btn--ghost btn--sm"
             onClick={() => candidatesApi.downloadCv(me.id, me.cvFileId ?? undefined)}
           >
-            Download current CV
+            {t.candidates.downloadCurrentCv}
           </button>
         ) : (
-          <p className="field-hint">No CV on file yet.</p>
+          <p className="field-hint">{t.candidates.noCvYet}</p>
         )}
       </div>
 
       {editing && (
         <div className="modal-overlay" onClick={() => setEditing(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Edit my profile</h2>
+            <h2>{t.candidates.editModalTitle}</h2>
             <form onSubmit={handleEditSubmit}>
               {formError && <div className="alert alert--error">{formError}</div>}
               <div className="fieldset">
                 <div className="field-row">
                   <label className="field">
-                    <span>First name</span>
+                    <span>{t.candidates.firstName}</span>
                     <input
                       value={form.firstName}
                       onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
@@ -291,7 +285,7 @@ export function CandidatesPage() {
                     />
                   </label>
                   <label className="field">
-                    <span>Last name</span>
+                    <span>{t.candidates.lastName}</span>
                     <input
                       value={form.lastName}
                       onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
@@ -300,7 +294,7 @@ export function CandidatesPage() {
                   </label>
                 </div>
                 <label className="field">
-                  <span>Email</span>
+                  <span>{t.candidates.email}</span>
                   <input
                     type="email"
                     value={form.email}
@@ -310,20 +304,20 @@ export function CandidatesPage() {
                 </label>
                 <div className="field-row">
                   <label className="field">
-                    <span>Phone</span>
+                    <span>{t.candidates.phone}</span>
                     <input
                       value={form.phoneNumber}
                       onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))}
                     />
                   </label>
                   <label className="field">
-                    <span>CIN</span>
+                    <span>{t.candidates.cin}</span>
                     <input value={form.cin} onChange={(e) => setForm((f) => ({ ...f, cin: e.target.value }))} />
                   </label>
                 </div>
                 <div className="field-row">
                   <label className="field">
-                    <span>Date of birth</span>
+                    <span>{t.candidates.dateOfBirth}</span>
                     <input
                       type="date"
                       value={form.dateOfBirth}
@@ -331,7 +325,7 @@ export function CandidatesPage() {
                     />
                   </label>
                   <label className="field">
-                    <span>Years of experience</span>
+                    <span>{t.candidates.yearsOfExperience}</span>
                     <input
                       type="number"
                       min={0}
@@ -343,10 +337,10 @@ export function CandidatesPage() {
               </div>
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setEditing(false)}>
-                  Cancel
+                  {t.candidates.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+                  {updateMutation.isPending ? t.candidates.saving : t.candidates.saveChanges}
                 </button>
               </div>
             </form>
@@ -356,4 +350,3 @@ export function CandidatesPage() {
     </div>
   );
 }
-

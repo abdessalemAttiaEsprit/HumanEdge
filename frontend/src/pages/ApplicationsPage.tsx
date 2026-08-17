@@ -7,6 +7,8 @@ import { applicationsApi } from '@/api/applications';
 import { candidatesApi } from '@/api/candidates';
 import { interviewsApi } from '@/api/interviews';
 import { useAuth } from '@/auth/useAuth';
+import { useLanguage } from '@/i18n/useLanguage';
+import type { Messages } from '@/i18n/en';
 import { getErrorMessage } from '@/lib/errors';
 import { usePagination } from '@/lib/usePagination';
 import { useEscapeKey } from '@/lib/useEscapeKey';
@@ -36,6 +38,11 @@ function statusBadgeClass(status?: string): string {
   return 'badge badge--muted';
 }
 
+function statusLabel(t: Messages, status?: string): string {
+  if (!status) return '—';
+  return t.applicationStatus[status as keyof Messages['applicationStatus']] ?? status;
+}
+
 type ApplicationSortKey = 'candidate' | 'job' | 'applied' | 'aiScore' | 'status';
 
 function getApplicationSortValue(a: Application, key: ApplicationSortKey): string | number {
@@ -63,6 +70,7 @@ export function ApplicationsPage() {
 // GUEST: read-only history of the candidate's own applications.
 // ============================================================================
 function MyApplications() {
+  const { t } = useLanguage();
   const { data: me, isLoading: meLoading, error: meError } = useQuery({
     queryKey: ['candidate', 'me'],
     queryFn: candidatesApi.getMine,
@@ -81,19 +89,20 @@ function MyApplications() {
     [applications],
   );
 
-  if (meLoading) return <p className="jobs__status">Loading…</p>;
+  if (meLoading) return <p className="jobs__status">{t.applications.my.loading}</p>;
 
   if (!hasProfile) {
     return (
       <div>
         <div className="page__header">
-          <h1>My applications</h1>
+          <h1>{t.applications.my.title}</h1>
         </div>
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">Profile required</span>
+          <span className="placeholder-box__badge">{t.applications.my.profileRequired}</span>
           <p>
-            Create your <Link to="/candidates">candidate profile</Link> first, then apply to jobs from the{' '}
-            <Link to="/jobs">Job Postings</Link> page.
+            {t.applications.my.profileRequiredPrefix} <Link to="/candidates">{t.applications.my.candidateProfile}</Link>{' '}
+            {t.applications.my.profileRequiredMiddle} <Link to="/jobs">{t.applications.my.jobPostingsLink}</Link>{' '}
+            {t.applications.my.profileRequiredSuffix}
           </p>
         </div>
       </div>
@@ -103,22 +112,18 @@ function MyApplications() {
   return (
     <div>
       <div className="page__header">
-        <h1>My applications</h1>
-        <p className="page__subtitle">
-          Track the status of every job you've applied to, from submission through review to
-          a final decision. You'll see your interview details here as soon as a company
-          shortlists your application.
-        </p>
+        <h1>{t.applications.my.title}</h1>
+        <p className="page__subtitle">{t.applications.my.subtitle}</p>
       </div>
 
       {isLoading && <TableSkeleton columns={5} />}
-      {isError && <p className="jobs__status">Unable to load your applications.</p>}
+      {isError && <p className="jobs__status">{t.applications.my.errorLoad}</p>}
 
       {!isLoading && !isError && sorted.length === 0 && (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
+          <span className="placeholder-box__badge">{t.common.noRecords}</span>
           <p>
-            You haven't applied to any jobs yet. Browse <Link to="/jobs">open positions</Link>.
+            {t.applications.my.noneYetPrefix} <Link to="/jobs">{t.applications.my.openPositions}</Link>.
           </p>
         </div>
       )}
@@ -128,23 +133,23 @@ function MyApplications() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Job</th>
-                <th>Company</th>
-                <th>Applied</th>
-                <th>Status</th>
-                <th>Interview</th>
+                <th>{t.applications.my.columnJob}</th>
+                <th>{t.applications.my.columnCompany}</th>
+                <th>{t.applications.my.columnApplied}</th>
+                <th>{t.applications.my.columnStatus}</th>
+                <th>{t.applications.my.columnInterview}</th>
               </tr>
             </thead>
             <tbody>
               {sorted.map((a) => (
                 <tr key={a.id}>
-                  <td data-label="Job">{a.jobPosting?.title || '—'}</td>
-                  <td data-label="Company">{a.jobPosting?.createdByCompany?.companyName || '—'}</td>
-                  <td data-label="Applied">{a.appliedDate ? a.appliedDate.slice(0, 10) : '—'}</td>
-                  <td data-label="Status">
-                    <span className={statusBadgeClass(a.status)}>{a.status || '—'}</span>
+                  <td data-label={t.applications.my.columnJob}>{a.jobPosting?.title || '—'}</td>
+                  <td data-label={t.applications.my.columnCompany}>{a.jobPosting?.createdByCompany?.companyName || '—'}</td>
+                  <td data-label={t.applications.my.columnApplied}>{a.appliedDate ? a.appliedDate.slice(0, 10) : '—'}</td>
+                  <td data-label={t.applications.my.columnStatus}>
+                    <span className={statusBadgeClass(a.status)}>{statusLabel(t, a.status)}</span>
                   </td>
-                  <td data-label="Interview">
+                  <td data-label={t.applications.my.columnInterview}>
                     {a.interviewDate
                       ? `${a.interviewDate.replace('T', ' ').slice(0, 16)} @ ${a.interviewLocation || '—'}`
                       : '—'}
@@ -163,6 +168,7 @@ function MyApplications() {
 // ADMIN / COMPANY: manage applications, evaluate, schedule interviews.
 // ============================================================================
 function ManageApplications() {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const toast = useToast();
   const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
@@ -188,9 +194,9 @@ function ManageApplications() {
     mutationFn: (id: number) => applicationsApi.evaluateWithAi(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
-      toast.showSuccess('AI evaluation complete.');
+      toast.showSuccess(t.applications.manage.evaluatedSuccess);
     },
-    onError: (err) => toast.showError(getErrorMessage(err, 'AI evaluation failed')),
+    onError: (err) => toast.showError(getErrorMessage(err, t.applications.manage.errorEvaluate)),
   });
 
   // Séquentiel, jamais en parallèle : un seul pod Ollama CPU-only derrière (voir
@@ -217,9 +223,9 @@ function ManageApplications() {
     }
     setBatchEvaluating(false);
     if (failures > 0) {
-      toast.showError(`${pending.length - failures} evaluated, ${failures} failed.`);
+      toast.showError(t.applications.manage.batchResultMixed(pending.length - failures, failures));
     } else {
-      toast.showSuccess(`${pending.length} application(s) evaluated.`);
+      toast.showSuccess(t.applications.manage.batchResultSuccess(pending.length));
     }
   };
 
@@ -227,9 +233,9 @@ function ManageApplications() {
     mutationFn: applicationsApi.remove,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
-      toast.showSuccess('Application deleted.');
+      toast.showSuccess(t.applications.manage.deletedSuccess);
     },
-    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to delete this application')),
+    onError: (err) => toast.showError(getErrorMessage(err, t.applications.manage.errorDelete)),
   });
 
   const scheduleMutation = useMutation({
@@ -240,9 +246,9 @@ function ManageApplications() {
       queryClient.invalidateQueries({ queryKey: ['interviews'] });
       setScheduling(null);
       setScheduleError(null);
-      toast.showSuccess('Interview scheduled.');
+      toast.showSuccess(t.applications.manage.interviewScheduledSuccess);
     },
-    onError: (err) => setScheduleError(getErrorMessage(err, 'Unable to schedule the interview')),
+    onError: (err) => setScheduleError(getErrorMessage(err, t.applications.manage.errorSchedule)),
   });
 
   const filtered = useMemo(() => {
@@ -256,9 +262,9 @@ function ManageApplications() {
 
   const handleDelete = (a: Application) => {
     requestConfirm({
-      title: 'Delete application',
-      message: `Delete the application from ${candidateName(a)} for "${a.jobPosting?.title}"?`,
-      confirmLabel: 'Delete',
+      title: t.applications.manage.deleteTitle,
+      message: t.applications.manage.deleteMessage(candidateName(a), a.jobPosting?.title ?? ''),
+      confirmLabel: t.applications.manage.delete,
       variant: 'danger',
       onConfirm: () => deleteMutation.mutate(a.id),
     });
@@ -295,32 +301,29 @@ function ManageApplications() {
     <div>
       <div className="page__header page__header--row">
         <div>
-          <h1>Applications</h1>
-          <p className="page__subtitle">
-            Review every application received for your job postings, evaluate candidates
-            with AI-assisted scoring, and move promising profiles forward by scheduling an
-            interview. Update application status as candidates progress through your hiring
-            pipeline.
-          </p>
+          <h1>{t.applications.manage.title}</h1>
+          <p className="page__subtitle">{t.applications.manage.subtitle}</p>
         </div>
         <div className="page__header-actions">
           <button
             type="button"
             className="btn btn--ghost"
             onClick={() => applicationsApi.exportCsv()}
-            title="Export the visible applications to a CSV file"
+            title={t.applications.manage.exportCsvTitle}
           >
             <Download size={16} aria-hidden="true" />
-            Export CSV
+            {t.applications.manage.exportCsv}
           </button>
           <button
             type="button"
             className="btn btn--ghost"
             disabled={batchEvaluating || filtered.filter((a) => a.aiScore == null).length === 0}
             onClick={handleEvaluateAll}
-            title="Evaluate every application below without a score yet"
+            title={t.applications.manage.evaluateAllTitle}
           >
-            {batchEvaluating ? 'Evaluating…' : `🤖 Evaluate all (${filtered.filter((a) => a.aiScore == null).length})`}
+            {batchEvaluating
+              ? t.applications.manage.evaluating
+              : t.applications.manage.evaluateAll(filtered.filter((a) => a.aiScore == null).length)}
           </button>
         </div>
       </div>
@@ -334,7 +337,7 @@ function ManageApplications() {
             />
           </div>
           <span className="batch-progress__label">
-            {batchProgress.done}/{batchProgress.total} evaluated
+            {t.applications.manage.evaluatedProgress(batchProgress.done, batchProgress.total)}
           </span>
         </div>
       )}
@@ -343,19 +346,19 @@ function ManageApplications() {
         <input
           className="toolbar__search"
           type="search"
-          placeholder="Search by candidate, job, status…"
+          placeholder={t.applications.manage.searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
       {isLoading && <TableSkeleton columns={6} />}
-      {isError && <p className="jobs__status">Unable to load applications.</p>}
+      {isError && <p className="jobs__status">{t.applications.manage.errorLoad}</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
-          <p>{search ? 'No applications match your search.' : 'No applications received yet.'}</p>
+          <span className="placeholder-box__badge">{t.common.noRecords}</span>
+          <p>{search ? t.applications.manage.noneMatchSearch : t.applications.manage.noneYet}</p>
         </div>
       )}
 
@@ -365,28 +368,28 @@ function ManageApplications() {
             <thead>
               <tr>
                 <SortableTh
-                  label="Candidate"
+                  label={t.applications.manage.columnCandidate}
                   sortKey="candidate"
                   activeKey={sortKey}
                   direction={direction}
                   onSort={toggleSort}
                 />
-                <SortableTh label="Job" sortKey="job" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.applications.manage.columnJob} sortKey="job" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <SortableTh
-                  label="Applied"
+                  label={t.applications.manage.columnApplied}
                   sortKey="applied"
                   activeKey={sortKey}
                   direction={direction}
                   onSort={toggleSort}
                 />
                 <SortableTh
-                  label="AI score"
+                  label={t.applications.manage.columnAiScore}
                   sortKey="aiScore"
                   activeKey={sortKey}
                   direction={direction}
                   onSort={toggleSort}
                 />
-                <SortableTh label="Status" sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.applications.manage.columnStatus} sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
@@ -394,10 +397,10 @@ function ManageApplications() {
               {pageItems.map((a) => (
                 <Fragment key={a.id}>
                   <tr>
-                    <td data-label="Candidate">{candidateName(a)}</td>
-                    <td data-label="Job">{a.jobPosting?.title || '—'}</td>
-                    <td data-label="Applied">{a.appliedDate ? a.appliedDate.slice(0, 10) : '—'}</td>
-                    <td data-label="AI score">
+                    <td data-label={t.applications.manage.columnCandidate}>{candidateName(a)}</td>
+                    <td data-label={t.applications.manage.columnJob}>{a.jobPosting?.title || '—'}</td>
+                    <td data-label={t.applications.manage.columnApplied}>{a.appliedDate ? a.appliedDate.slice(0, 10) : '—'}</td>
+                    <td data-label={t.applications.manage.columnAiScore}>
                       <div className="ai-score-cell">
                         <span>{a.aiScore != null ? a.aiScore.toFixed(1) : '—'}</span>
                         {a.aiFeedback && (
@@ -405,8 +408,8 @@ function ManageApplications() {
                             type="button"
                             className="ai-score-cell__toggle"
                             onClick={() => setExpandedFeedbackId(expandedFeedbackId === a.id ? null : a.id)}
-                            title={expandedFeedbackId === a.id ? 'Hide AI feedback' : 'Show AI feedback'}
-                            aria-label={expandedFeedbackId === a.id ? 'Hide AI feedback' : 'Show AI feedback'}
+                            title={expandedFeedbackId === a.id ? t.applications.manage.hideAiFeedback : t.applications.manage.showAiFeedback}
+                            aria-label={expandedFeedbackId === a.id ? t.applications.manage.hideAiFeedback : t.applications.manage.showAiFeedback}
                           >
                             <ChevronDown
                               size={14}
@@ -417,7 +420,7 @@ function ManageApplications() {
                         )}
                       </div>
                     </td>
-                    <td data-label="Status">
+                    <td data-label={t.applications.manage.columnStatus}>
                       <select
                         className="table-select"
                         aria-label={`Status for the application from ${candidateName(a)}`}
@@ -427,7 +430,7 @@ function ManageApplications() {
                       >
                         {STATUS_OPTIONS.map((s) => (
                           <option key={s} value={s}>
-                            {s}
+                            {t.applicationStatus[s]}
                           </option>
                         ))}
                       </select>
@@ -436,20 +439,20 @@ function ManageApplications() {
                       <RowActionsMenu
                         ariaLabel={`Actions for the application from ${candidateName(a)}`}
                         items={[
-                          { label: 'View', icon: <Eye size={15} aria-hidden="true" />, onClick: () => setViewing(a) },
+                          { label: t.applications.manage.view, icon: <Eye size={15} aria-hidden="true" />, onClick: () => setViewing(a) },
                           {
-                            label: 'Evaluate (AI)',
+                            label: t.applications.manage.evaluateAi,
                             icon: <Bot size={15} aria-hidden="true" />,
                             disabled: evaluateMutation.isPending,
                             onClick: () => evaluateMutation.mutate(a.id),
                           },
                           {
-                            label: 'Schedule interview',
+                            label: t.applications.manage.scheduleInterview,
                             icon: <CalendarClock size={15} aria-hidden="true" />,
                             onClick: () => openSchedule(a),
                           },
                           {
-                            label: 'Delete',
+                            label: t.applications.manage.delete,
                             icon: <Trash2 size={15} aria-hidden="true" />,
                             danger: true,
                             disabled: deleteMutation.isPending,
@@ -463,7 +466,7 @@ function ManageApplications() {
                     <tr className="data-table__expanded-row">
                       <td colSpan={6}>
                         <div className="ai-feedback-panel">
-                          <strong>AI feedback</strong>
+                          <strong>{t.applications.manage.aiFeedback}</strong>
                           <p>{a.aiFeedback}</p>
                         </div>
                       </td>
@@ -484,33 +487,33 @@ function ManageApplications() {
             <h2>{candidateName(viewing)} — {viewing.jobPosting?.title}</h2>
             <div className="detail-grid">
               <div className="detail-grid__item">
-                <span>Candidate email</span>
+                <span>{t.applications.manage.candidateEmail}</span>
                 <strong>{viewing.candidate?.email || '—'}</strong>
               </div>
               <div className="detail-grid__item">
-                <span>Applied</span>
+                <span>{t.applications.manage.applied}</span>
                 <strong>{viewing.appliedDate ? viewing.appliedDate.slice(0, 10) : '—'}</strong>
               </div>
               <div className="detail-grid__item">
-                <span>AI score</span>
+                <span>{t.applications.manage.aiScore}</span>
                 <strong>{viewing.aiScore != null ? viewing.aiScore.toFixed(1) : '—'}</strong>
               </div>
               <div className="detail-grid__item">
-                <span>Status</span>
-                <strong>{viewing.status || '—'}</strong>
+                <span>{t.applications.manage.status}</span>
+                <strong>{statusLabel(t, viewing.status)}</strong>
               </div>
             </div>
             <div className="detail-grid__item" style={{ marginBottom: 16 }}>
-              <span>Cover letter</span>
+              <span>{t.applications.manage.coverLetter}</span>
               <p>{viewing.coverLetter || '—'}</p>
             </div>
             <div className="detail-grid__item">
-              <span>AI feedback</span>
+              <span>{t.applications.manage.aiFeedback}</span>
               <p>{viewing.aiFeedback || '—'}</p>
             </div>
             <div className="modal__actions">
               <button className="btn btn--ghost" onClick={() => setViewing(null)}>
-                Close
+                {t.applications.manage.close}
               </button>
             </div>
           </div>
@@ -520,12 +523,12 @@ function ManageApplications() {
       {scheduling && (
         <div className="modal-overlay" onClick={() => setScheduling(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Schedule interview — {candidateName(scheduling)}</h2>
+            <h2>{t.applications.manage.scheduleModalTitle(candidateName(scheduling))}</h2>
             <form onSubmit={handleScheduleSubmit}>
               {scheduleError && <div className="alert alert--error">{scheduleError}</div>}
               <div className="fieldset">
                 <label className="field">
-                  <span>Date &amp; time</span>
+                  <span>{t.applications.manage.dateTime}</span>
                   <input
                     type="datetime-local"
                     value={scheduleDate}
@@ -534,21 +537,21 @@ function ManageApplications() {
                   />
                 </label>
                 <label className="field">
-                  <span>Location</span>
+                  <span>{t.applications.manage.location}</span>
                   <input
                     value={scheduleLocation}
                     onChange={(e) => setScheduleLocation(e.target.value)}
-                    placeholder="e.g. Office 3B or a video call link"
+                    placeholder={t.applications.manage.locationPlaceholder}
                     required
                   />
                 </label>
               </div>
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setScheduling(null)}>
-                  Cancel
+                  {t.applications.manage.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={scheduleMutation.isPending}>
-                  {scheduleMutation.isPending ? 'Scheduling…' : 'Schedule interview'}
+                  {scheduleMutation.isPending ? t.applications.manage.scheduling : t.applications.manage.scheduleInterview}
                 </button>
               </div>
             </form>

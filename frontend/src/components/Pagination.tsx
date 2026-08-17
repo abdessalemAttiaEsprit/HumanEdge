@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+
 export function Pagination({
   page,
   pageCount,
@@ -7,6 +9,7 @@ export function Pagination({
   pageCount: number;
   onPageChange: (page: number) => void;
 }) {
+  const { t } = useLanguage();
   if (pageCount <= 1) return null;
 
   return (
@@ -16,21 +19,19 @@ export function Pagination({
         className="pagination__btn"
         onClick={() => onPageChange(page - 1)}
         disabled={page <= 1}
-        aria-label="Previous page"
+        aria-label={t.pagination.previousPage}
       >
-        ← Prev
+        {t.pagination.prev}
       </button>
-      <span>
-        Page {page} of {pageCount}
-      </span>
+      <span>{t.pagination.pageOf(page, pageCount)}</span>
       <button
         type="button"
         className="pagination__btn"
         onClick={() => onPageChange(page + 1)}
         disabled={page >= pageCount}
-        aria-label="Next page"
+        aria-label={t.pagination.nextPage}
       >
-        Next →
+        {t.pagination.next}
       </button>
     </div>
   );

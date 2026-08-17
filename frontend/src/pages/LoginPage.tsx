@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
+import { useLanguage } from '@/i18n/useLanguage';
 import { AuthLayout } from '@/components/AuthLayout';
 import { getErrorMessage } from '@/lib/errors';
 
@@ -12,6 +13,7 @@ const RESEND_COOLDOWN_SECONDS = 30;
 
 export function LoginPage() {
   const { login, verifyOtp, resendOtp, isAuthenticated } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -50,7 +52,7 @@ export function LoginPage() {
         navigate(from, { replace: true });
       }
     } catch (err) {
-      setError(getErrorMessage(err, 'Unable to sign in'));
+      setError(getErrorMessage(err, t.login.errorSignIn));
     } finally {
       setLoading(false);
     }
@@ -64,7 +66,7 @@ export function LoginPage() {
       await verifyOtp({ email, code });
       navigate(from, { replace: true });
     } catch (err) {
-      setError(getErrorMessage(err, 'Invalid or expired verification code'));
+      setError(getErrorMessage(err, t.login.errorOtp));
     } finally {
       setLoading(false);
     }
@@ -77,7 +79,7 @@ export function LoginPage() {
       await resendOtp({ email });
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
     } catch (err) {
-      setError(getErrorMessage(err, 'Unable to resend the code'));
+      setError(getErrorMessage(err, t.login.errorResend));
     }
   };
 
@@ -85,16 +87,15 @@ export function LoginPage() {
     return (
       <AuthLayout>
         <form onSubmit={handleOtpSubmit}>
-          <h1>Verify your identity</h1>
+          <h1>{t.login.verifyIdentity}</h1>
           <p className="otp-hint">
-            We sent a 6-digit verification code to <strong>{maskedEmail}</strong>. It expires in 5
-            minutes.
+            {t.login.otpHintPrefix} <strong>{maskedEmail}</strong>. {t.login.otpHintSuffix}
           </p>
 
           {error && <div className="alert alert--error">{error}</div>}
 
           <label className="field">
-            <span>Verification code</span>
+            <span>{t.login.verificationCode}</span>
             <input
               className="otp-input"
               inputMode="numeric"
@@ -109,15 +110,15 @@ export function LoginPage() {
           </label>
 
           <button className="btn btn--primary btn--block" type="submit" disabled={loading}>
-            {loading ? 'Verifying…' : 'Verify'}
+            {loading ? t.login.verifying : t.login.verify}
           </button>
 
           <div className="otp-actions">
             <button type="button" onClick={() => setStep('credentials')}>
-              Back
+              {t.login.back}
             </button>
             <button type="button" onClick={handleResend} disabled={resendCooldown > 0}>
-              {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
+              {resendCooldown > 0 ? t.login.resendCodeWithCooldown(resendCooldown) : t.login.resendCode}
             </button>
           </div>
         </form>
@@ -128,14 +129,14 @@ export function LoginPage() {
   return (
     <AuthLayout>
       <form onSubmit={handleCredentialsSubmit}>
-        <h1>Sign in</h1>
-        <p className="auth-shell__subtitle">Access your HumanEdge workspace</p>
+        <h1>{t.login.signIn}</h1>
+        <p className="auth-shell__subtitle">{t.login.subtitle}</p>
 
         {error && <div className="alert alert--error">{error}</div>}
 
         <div className="auth-fields">
           <label className="field">
-            <span>Email</span>
+            <span>{t.login.email}</span>
             <input
               type="email"
               value={email}
@@ -147,7 +148,7 @@ export function LoginPage() {
           </label>
 
           <label className="field">
-            <span>Password</span>
+            <span>{t.login.password}</span>
             <input
               type="password"
               value={password}
@@ -159,15 +160,15 @@ export function LoginPage() {
         </div>
 
         <p className="auth-shell__forgot">
-          <Link to="/forgot-password">Forgot password?</Link>
+          <Link to="/forgot-password">{t.login.forgotPassword}</Link>
         </p>
 
         <button className="btn btn--primary btn--block" type="submit" disabled={loading}>
-          {loading ? 'Signing in…' : 'Sign in'}
+          {loading ? t.login.signingIn : t.login.signIn}
         </button>
 
         <p className="auth-shell__footer">
-          Don&apos;t have an account? <Link to="/register">Create one</Link>
+          {t.login.noAccount} <Link to="/register">{t.login.createOne}</Link>
         </p>
       </form>
     </AuthLayout>

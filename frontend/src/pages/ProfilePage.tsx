@@ -14,6 +14,7 @@ import {
   User as UserIcon,
 } from 'lucide-react';
 import { useAuth } from '@/auth/useAuth';
+import { useLanguage } from '@/i18n/useLanguage';
 import { accountApi } from '@/api/account';
 import { authApi } from '@/api/auth';
 import { companiesApi } from '@/api/companies';
@@ -27,14 +28,7 @@ import { useToast } from '@/components/ToastProvider';
 import { useEscapeKey } from '@/lib/useEscapeKey';
 import { useConfirm } from '@/lib/useConfirm';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import type { AuthResponse, CompanyUpdateRequest, Role, SubscriptionPaymentRequest } from '@/types';
-
-const ROLE_LABEL: Record<Role, string> = {
-  ADMIN: 'Administrator',
-  COMPANY: 'Company account',
-  EMPLOYE: 'Employee',
-  GUEST: 'Candidate',
-};
+import type { AuthResponse, CompanyUpdateRequest, SubscriptionPaymentRequest } from '@/types';
 
 type TabKey = 'account' | 'company' | 'subscription' | 'employee' | 'security';
 
@@ -52,21 +46,22 @@ interface TabDef {
 // ============================================================================
 export function ProfilePage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<TabKey>('account');
   if (!user) return null;
 
   const tabs: TabDef[] = [
-    { key: 'account', label: 'Account', icon: <UserIcon size={15} aria-hidden="true" /> },
+    { key: 'account', label: t.profile.tabs.account, icon: <UserIcon size={15} aria-hidden="true" /> },
     ...(user.role === 'COMPANY'
       ? [
-          { key: 'company' as const, label: 'Company', icon: <Building2 size={15} aria-hidden="true" /> },
-          { key: 'subscription' as const, label: 'Subscription', icon: <CreditCard size={15} aria-hidden="true" /> },
+          { key: 'company' as const, label: t.profile.tabs.company, icon: <Building2 size={15} aria-hidden="true" /> },
+          { key: 'subscription' as const, label: t.profile.tabs.subscription, icon: <CreditCard size={15} aria-hidden="true" /> },
         ]
       : []),
     ...(user.role === 'EMPLOYE'
-      ? [{ key: 'employee' as const, label: 'Employee record', icon: <Briefcase size={15} aria-hidden="true" /> }]
+      ? [{ key: 'employee' as const, label: t.profile.tabs.employee, icon: <Briefcase size={15} aria-hidden="true" /> }]
       : []),
-    { key: 'security', label: 'Security', icon: <Lock size={15} aria-hidden="true" /> },
+    { key: 'security', label: t.profile.tabs.security, icon: <Lock size={15} aria-hidden="true" /> },
   ];
 
   return (
@@ -107,6 +102,7 @@ export function ProfilePage() {
 // ============================================================================
 function ProfileHeader({ user }: { user: AuthResponse }) {
   const { updateAvatar } = useAuth();
+  const { t } = useLanguage();
   const [error, setError] = useState<string | null>(null);
 
   const avatarMutation = useMutation({
@@ -115,7 +111,7 @@ function ProfileHeader({ user }: { user: AuthResponse }) {
       if (updated.img) updateAvatar(updated.img);
       setError(null);
     },
-    onError: (err) => setError(getErrorMessage(err, 'Unable to upload the photo')),
+    onError: (err) => setError(getErrorMessage(err, t.profile.account.errorUploadPhoto)),
   });
 
   const avatar = fileUrl(user.img);
@@ -134,7 +130,7 @@ function ProfileHeader({ user }: { user: AuthResponse }) {
 
       <div className="profile-header__body">
         <div className="profile-header__identity">
-          <label className="profile-header__avatar-upload" title="Change photo">
+          <label className="profile-header__avatar-upload" title={t.profile.changePhoto}>
             {avatar ? (
               <img className="avatar avatar--xl" src={avatar} alt={user.firstname} />
             ) : (
@@ -153,7 +149,7 @@ function ProfileHeader({ user }: { user: AuthResponse }) {
           <div className="profile-header__name">
             {user.firstname} {user.lastname}
           </div>
-          <div className="profile-header__role">{ROLE_LABEL[user.role]}</div>
+          <div className="profile-header__role">{t.profile.roleLabel[user.role]}</div>
         </div>
 
         {user.role === 'COMPANY' && user.companyId && <CompanyQuickStats companyId={user.companyId} />}
@@ -170,6 +166,7 @@ function ProfileHeader({ user }: { user: AuthResponse }) {
 }
 
 function CompanyQuickStats({ companyId }: { companyId: number }) {
+  const { t } = useLanguage();
   const { data: company } = useQuery({
     queryKey: ['company', companyId],
     queryFn: () => companiesApi.getById(companyId),
@@ -184,24 +181,25 @@ function CompanyQuickStats({ companyId }: { companyId: number }) {
     <div className="profile-header__stats">
       <div className="profile-header__stat">
         <ShieldCheck size={16} aria-hidden="true" />
-        <span className="profile-header__stat-value">{company?.verified ? 'Verified' : 'Pending'}</span>
-        <span className="profile-header__stat-label">Verification</span>
+        <span className="profile-header__stat-value">{company?.verified ? t.profile.verified : t.profile.pending}</span>
+        <span className="profile-header__stat-label">{t.profile.verification}</span>
       </div>
       <div className="profile-header__stat">
         <CreditCard size={16} aria-hidden="true" />
         <span className="profile-header__stat-value">{planLabel}</span>
-        <span className="profile-header__stat-label">Plan</span>
+        <span className="profile-header__stat-label">{t.profile.plan}</span>
       </div>
       <div className="profile-header__stat">
         <Calendar size={16} aria-hidden="true" />
         <span className="profile-header__stat-value">{company?.createdAt ? formatDateFr(company.createdAt) : '—'}</span>
-        <span className="profile-header__stat-label">Member since</span>
+        <span className="profile-header__stat-label">{t.profile.memberSince}</span>
       </div>
     </div>
   );
 }
 
 function EmployeeQuickStats() {
+  const { t } = useLanguage();
   const { data: personnel } = useQuery({ queryKey: ['personnel', 'me'], queryFn: personnelApi.getMine });
   const contract = personnel?.contract;
   const years = contract?.dateDebut ? yearsSince(contract.dateDebut) : null;
@@ -211,17 +209,19 @@ function EmployeeQuickStats() {
       <div className="profile-header__stat">
         <Hash size={16} aria-hidden="true" />
         <span className="profile-header__stat-value">{personnel?.matricule ?? '—'}</span>
-        <span className="profile-header__stat-label">Matricule</span>
+        <span className="profile-header__stat-label">{t.profile.matricule}</span>
       </div>
       <div className="profile-header__stat">
         <FileText size={16} aria-hidden="true" />
-        <span className="profile-header__stat-value">{contract?.typeContrat ?? '—'}</span>
-        <span className="profile-header__stat-label">Contract</span>
+        <span className="profile-header__stat-value">
+          {contract?.typeContrat ? t.contractTypes[contract.typeContrat] : '—'}
+        </span>
+        <span className="profile-header__stat-label">{t.profile.contract}</span>
       </div>
       <div className="profile-header__stat">
         <Clock size={16} aria-hidden="true" />
-        <span className="profile-header__stat-value">{years != null ? `${years} yr${years === 1 ? '' : 's'}` : '—'}</span>
-        <span className="profile-header__stat-label">Seniority</span>
+        <span className="profile-header__stat-value">{years != null ? t.profile.years(years) : '—'}</span>
+        <span className="profile-header__stat-label">{t.profile.seniority}</span>
       </div>
     </div>
   );
@@ -240,23 +240,24 @@ function yearsSince(dateStr: string): number {
 // Account: read-only identity (avatar/upload now lives in the header above).
 // ============================================================================
 function AccountCard({ user }: { user: AuthResponse }) {
+  const { t } = useLanguage();
   return (
     <div>
-      <h2 className="profile-panel__title">Account</h2>
+      <h2 className="profile-panel__title">{t.profile.account.title}</h2>
       {user.role !== 'COMPANY' && (
         <div className="field-row">
           <label className="field">
-            <span>First name</span>
+            <span>{t.profile.account.firstName}</span>
             <input value={user.firstname} disabled />
           </label>
           <label className="field">
-            <span>Last name</span>
+            <span>{t.profile.account.lastName}</span>
             <input value={user.lastname} disabled />
           </label>
         </div>
       )}
       <label className="field">
-        <span>Email</span>
+        <span>{t.profile.account.email}</span>
         <input value={user.email} disabled />
       </label>
     </div>
@@ -267,6 +268,7 @@ function AccountCard({ user }: { user: AuthResponse }) {
 // Company: editable company record + logo upload (COMPANY role only).
 // ============================================================================
 function CompanyCard({ companyId }: { companyId: number }) {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<CompanyUpdateRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -304,7 +306,7 @@ function CompanyCard({ companyId }: { companyId: number }) {
     },
     onError: (err) => {
       setSaved(false);
-      setError(getErrorMessage(err, 'Unable to update your company'));
+      setError(getErrorMessage(err, t.profile.company.errorUpdate));
     },
   });
 
@@ -314,7 +316,7 @@ function CompanyCard({ companyId }: { companyId: number }) {
       queryClient.invalidateQueries({ queryKey: ['company', companyId] });
       setError(null);
     },
-    onError: (err) => setError(getErrorMessage(err, 'Unable to upload the logo')),
+    onError: (err) => setError(getErrorMessage(err, t.profile.company.errorUploadLogo)),
   });
 
   const handleLogoChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -334,17 +336,17 @@ function CompanyCard({ companyId }: { companyId: number }) {
   if (isLoading || !form) {
     return (
       <div>
-        <h2 className="profile-panel__title">Company</h2>
-        <p className="jobs__status">Loading your company…</p>
+        <h2 className="profile-panel__title">{t.profile.company.title}</h2>
+        <p className="jobs__status">{t.profile.company.loading}</p>
       </div>
     );
   }
 
   return (
     <div>
-      <h2 className="profile-panel__title">Company</h2>
+      <h2 className="profile-panel__title">{t.profile.company.title}</h2>
       {error && <div className="alert alert--error">{error}</div>}
-      {saved && !error && <div className="alert alert--success">Company details saved.</div>}
+      {saved && !error && <div className="alert alert--success">{t.profile.company.saved}</div>}
 
       <div className="field-with-preview">
         {company?.logoUrl ? (
@@ -353,7 +355,7 @@ function CompanyCard({ companyId }: { companyId: number }) {
           <span className="avatar avatar--lg avatar--initials">{form.companyName.slice(0, 1)}</span>
         )}
         <label className="field">
-          <span>Company logo</span>
+          <span>{t.profile.company.logo}</span>
           <input
             type="file"
             accept="image/png,image/jpeg,image/gif"
@@ -365,7 +367,7 @@ function CompanyCard({ companyId }: { companyId: number }) {
 
       <form onSubmit={handleSubmit}>
         <label className="field">
-          <span>Company name</span>
+          <span>{t.profile.company.companyName}</span>
           <input
             value={form.companyName}
             onChange={(e) => setForm({ ...form, companyName: e.target.value })}
@@ -374,7 +376,7 @@ function CompanyCard({ companyId }: { companyId: number }) {
         </label>
         <div className="field-row">
           <label className="field">
-            <span>Fiscal number</span>
+            <span>{t.profile.company.fiscalNumber}</span>
             <input
               value={form.fiscalNumber}
               onChange={(e) => setForm({ ...form, fiscalNumber: e.target.value })}
@@ -382,7 +384,7 @@ function CompanyCard({ companyId }: { companyId: number }) {
             />
           </label>
           <label className="field">
-            <span>CNSS number</span>
+            <span>{t.profile.company.cnssNumber}</span>
             <input
               value={form.cnssNumber}
               onChange={(e) => setForm({ ...form, cnssNumber: e.target.value })}
@@ -391,41 +393,41 @@ function CompanyCard({ companyId }: { companyId: number }) {
           </label>
         </div>
         <label className="field">
-          <span>Bank account number (RIB)</span>
+          <span>{t.profile.company.rib}</span>
           <input value={form.rib} onChange={(e) => setForm({ ...form, rib: e.target.value })} required />
         </label>
         <div className="field-row">
           <label className="field">
-            <span>Phone</span>
+            <span>{t.profile.company.phone}</span>
             <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </label>
           <label className="field">
-            <span>City</span>
+            <span>{t.profile.company.city}</span>
             <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
           </label>
         </div>
         <label className="field">
-          <span>Address</span>
+          <span>{t.profile.company.address}</span>
           <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
         </label>
         <div className="field-row">
           <label className="field">
-            <span>State</span>
+            <span>{t.profile.company.state}</span>
             <input value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
           </label>
           <label className="field">
-            <span>Postal code</span>
+            <span>{t.profile.company.postalCode}</span>
             <input value={form.postalCode} onChange={(e) => setForm({ ...form, postalCode: e.target.value })} />
           </label>
         </div>
         <label className="field">
-          <span>Country</span>
+          <span>{t.profile.company.country}</span>
           <input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} />
         </label>
 
         <div className="chart-card__actions">
           <button className="btn btn--primary" type="submit" disabled={updateMutation.isPending}>
-            {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+            {updateMutation.isPending ? t.profile.company.saving : t.profile.company.saveChanges}
           </button>
         </div>
       </form>
@@ -438,6 +440,7 @@ function CompanyCard({ companyId }: { companyId: number }) {
 // is always required to renew or switch plans — see SubscriptionService.updateSubscription.
 // ============================================================================
 function SubscriptionCard({ companyId }: { companyId: number }) {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const toast = useToast();
   const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
@@ -463,18 +466,18 @@ function SubscriptionCard({ companyId }: { companyId: number }) {
       queryClient.invalidateQueries({ queryKey: ['company-subscription', companyId] });
       setShowManage(false);
       setError(null);
-      toast.showSuccess('Payment successful — your subscription is up to date.');
+      toast.showSuccess(t.profile.subscription.paymentSuccess);
     },
-    onError: (err) => setError(getErrorMessage(err, 'Payment failed')),
+    onError: (err) => setError(getErrorMessage(err, t.profile.subscription.errorPayment)),
   });
 
   const cancelMutation = useMutation({
     mutationFn: () => companiesApi.cancelSubscription(companyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['company-subscription', companyId] });
-      toast.showSuccess('Subscription canceled.');
+      toast.showSuccess(t.profile.subscription.subscriptionCanceled);
     },
-    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to cancel your subscription')),
+    onError: (err) => toast.showError(getErrorMessage(err, t.profile.subscription.errorCancel)),
   });
 
   const openManage = () => {
@@ -487,7 +490,7 @@ function SubscriptionCard({ companyId }: { companyId: number }) {
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!selectedPlan) {
-      setError('Please select a plan');
+      setError(t.profile.subscription.errorSelectPlan);
       return;
     }
     setError(null);
@@ -496,10 +499,10 @@ function SubscriptionCard({ companyId }: { companyId: number }) {
 
   const handleCancel = () => {
     requestConfirm({
-      title: 'Cancel subscription',
-      message: 'Cancel your subscription? You can renew it anytime from this page.',
-      confirmLabel: 'Cancel subscription',
-      cancelLabel: 'Keep subscription',
+      title: t.profile.subscription.confirmCancelTitle,
+      message: t.profile.subscription.confirmCancelMessage,
+      confirmLabel: t.profile.subscription.confirmCancelConfirmLabel,
+      cancelLabel: t.profile.subscription.confirmCancelKeepLabel,
       variant: 'danger',
       onConfirm: () => cancelMutation.mutate(),
     });
@@ -510,8 +513,8 @@ function SubscriptionCard({ companyId }: { companyId: number }) {
   if (isLoading) {
     return (
       <div>
-        <h2 className="profile-panel__title">Subscription</h2>
-        <p className="jobs__status">Loading…</p>
+        <h2 className="profile-panel__title">{t.profile.subscription.title}</h2>
+        <p className="jobs__status">{t.profile.subscription.loading}</p>
       </div>
     );
   }
@@ -522,7 +525,7 @@ function SubscriptionCard({ companyId }: { companyId: number }) {
   return (
     <div>
       <div className="chart-card__header">
-        <h2 className="profile-panel__title">Subscription</h2>
+        <h2 className="profile-panel__title">{t.profile.subscription.title}</h2>
         {subscription && (
           <span className={isActive ? 'badge badge--success' : 'badge badge--muted'}>{subscription.status}</span>
         )}
@@ -531,15 +534,17 @@ function SubscriptionCard({ companyId }: { companyId: number }) {
       {subscription ? (
         <>
           <p className="field-hint">
-            Plan: <strong>{planLabel}</strong> — {subscription.amount.toFixed(0)} {subscription.currency}/mo
+            {t.profile.subscription.plan(planLabel ?? '—')} — {subscription.amount.toFixed(0)} {subscription.currency}/mo
             {subscription.periodEnd &&
-              (isActive
-                ? ` — renews on ${formatDateFr(subscription.periodEnd)}`
-                : ` — period ended ${formatDateFr(subscription.periodEnd)}`)}
+              ` — ${
+                isActive
+                  ? t.profile.subscription.renewsOn(formatDateFr(subscription.periodEnd))
+                  : t.profile.subscription.periodEnded(formatDateFr(subscription.periodEnd))
+              }`}
           </p>
           <div className="chart-card__actions">
             <button className="btn btn--primary" type="button" onClick={openManage}>
-              {isActive ? 'Renew / change plan' : 'Reactivate subscription'}
+              {isActive ? t.profile.subscription.renewOrChange : t.profile.subscription.reactivate}
             </button>
             {isActive && (
               <button
@@ -548,29 +553,29 @@ function SubscriptionCard({ companyId }: { companyId: number }) {
                 onClick={handleCancel}
                 disabled={cancelMutation.isPending}
               >
-                Cancel subscription
+                {t.profile.subscription.cancelSubscription}
               </button>
             )}
           </div>
         </>
       ) : (
-        <p className="field-hint">No subscription on file.</p>
+        <p className="field-hint">{t.profile.subscription.noSubscription}</p>
       )}
 
       {showManage && (
         <div className="modal-overlay" onClick={() => setShowManage(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Manage subscription</h2>
+            <h2>{t.profile.subscription.manage}</h2>
             <form onSubmit={handleSubmit}>
               {error && <div className="alert alert--error">{error}</div>}
               <PlanPicker plans={plans} selected={selectedPlan} onSelect={setSelectedPlan} />
               <CardPaymentFields value={card} onChange={(patch) => setCard((c) => ({ ...c, ...patch }))} />
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setShowManage(false)}>
-                  Cancel
+                  {t.profile.subscription.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending ? 'Processing…' : 'Pay & confirm'}
+                  {updateMutation.isPending ? t.profile.subscription.processing : t.profile.subscription.payAndConfirm}
                 </button>
               </div>
             </form>
@@ -587,6 +592,7 @@ function SubscriptionCard({ companyId }: { companyId: number }) {
 // Employee: own Personnel record — telephone/RIB editable, rest read-only.
 // ============================================================================
 function EmployeeCard() {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const [telephone, setTelephone] = useState('');
   const [rib, setRib] = useState('');
@@ -614,7 +620,7 @@ function EmployeeCard() {
     },
     onError: (err) => {
       setSaved(false);
-      setError(getErrorMessage(err, 'Unable to update your profile'));
+      setError(getErrorMessage(err, t.profile.employee.errorUpdate));
     },
   });
 
@@ -624,7 +630,7 @@ function EmployeeCard() {
       queryClient.invalidateQueries({ queryKey: ['personnel', 'me'] });
       setPhotoError(null);
     },
-    onError: (err) => setPhotoError(getErrorMessage(err, 'Unable to upload the photo')),
+    onError: (err) => setPhotoError(getErrorMessage(err, t.profile.employee.errorUploadPhoto)),
   });
 
   const handlePhotoChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -643,8 +649,8 @@ function EmployeeCard() {
   if (isLoading || !personnel) {
     return (
       <div>
-        <h2 className="profile-panel__title">Employee record</h2>
-        <p className="jobs__status">Loading your record…</p>
+        <h2 className="profile-panel__title">{t.profile.employee.title}</h2>
+        <p className="jobs__status">{t.profile.employee.loading}</p>
       </div>
     );
   }
@@ -653,9 +659,9 @@ function EmployeeCard() {
 
   return (
     <div>
-      <h2 className="profile-panel__title">Employee record</h2>
+      <h2 className="profile-panel__title">{t.profile.employee.title}</h2>
       {error && <div className="alert alert--error">{error}</div>}
-      {saved && !error && <div className="alert alert--success">Profile saved.</div>}
+      {saved && !error && <div className="alert alert--success">{t.profile.employee.saved}</div>}
 
       <div className="field-with-preview">
         {personnel.image ? (
@@ -664,7 +670,7 @@ function EmployeeCard() {
           <span className="avatar avatar--lg avatar--initials">{personnel.cin.slice(0, 1)}</span>
         )}
         <label className="field">
-          <span>Employee photo (used on your HR documents)</span>
+          <span>{t.profile.employee.photoLabel}</span>
           <input
             type="file"
             accept="image/png,image/jpeg,image/gif"
@@ -678,46 +684,46 @@ function EmployeeCard() {
       <form onSubmit={handleSubmit}>
         <div className="field-row">
           <label className="field">
-            <span>CIN</span>
+            <span>{t.profile.employee.cin}</span>
             <input value={personnel.cin} disabled />
           </label>
           <label className="field">
-            <span>Matricule</span>
+            <span>{t.profile.employee.matricule}</span>
             <input value={personnel.matricule ?? '—'} disabled />
           </label>
         </div>
         <label className="field">
-          <span>CNSS number</span>
+          <span>{t.profile.employee.cnssNumber}</span>
           <input value={personnel.cnssNumber} disabled />
         </label>
         <div className="field-row">
           <label className="field">
-            <span>Phone</span>
+            <span>{t.profile.employee.phone}</span>
             <input value={telephone} onChange={(e) => setTelephone(e.target.value)} />
           </label>
           <label className="field">
-            <span>Bank account number (RIB)</span>
+            <span>{t.profile.employee.rib}</span>
             <input value={rib} onChange={(e) => setRib(e.target.value)} required />
           </label>
         </div>
 
         <div className="chart-card__actions">
           <button className="btn btn--primary" type="submit" disabled={updateMutation.isPending}>
-            {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+            {updateMutation.isPending ? t.profile.employee.saving : t.profile.employee.saveChanges}
           </button>
         </div>
       </form>
 
       {contract && (
         <>
-          <h3 className="profile-panel__title" style={{ marginTop: 20 }}>Contract</h3>
+          <h3 className="profile-panel__title" style={{ marginTop: 20 }}>{t.profile.employee.contractTitle}</h3>
           <div className="field-row">
             <label className="field">
-              <span>Type</span>
-              <input value={contract.typeContrat ?? '—'} disabled />
+              <span>{t.profile.employee.type}</span>
+              <input value={contract.typeContrat ? t.contractTypes[contract.typeContrat] : '—'} disabled />
             </label>
             <label className="field">
-              <span>Base salary</span>
+              <span>{t.profile.employee.baseSalary}</span>
               <input value={contract.salaireBase != null ? `${contract.salaireBase.toFixed(3)} TND` : '—'} disabled />
             </label>
           </div>
@@ -731,6 +737,7 @@ function EmployeeCard() {
 // Password: self-service change, any role.
 // ============================================================================
 function PasswordCard() {
+  const { t } = useLanguage();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -748,7 +755,7 @@ function PasswordCard() {
     },
     onError: (err) => {
       setSaved(false);
-      setError(getErrorMessage(err, 'Unable to change your password'));
+      setError(getErrorMessage(err, t.profile.password.errorChange));
     },
   });
 
@@ -756,7 +763,7 @@ function PasswordCard() {
     e.preventDefault();
     setSaved(false);
     if (newPassword !== confirmPassword) {
-      setError('The new password and its confirmation do not match');
+      setError(t.profile.password.errorMismatch);
       return;
     }
     setError(null);
@@ -765,13 +772,13 @@ function PasswordCard() {
 
   return (
     <div>
-      <h2 className="profile-panel__title">Password</h2>
+      <h2 className="profile-panel__title">{t.profile.password.title}</h2>
       {error && <div className="alert alert--error">{error}</div>}
-      {saved && !error && <div className="alert alert--success">Password changed.</div>}
+      {saved && !error && <div className="alert alert--success">{t.profile.password.saved}</div>}
 
       <form onSubmit={handleSubmit}>
         <label className="field">
-          <span>Current password</span>
+          <span>{t.profile.password.current}</span>
           <input
             type="password"
             value={currentPassword}
@@ -781,7 +788,7 @@ function PasswordCard() {
         </label>
         <div className="field-row">
           <label className="field">
-            <span>New password</span>
+            <span>{t.profile.password.new}</span>
             <input
               type="password"
               value={newPassword}
@@ -791,7 +798,7 @@ function PasswordCard() {
             />
           </label>
           <label className="field">
-            <span>Confirm new password</span>
+            <span>{t.profile.password.confirm}</span>
             <input
               type="password"
               value={confirmPassword}
@@ -804,7 +811,7 @@ function PasswordCard() {
 
         <div className="chart-card__actions">
           <button className="btn btn--primary" type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? 'Saving…' : 'Change password'}
+            {mutation.isPending ? t.profile.password.saving : t.profile.password.change}
           </button>
         </div>
       </form>

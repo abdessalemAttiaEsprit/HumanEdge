@@ -1,4 +1,5 @@
 import { useEscapeKey } from '@/lib/useEscapeKey';
+import { useLanguage } from '@/i18n/useLanguage';
 import type { ConfirmOptions } from '@/lib/useConfirm';
 
 interface ConfirmDialogProps {
@@ -9,6 +10,7 @@ interface ConfirmDialogProps {
 
 /** Styled replacement for window.confirm(), driven by useConfirm(). */
 export function ConfirmDialog({ options, onConfirm, onCancel }: ConfirmDialogProps) {
+  const { t } = useLanguage();
   useEscapeKey(onCancel, !!options);
   if (!options) return null;
 
@@ -25,14 +27,14 @@ export function ConfirmDialog({ options, onConfirm, onCancel }: ConfirmDialogPro
         <p className="field-hint">{options.message}</p>
         <div className="modal__actions">
           <button type="button" className="btn btn--ghost" onClick={onCancel}>
-            {options.cancelLabel ?? 'Cancel'}
+            {options.cancelLabel ?? t.common.cancel}
           </button>
           <button
             type="button"
             className={options.variant === 'danger' ? 'btn btn--danger' : 'btn btn--primary'}
             onClick={onConfirm}
           >
-            {options.confirmLabel ?? 'Confirm'}
+            {options.confirmLabel ?? t.common.confirm}
           </button>
         </div>
       </div>

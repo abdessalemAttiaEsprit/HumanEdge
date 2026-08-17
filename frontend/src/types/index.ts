@@ -287,6 +287,15 @@ export interface PersonnelSelfUpdateRequest {
   rib: string;
 }
 
+/**
+ * PENDING: submitted by the employee, awaiting a decision (see absencesApi.approve/reject).
+ * APPROVED/REJECTED: decided by a manager. Absences created directly by COMPANY/ADMIN (including
+ * AttendancePage) are always APPROVED immediately — only employee self-requests start PENDING.
+ * Absent from the response entirely only for records created before this workflow existed;
+ * treat that case the same as APPROVED (see AbsenceQuotaCalculator#isApproved on the backend).
+ */
+export type AbsenceStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
 export interface Absence {
   idAbsence: number;
   dateAbsence?: string;
@@ -295,6 +304,7 @@ export interface Absence {
   reason?: string;
   /** Stored filename of the uploaded justification document, if any — see absencesApi.uploadJustification/downloadJustification. */
   justification?: string;
+  status?: AbsenceStatus;
   personnel?: Personnel;
   payment?: Payment;
 }

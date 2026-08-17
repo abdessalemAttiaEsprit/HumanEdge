@@ -1,47 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
+import { useLanguage } from '@/i18n/useLanguage';
 import { publicJobsApi } from '@/api/publicJobs';
 import { PublicNavbar } from '@/components/PublicNavbar';
-import type { TypeContrat } from '@/types';
-
-const JOB_TYPE_LABEL: Record<TypeContrat, string> = {
-  CDI: 'Permanent',
-  CDD: 'Fixed-term',
-  CDD_AI: 'Fixed-term (AI)',
-  PROJET: 'Project-based',
-  INTERIM: 'Temp / Interim',
-  APPRENTISSAGE: 'Apprenticeship',
-  STAGE: 'Internship',
-  CONVENTION: 'Agreement',
-};
-
-const FEATURES = [
-  {
-    image: '/assets/feature-recruiting.jpg',
-    icon: '🤖',
-    title: 'AI-powered recruiting',
-    text: 'Automatic application scoring and feedback, so a strong candidate never slips through the cracks.',
-  },
-  {
-    image: '/assets/feature-hr.jpg',
-    icon: '🗂️',
-    title: 'Centralized HR management',
-    text: 'Personnel, contracts, absences and documents in one place, accessible to your whole team.',
-  },
-  {
-    image: '/assets/feature-payroll.jpg',
-    icon: '💳',
-    title: 'Effortless payroll',
-    text: 'Grid-based salary suggestions, automatic calculations, and pay slips generated in one click.',
-  },
-  {
-    image: '/assets/feature-security.jpg',
-    icon: '🔒',
-    title: 'Role-based security',
-    text: 'Every user only sees what concerns them: company, employee, or candidate, under strict permissions.',
-  },
-];
 
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text;
@@ -49,6 +11,7 @@ function truncate(text: string, max: number): string {
 
 export function HomePage() {
   const { isAuthenticated } = useAuth();
+  const { t } = useLanguage();
 
   const { data: jobs, isLoading, isError } = useQuery({
     queryKey: ['public-jobs'],
@@ -59,6 +22,13 @@ export function HomePage() {
     return <Navigate to="/dashboard" replace />;
   }
 
+  const FEATURES = [
+    { image: '/assets/feature-recruiting.jpg', icon: '🤖', title: t.home.feature1Title, text: t.home.feature1Text },
+    { image: '/assets/feature-hr.jpg', icon: '🗂️', title: t.home.feature2Title, text: t.home.feature2Text },
+    { image: '/assets/feature-payroll.jpg', icon: '💳', title: t.home.feature3Title, text: t.home.feature3Text },
+    { image: '/assets/feature-security.jpg', icon: '🔒', title: t.home.feature4Title, text: t.home.feature4Text },
+  ];
+
   return (
     <div className="landing">
       <PublicNavbar />
@@ -66,18 +36,15 @@ export function HomePage() {
       {/* ------------------------------ Hero ------------------------------ */}
       <section id="home" className="hero">
         <div className="hero__content">
-          <span className="hero__eyebrow">All-in-one HR platform</span>
-          <h1>Simplify HR management and recruitment for your company</h1>
-          <p>
-            HumanEdge brings personnel, contracts, absences, payroll, and AI-powered recruiting
-            together in one secure workspace.
-          </p>
+          <span className="hero__eyebrow">{t.home.eyebrow}</span>
+          <h1>{t.home.heroTitle}</h1>
+          <p>{t.home.heroSubtitle}</p>
           <div className="hero__actions">
             <Link to="/register/company" className="btn btn--primary btn--lg">
-              Get Started — Create my company workspace
+              {t.home.getStarted}
             </Link>
             <Link to="/login" className="btn btn--ghost btn--lg">
-              Sign in
+              {t.home.signIn}
             </Link>
           </div>
         </div>
@@ -92,15 +59,15 @@ export function HomePage() {
             <div className="mock-stats">
               <div className="mock-stat">
                 <span className="mock-stat__value">128</span>
-                <span className="mock-stat__label">Employees</span>
+                <span className="mock-stat__label">{t.home.mockEmployees}</span>
               </div>
               <div className="mock-stat">
                 <span className="mock-stat__value">32</span>
-                <span className="mock-stat__label">Open roles</span>
+                <span className="mock-stat__label">{t.home.mockOpenRoles}</span>
               </div>
               <div className="mock-stat">
                 <span className="mock-stat__value">94%</span>
-                <span className="mock-stat__label">Avg. AI score</span>
+                <span className="mock-stat__label">{t.home.mockAiScore}</span>
               </div>
             </div>
             <div className="mock-bars">
@@ -116,8 +83,8 @@ export function HomePage() {
       {/* ------------------------- Why choose HumanEdge -------------------- */}
       <section id="why" className="why">
         <div className="section-header">
-          <span className="section-header__eyebrow">Why HumanEdge</span>
-          <h2>A platform built for modern HR teams</h2>
+          <span className="section-header__eyebrow">{t.home.whyEyebrow}</span>
+          <h2>{t.home.whyTitle}</h2>
         </div>
 
         <div className="why__grid">
@@ -142,19 +109,15 @@ export function HomePage() {
       {/* ---------------------------- Public jobs --------------------------- */}
       <section id="jobs" className="jobs">
         <div className="section-header">
-          <span className="section-header__eyebrow">Opportunities</span>
-          <h2>Job openings from our partner companies</h2>
-          <p>Discover open positions at companies hiring on HumanEdge.</p>
+          <span className="section-header__eyebrow">{t.home.jobsEyebrow}</span>
+          <h2>{t.home.jobsTitle}</h2>
+          <p>{t.home.jobsSubtitle}</p>
         </div>
 
-        {isLoading && <p className="jobs__status">Loading job openings…</p>}
-        {isError && (
-          <p className="jobs__status">
-            Unable to load job openings right now. Please try again later.
-          </p>
-        )}
+        {isLoading && <p className="jobs__status">{t.home.loadingJobs}</p>}
+        {isError && <p className="jobs__status">{t.home.errorJobs}</p>}
         {!isLoading && !isError && (jobs?.length ?? 0) === 0 && (
-          <p className="jobs__status">No open positions right now. Check back soon!</p>
+          <p className="jobs__status">{t.home.noJobs}</p>
         )}
 
         {(jobs?.length ?? 0) > 0 && (
@@ -163,7 +126,7 @@ export function HomePage() {
               <div key={job.id} className="job-card">
                 <div className="job-card__top">
                   {job.jobType && (
-                    <span className="job-card__type">{JOB_TYPE_LABEL[job.jobType]}</span>
+                    <span className="job-card__type">{t.contractTypes[job.jobType]}</span>
                   )}
                   {job.department && <span className="job-card__dept">{job.department}</span>}
                 </div>
@@ -179,7 +142,7 @@ export function HomePage() {
 
         <div className="jobs__cta">
           <Link to="/register/candidate" className="btn btn--primary">
-            Create a candidate profile to apply
+            {t.home.applyCta}
           </Link>
         </div>
       </section>
@@ -187,24 +150,21 @@ export function HomePage() {
       {/* -------------------------------- CTA band --------------------------- */}
       <section className="cta-band">
         <div className="cta-band__inner">
-          <h2>Ready to simplify HR for your company?</h2>
-          <p>
-            Create your workspace in minutes and start posting jobs, managing contracts, and
-            running payroll — all in one place.
-          </p>
+          <h2>{t.home.ctaTitle}</h2>
+          <p>{t.home.ctaSubtitle}</p>
           <div className="cta-band__actions">
             <Link to="/register/company" className="btn btn--primary btn--lg">
-              Get started free
+              {t.home.getStartedFree}
             </Link>
             <Link to="/login" className="btn btn--ghost btn--lg">
-              Sign in
+              {t.home.signIn}
             </Link>
           </div>
         </div>
       </section>
 
       <footer className="landing-footer">
-        <span>© {new Date().getFullYear()} HumanEdge. All rights reserved.</span>
+        <span>{t.home.footer(new Date().getFullYear())}</span>
       </footer>
     </div>
   );

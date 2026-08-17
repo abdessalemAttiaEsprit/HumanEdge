@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
+import { useLanguage } from '@/i18n/useLanguage';
 
 type ToastKind = 'success' | 'error';
 
@@ -24,6 +25,7 @@ export function useToast(): ToastContextValue {
 const AUTO_DISMISS_MS = 4000;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
+  const { t } = useLanguage();
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const nextId = useRef(0);
 
@@ -49,10 +51,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       <div className="toast-stack" role="status" aria-live="polite">
-        {toasts.map((t) => (
-          <div key={t.id} className={`toast toast--${t.kind}`}>
-            <span>{t.message}</span>
-            <button type="button" className="toast__close" onClick={() => remove(t.id)} aria-label="Dismiss">
+        {toasts.map((toast) => (
+          <div key={toast.id} className={`toast toast--${toast.kind}`}>
+            <span>{toast.message}</span>
+            <button type="button" className="toast__close" onClick={() => remove(toast.id)} aria-label={t.toast.dismiss}>
               ×
             </button>
           </div>

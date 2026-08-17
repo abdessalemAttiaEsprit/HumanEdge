@@ -1,9 +1,11 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent, type ReactElement } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BarChart3, Download, Paperclip, Pencil, Plus, Trash2 } from 'lucide-react';
+import { BarChart3, Check, Download, Paperclip, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { absencesApi } from '@/api/absences';
 import { personnelApi } from '@/api/personnel';
 import { useAuth } from '@/auth/useAuth';
+import { useLanguage } from '@/i18n/useLanguage';
+import type { Messages } from '@/i18n/en';
 import { getErrorMessage } from '@/lib/errors';
 import { usePagination } from '@/lib/usePagination';
 import { useConfirm } from '@/lib/useConfirm';
@@ -15,7 +17,7 @@ import { TableSkeleton } from '@/components/TableSkeleton';
 import { SortableTh } from '@/components/SortableTh';
 import { RowActionsMenu } from '@/components/RowActionsMenu';
 import { useToast } from '@/components/ToastProvider';
-import type { Absence, AbsenceCreateRequest, Personnel, QuotaSnapshot } from '@/types';
+import type { Absence, AbsenceCreateRequest, AbsenceStatus, Personnel, QuotaSnapshot } from '@/types';
 
 type DateMode = 'single' | 'range';
 
@@ -27,14 +29,23 @@ const EMPTY_FORM = {
   reason: '',
 };
 
-function isJustified(a: Absence): boolean {
-  return Boolean(a.reason?.trim() || a.justification?.trim());
+/** Absent status = created before this workflow existed; treat exactly like APPROVED (see AbsenceQuotaCalculator#isApproved). */
+export function effectiveStatus(a: Absence): AbsenceStatus {
+  return a.status ?? 'APPROVED';
 }
 
-function formatDates(a: Absence): string {
+const STATUS_SORT_RANK: Record<AbsenceStatus, number> = { PENDING: 0, APPROVED: 1, REJECTED: 2 };
+
+function StatusBadge({ status, t }: { status: AbsenceStatus; t: Messages }): ReactElement {
+  if (status === 'PENDING') return <span className="badge badge--warning">{t.absences.statusPending}</span>;
+  if (status === 'REJECTED') return <span className="badge badge--danger">{t.absences.statusRejected}</span>;
+  return <span className="badge badge--success">{t.absences.statusApproved}</span>;
+}
+
+function formatDates(a: Absence, fromDate: (date: string) => string): string {
   if (a.dateAbsence) return a.dateAbsence;
   if (a.startDate && a.endDate) return `${a.startDate} → ${a.endDate}`;
-  if (a.startDate) return `from ${a.startDate}`;
+  if (a.startDate) return fromDate(a.startDate);
   return '—';
 }
 
@@ -45,24 +56,24 @@ function personnelName(p?: Personnel): string {
 
 type AbsenceSortKey = 'employee' | 'date' | 'reason' | 'status';
 
-function QuotaPanel({ quota }: { quota: QuotaSnapshot }) {
+function QuotaPanel({ quota, t }: { quota: QuotaSnapshot; t: Messages }) {
   return (
     <div className="quota-panel">
       <div className="quota-panel__item">
         <span className="quota-panel__value">{quota.remainingDays.toFixed(1)}</span>
-        <span className="quota-panel__label">Days remaining</span>
+        <span className="quota-panel__label">{t.absences.quota.daysRemaining}</span>
       </div>
       <div className="quota-panel__item">
         <span className="quota-panel__value">{quota.earnedDaysThisYear.toFixed(1)}</span>
-        <span className="quota-panel__label">Earned this year</span>
+        <span className="quota-panel__label">{t.absences.quota.earnedThisYear}</span>
       </div>
       <div className="quota-panel__item">
         <span className="quota-panel__value">{quota.carriedOverDays.toFixed(1)}</span>
-        <span className="quota-panel__label">Carried over</span>
+        <span className="quota-panel__label">{t.absences.quota.carriedOver}</span>
       </div>
       <div className="quota-panel__item">
         <span className="quota-panel__value">{quota.usedJustifiedDaysThisYear}</span>
-        <span className="quota-panel__label">Used (justified)</span>
+        <span className="quota-panel__label">{t.absences.quota.usedJustified}</span>
       </div>
     </div>
   );
@@ -74,25 +85,27 @@ function DateModeFields({
   startDate,
   endDate,
   onChange,
+  t,
 }: {
   mode: DateMode;
   dateAbsence: string;
   startDate: string;
   endDate: string;
   onChange: (patch: Partial<typeof EMPTY_FORM>) => void;
+  t: Messages;
 }) {
   return (
     <>
       <label className="field">
-        <span>Type</span>
+        <span>{t.absences.type}</span>
         <select value={mode} onChange={(e) => onChange({ mode: e.target.value as DateMode })}>
-          <option value="single">Single day</option>
-          <option value="range">Date range</option>
+          <option value="single">{t.absences.singleDay}</option>
+          <option value="range">{t.absences.dateRange}</option>
         </select>
       </label>
       {mode === 'single' ? (
         <label className="field">
-          <span>Date</span>
+          <span>{t.absences.date}</span>
           <input
             type="date"
             value={dateAbsence}
@@ -103,11 +116,11 @@ function DateModeFields({
       ) : (
         <div className="field-row">
           <label className="field">
-            <span>Start date</span>
+            <span>{t.absences.startDate}</span>
             <input type="date" value={startDate} onChange={(e) => onChange({ startDate: e.target.value })} required />
           </label>
           <label className="field">
-            <span>End date</span>
+            <span>{t.absences.endDate}</span>
             <input type="date" value={endDate} onChange={(e) => onChange({ endDate: e.target.value })} required />
           </label>
         </div>
@@ -125,6 +138,7 @@ export function AbsencesPage() {
 // EMPLOYE: self-service — view own absences/quota, request a new one.
 // ============================================================================
 function MyAbsences() {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const toast = useToast();
   const [showAddModal, setShowAddModal] = useState(false);
@@ -159,10 +173,10 @@ function MyAbsences() {
       setForm(EMPTY_FORM);
       setJustificationFile(null);
       setFormError(null);
-      toast.showSuccess('Absence request submitted.');
+      toast.showSuccess(t.absences.my.successSubmit);
     },
     onError: (err) => {
-      const message = getErrorMessage(err, 'Unable to submit the absence request');
+      const message = getErrorMessage(err, t.absences.my.errorSubmit);
       setFormError(message);
       toast.showError(message);
     },
@@ -187,65 +201,62 @@ function MyAbsences() {
     createMutation.mutate(payload);
   };
 
-  if (isLoading) return <p className="jobs__status">Loading your absences…</p>;
-  if (isError || !me) return <p className="jobs__status">Unable to load your personnel record.</p>;
+  if (isLoading) return <p className="jobs__status">{t.absences.my.loading}</p>;
+  if (isError || !me) return <p className="jobs__status">{t.absences.my.errorLoad}</p>;
 
   return (
     <div>
       <div className="page__header page__header--row">
         <div>
-          <h1>My absences</h1>
-          <p className="page__subtitle">
-            View your absence history and track your remaining leave balance, including days
-            carried over from previous years. Upload a supporting document to have an
-            absence marked as justified.
-          </p>
+          <h1>{t.absences.my.title}</h1>
+          <p className="page__subtitle">{t.absences.my.subtitle}</p>
         </div>
         <button className="btn btn--primary" onClick={() => setShowAddModal(true)}>
-          + Request absence
+          {t.absences.my.requestAbsence}
         </button>
       </div>
 
-      {quota && <QuotaPanel quota={quota} />}
+      {quota && (
+        <>
+          <QuotaPanel quota={quota} t={t} />
+          <p className="field-hint">{t.absences.my.pendingHint}</p>
+        </>
+      )}
 
       {absences.length === 0 ? (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
-          <p>You have no absence requests yet.</p>
+          <span className="placeholder-box__badge">{t.common.noRecords}</span>
+          <p>{t.absences.my.noneYet}</p>
         </div>
       ) : (
         <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Date(s)</th>
-                <th>Reason</th>
-                <th>Justification</th>
-                <th>Status</th>
+                <th>{t.absences.my.columnDates}</th>
+                <th>{t.absences.my.columnReason}</th>
+                <th>{t.absences.my.columnJustification}</th>
+                <th>{t.absences.my.columnStatus}</th>
               </tr>
             </thead>
             <tbody>
               {absences.map((a) => (
                 <tr key={a.idAbsence}>
-                  <td data-label="Date(s)">{formatDates(a)}</td>
-                  <td data-label="Reason">{a.reason || '—'}</td>
-                  <td data-label="Justification">
+                  <td data-label={t.absences.my.columnDates}>{formatDates(a, t.absences.fromDate)}</td>
+                  <td data-label={t.absences.my.columnReason}>{a.reason || '—'}</td>
+                  <td data-label={t.absences.my.columnJustification}>
                     {a.justification ? (
                       <IconButton
                         icon={<Paperclip size={15} aria-hidden="true" />}
-                        label="Download justification"
+                        label={t.absences.my.downloadJustification}
                         onClick={() => absencesApi.downloadJustification(a.idAbsence, a.justification)}
                       />
                     ) : (
                       '—'
                     )}
                   </td>
-                  <td data-label="Status">
-                    {isJustified(a) ? (
-                      <span className="badge badge--success">Justified</span>
-                    ) : (
-                      <span className="badge badge--warning">Unjustified</span>
-                    )}
+                  <td data-label={t.absences.my.columnStatus}>
+                    <StatusBadge status={effectiveStatus(a)} t={t} />
                   </td>
                 </tr>
               ))}
@@ -257,7 +268,7 @@ function MyAbsences() {
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Request an absence</h2>
+            <h2>{t.absences.my.requestModalTitle}</h2>
             <form onSubmit={handleSubmit}>
               {formError && <div className="alert alert--error">{formError}</div>}
               <div className="fieldset">
@@ -267,31 +278,32 @@ function MyAbsences() {
                   startDate={form.startDate}
                   endDate={form.endDate}
                   onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                  t={t}
                 />
                 <label className="field">
-                  <span>Reason</span>
+                  <span>{t.absences.reason}</span>
                   <input
                     value={form.reason}
                     onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
-                    placeholder="e.g. Medical appointment"
+                    placeholder={t.absences.reasonPlaceholder}
                   />
                 </label>
                 <label className="field">
-                  <span>Justification document (optional)</span>
+                  <span>{t.absences.justificationDocOptional}</span>
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/gif,application/pdf,.doc,.docx"
                     onChange={(e) => setJustificationFile(e.target.files?.[0] ?? null)}
                   />
-                  <span className="field-hint">e.g. a doctor's note, scanned as a PDF or image.</span>
+                  <span className="field-hint">{t.absences.justificationHint}</span>
                 </label>
               </div>
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setShowAddModal(false)}>
-                  Cancel
+                  {t.absences.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? 'Submitting…' : 'Submit request'}
+                  {createMutation.isPending ? t.absences.my.submitting : t.absences.my.submitRequest}
                 </button>
               </div>
             </form>
@@ -306,6 +318,7 @@ function MyAbsences() {
 // ADMIN / COMPANY: manage absences across (their) personnel.
 // ============================================================================
 function ManagerAbsences() {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const toast = useToast();
   const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
@@ -366,10 +379,10 @@ function ManagerAbsences() {
       setJustificationFile(null);
       setSelectedPersonnelId('');
       setFormError(null);
-      toast.showSuccess('Absence created.');
+      toast.showSuccess(t.absences.manager.createdSuccess);
     },
     onError: (err) => {
-      const message = getErrorMessage(err, 'Unable to create the absence');
+      const message = getErrorMessage(err, t.absences.manager.errorCreate);
       setFormError(message);
       toast.showError(message);
     },
@@ -382,10 +395,10 @@ function ManagerAbsences() {
       queryClient.invalidateQueries({ queryKey: ['absences'] });
       setEditing(null);
       setFormError(null);
-      toast.showSuccess('Absence updated.');
+      toast.showSuccess(t.absences.manager.updatedSuccess);
     },
     onError: (err) => {
-      const message = getErrorMessage(err, 'Unable to update the absence');
+      const message = getErrorMessage(err, t.absences.manager.errorUpdate);
       setFormError(message);
       toast.showError(message);
     },
@@ -396,9 +409,32 @@ function ManagerAbsences() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['absences'] });
       queryClient.invalidateQueries({ queryKey: ['personnel'] });
-      toast.showSuccess('Absence deleted.');
+      toast.showSuccess(t.absences.manager.deletedSuccess);
     },
-    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to delete the absence')),
+    onError: (err) => toast.showError(getErrorMessage(err, t.absences.manager.errorDelete)),
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: absencesApi.approve,
+    onSuccess: () => {
+      // Le quota/paie de l'employé dépend maintenant du statut : invalider aussi personnel.
+      queryClient.invalidateQueries({ queryKey: ['absences'] });
+      queryClient.invalidateQueries({ queryKey: ['personnel'] });
+      queryClient.invalidateQueries({ queryKey: ['absence-quota'] });
+      toast.showSuccess(t.absences.manager.approvedSuccess);
+    },
+    onError: (err) => toast.showError(getErrorMessage(err, t.absences.manager.errorApprove)),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: absencesApi.reject,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['absences'] });
+      queryClient.invalidateQueries({ queryKey: ['personnel'] });
+      queryClient.invalidateQueries({ queryKey: ['absence-quota'] });
+      toast.showSuccess(t.absences.manager.rejectedSuccess);
+    },
+    onError: (err) => toast.showError(getErrorMessage(err, t.absences.manager.errorReject)),
   });
 
   const uploadJustificationMutation = useMutation({
@@ -407,10 +443,10 @@ function ManagerAbsences() {
       queryClient.invalidateQueries({ queryKey: ['absences'] });
       setEditing(updated);
       setJustificationError(null);
-      toast.showSuccess('Justification uploaded.');
+      toast.showSuccess(t.absences.manager.justificationUploadedSuccess);
     },
     onError: (err) => {
-      const message = getErrorMessage(err, 'Unable to upload the justification');
+      const message = getErrorMessage(err, t.absences.manager.errorUploadJustification);
       setJustificationError(message);
       toast.showError(message);
     },
@@ -445,7 +481,7 @@ function ManagerAbsences() {
       case 'reason':
         return a.reason ?? '';
       case 'status':
-        return isJustified(a) ? 1 : 0;
+        return STATUS_SORT_RANK[effectiveStatus(a)];
     }
   };
 
@@ -484,7 +520,7 @@ function ManagerAbsences() {
     e.preventDefault();
     setFormError(null);
     if (!selectedPersonnelId) {
-      setFormError('Please select an employee');
+      setFormError(t.absences.manager.errorSelectEmployee);
       return;
     }
     createMutation.mutate({ ...buildPayload(form), personnel: { idPersonnel: selectedPersonnelId } });
@@ -500,11 +536,22 @@ function ManagerAbsences() {
   const handleDelete = (a: Absence) => {
     const employee = personnelName(personnelByAbsenceId.get(a.idAbsence));
     requestConfirm({
-      title: 'Delete absence',
-      message: `Delete this absence for ${employee}? This cannot be undone.`,
-      confirmLabel: 'Delete',
+      title: t.absences.manager.deleteTitle,
+      message: t.absences.manager.deleteMessage(employee),
+      confirmLabel: t.absences.manager.delete,
       variant: 'danger',
       onConfirm: () => deleteMutation.mutate(a.idAbsence),
+    });
+  };
+
+  const handleReject = (a: Absence) => {
+    const employee = personnelName(personnelByAbsenceId.get(a.idAbsence));
+    requestConfirm({
+      title: t.absences.manager.rejectTitle,
+      message: t.absences.manager.rejectMessage(employee),
+      confirmLabel: t.absences.manager.reject,
+      variant: 'danger',
+      onConfirm: () => rejectMutation.mutate(a.idAbsence),
     });
   };
 
@@ -512,21 +559,17 @@ function ManagerAbsences() {
     <div>
       <div className="page__header page__header--row">
         <div>
-          <h1>Absences</h1>
-          <p className="page__subtitle">
-            Record and review employee absences, distinguishing justified leave from
-            unplanned time off. Each entry counts against that employee's leave quota and,
-            where applicable, feeds into their next payroll deduction.
-          </p>
+          <h1>{t.absences.manager.title}</h1>
+          <p className="page__subtitle">{t.absences.manager.subtitle}</p>
         </div>
         <div className="page__header-actions">
           <button className="btn btn--ghost" onClick={() => absencesApi.exportCsv()}>
             <Download size={16} aria-hidden="true" />
-            Export CSV
+            {t.absences.manager.exportCsv}
           </button>
           <button className="btn btn--primary" onClick={openAddModal}>
             <Plus size={16} aria-hidden="true" />
-            Add absence
+            {t.absences.manager.addAbsence}
           </button>
         </div>
       </div>
@@ -535,19 +578,19 @@ function ManagerAbsences() {
         <input
           className="toolbar__search"
           type="search"
-          placeholder="Search by employee, reason…"
+          placeholder={t.absences.manager.searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
       {isLoading && <TableSkeleton columns={5} />}
-      {isError && <p className="jobs__status">Unable to load absences.</p>}
+      {isError && <p className="jobs__status">{t.absences.manager.errorLoad}</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
-          <p>{search ? 'No absences match your search.' : 'No absences recorded yet.'}</p>
+          <span className="placeholder-box__badge">{t.common.noRecords}</span>
+          <p>{search ? t.absences.manager.noneMatchSearch : t.absences.manager.noneYet}</p>
         </div>
       )}
 
@@ -557,15 +600,15 @@ function ManagerAbsences() {
             <thead>
               <tr>
                 <SortableTh
-                  label="Employee"
+                  label={t.absences.manager.columnEmployee}
                   sortKey="employee"
                   activeKey={sortKey}
                   direction={direction}
                   onSort={toggleSort}
                 />
-                <SortableTh label="Date(s)" sortKey="date" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label="Reason" sortKey="reason" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label="Status" sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.absences.my.columnDates} sortKey="date" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.absences.reason} sortKey="reason" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.absences.my.columnStatus} sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
@@ -574,36 +617,49 @@ function ManagerAbsences() {
                 const employee = personnelByAbsenceId.get(a.idAbsence);
                 return (
                   <tr key={a.idAbsence}>
-                    <td data-label="Employee">{personnelName(employee)}</td>
-                    <td data-label="Date(s)">{formatDates(a)}</td>
-                    <td data-label="Reason">{a.reason || '—'}</td>
-                    <td data-label="Status">
-                      {isJustified(a) ? (
-                        <span className="badge badge--success">Justified</span>
-                      ) : (
-                        <span className="badge badge--warning">Unjustified</span>
-                      )}
+                    <td data-label={t.absences.manager.columnEmployee}>{personnelName(employee)}</td>
+                    <td data-label={t.absences.my.columnDates}>{formatDates(a, t.absences.fromDate)}</td>
+                    <td data-label={t.absences.reason}>{a.reason || '—'}</td>
+                    <td data-label={t.absences.my.columnStatus}>
+                      <StatusBadge status={effectiveStatus(a)} t={t} />
                     </td>
                     <td className="data-table__actions" data-label="">
                       {a.justification && (
                         <IconButton
                           icon={<Paperclip size={15} aria-hidden="true" />}
-                          label="Download justification"
+                          label={t.absences.manager.downloadJustification}
                           onClick={() => absencesApi.downloadJustification(a.idAbsence, a.justification)}
                         />
                       )}
                       <RowActionsMenu
                         ariaLabel={`Actions for the absence of ${personnelName(employee)}`}
                         items={[
-                          { label: 'Edit', icon: <Pencil size={15} aria-hidden="true" />, onClick: () => openEditModal(a) },
+                          ...(effectiveStatus(a) === 'PENDING'
+                            ? [
+                                {
+                                  label: t.absences.manager.approve,
+                                  icon: <Check size={15} aria-hidden="true" />,
+                                  disabled: approveMutation.isPending,
+                                  onClick: () => approveMutation.mutate(a.idAbsence),
+                                },
+                                {
+                                  label: t.absences.manager.reject,
+                                  icon: <X size={15} aria-hidden="true" />,
+                                  danger: true,
+                                  disabled: rejectMutation.isPending,
+                                  onClick: () => handleReject(a),
+                                },
+                              ]
+                            : []),
+                          { label: t.absences.manager.edit, icon: <Pencil size={15} aria-hidden="true" />, onClick: () => openEditModal(a) },
                           {
-                            label: 'View quota',
+                            label: t.absences.manager.viewQuota,
                             icon: <BarChart3 size={15} aria-hidden="true" />,
                             disabled: !employee,
                             onClick: () => employee && setQuotaFor(employee),
                           },
                           {
-                            label: 'Delete',
+                            label: t.absences.manager.delete,
                             icon: <Trash2 size={15} aria-hidden="true" />,
                             danger: true,
                             disabled: deleteMutation.isPending,
@@ -625,18 +681,18 @@ function ManagerAbsences() {
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Add absence</h2>
+            <h2>{t.absences.manager.addModalTitle}</h2>
             <form onSubmit={handleCreateSubmit}>
               {formError && <div className="alert alert--error">{formError}</div>}
               <div className="fieldset">
                 <label className="field">
-                  <span>Employee</span>
+                  <span>{t.absences.manager.employee}</span>
                   <select
                     value={selectedPersonnelId}
                     onChange={(e) => setSelectedPersonnelId(Number(e.target.value) || '')}
                     required
                   >
-                    <option value="">Select an employee…</option>
+                    <option value="">{t.absences.manager.selectEmployee}</option>
                     {(personnelList ?? []).map((p) => (
                       <option key={p.idPersonnel} value={p.idPersonnel}>
                         {personnelName(p)}
@@ -650,13 +706,14 @@ function ManagerAbsences() {
                   startDate={form.startDate}
                   endDate={form.endDate}
                   onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                  t={t}
                 />
                 <label className="field">
-                  <span>Reason</span>
+                  <span>{t.absences.reason}</span>
                   <input value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} />
                 </label>
                 <label className="field">
-                  <span>Justification document (optional)</span>
+                  <span>{t.absences.justificationDocOptional}</span>
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/gif,application/pdf,.doc,.docx"
@@ -666,10 +723,10 @@ function ManagerAbsences() {
               </div>
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setShowAddModal(false)}>
-                  Cancel
+                  {t.absences.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? 'Creating…' : 'Create absence'}
+                  {createMutation.isPending ? t.absences.manager.creating : t.absences.manager.createAbsence}
                 </button>
               </div>
             </form>
@@ -680,7 +737,7 @@ function ManagerAbsences() {
       {editing && (
         <div className="modal-overlay" onClick={() => setEditing(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Edit absence — {personnelName(personnelByAbsenceId.get(editing.idAbsence))}</h2>
+            <h2>{t.absences.manager.editModalTitle(personnelName(personnelByAbsenceId.get(editing.idAbsence)))}</h2>
             <form onSubmit={handleEditSubmit}>
               {formError && <div className="alert alert--error">{formError}</div>}
               <div className="fieldset">
@@ -690,13 +747,14 @@ function ManagerAbsences() {
                   startDate={form.startDate}
                   endDate={form.endDate}
                   onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+                  t={t}
                 />
                 <label className="field">
-                  <span>Reason</span>
+                  <span>{t.absences.reason}</span>
                   <input value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} />
                 </label>
                 <label className="field">
-                  <span>Justification document</span>
+                  <span>{t.absences.manager.justificationDoc}</span>
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/gif,application/pdf,.doc,.docx"
@@ -712,16 +770,16 @@ function ManagerAbsences() {
                     onClick={() => absencesApi.downloadJustification(editing.idAbsence, editing.justification)}
                   >
                     <Paperclip size={14} aria-hidden="true" />
-                    Download current justification
+                    {t.absences.manager.downloadCurrentJustification}
                   </button>
                 )}
               </div>
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setEditing(null)}>
-                  Cancel
+                  {t.absences.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+                  {updateMutation.isPending ? t.absences.manager.saving : t.absences.manager.saveChanges}
                 </button>
               </div>
             </form>
@@ -732,11 +790,11 @@ function ManagerAbsences() {
       {quotaFor && (
         <div className="modal-overlay" onClick={() => setQuotaFor(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Absence quota — {personnelName(quotaFor)}</h2>
-            {quota ? <QuotaPanel quota={quota} /> : <p className="jobs__status">Loading…</p>}
+            <h2>{t.absences.manager.quotaModalTitle(personnelName(quotaFor))}</h2>
+            {quota ? <QuotaPanel quota={quota} t={t} /> : <p className="jobs__status">{t.absences.manager.loading}</p>}
             <div className="modal__actions">
               <button className="btn btn--ghost" onClick={() => setQuotaFor(null)}>
-                Close
+                {t.absences.manager.close}
               </button>
             </div>
           </div>

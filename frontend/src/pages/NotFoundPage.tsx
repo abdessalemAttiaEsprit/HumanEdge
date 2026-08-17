@@ -1,13 +1,15 @@
 import { Link } from 'react-router-dom';
+import { useLanguage } from '@/i18n/useLanguage';
 
 export function NotFoundPage() {
+  const { t } = useLanguage();
   return (
     <div className="status-page">
       <div className="status-page__code">404</div>
-      <h1>Page not found</h1>
-      <p>The page you are looking for does not exist or has been moved.</p>
+      <h1>{t.statusPages.notFoundTitle}</h1>
+      <p>{t.statusPages.notFoundDesc}</p>
       <Link className="btn btn--primary" to="/">
-        Back to home
+        {t.statusPages.backToHome}
       </Link>
     </div>
   );

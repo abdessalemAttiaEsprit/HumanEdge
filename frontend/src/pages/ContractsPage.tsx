@@ -4,6 +4,7 @@ import { ChevronDown, Download, Pencil, Plus, Trash2 } from 'lucide-react';
 import { contractsApi } from '@/api/contracts';
 import { personnelApi } from '@/api/personnel';
 import { paymentsApi } from '@/api/payments';
+import { useLanguage } from '@/i18n/useLanguage';
 import { getErrorMessage } from '@/lib/errors';
 import { usePagination } from '@/lib/usePagination';
 import { useConfirm } from '@/lib/useConfirm';
@@ -15,17 +16,6 @@ import { SortableTh } from '@/components/SortableTh';
 import { RowActionsMenu } from '@/components/RowActionsMenu';
 import { useToast } from '@/components/ToastProvider';
 import type { Contract, ContractCreateRequest, ContractUpdateRequest, Personnel, TypeContrat } from '@/types';
-
-const TYPE_LABEL: Record<TypeContrat, string> = {
-  CDI: 'Permanent (CDI)',
-  CDD: 'Fixed-term (CDD)',
-  CDD_AI: 'Fixed-term (AI)',
-  PROJET: 'Project-based',
-  INTERIM: 'Temp / Interim',
-  APPRENTISSAGE: 'Apprenticeship',
-  STAGE: 'Internship',
-  CONVENTION: 'Agreement',
-};
 
 const EMPTY_CREATE: Omit<ContractCreateRequest, 'personnel'> = {
   work: '',
@@ -52,6 +42,8 @@ function formatAmount(value?: number): string | undefined {
 }
 
 export function ContractsPage() {
+  const { t } = useLanguage();
+  const TYPE_LABEL = t.contractTypes;
   const queryClient = useQueryClient();
   const toast = useToast();
   const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
@@ -108,10 +100,10 @@ export function ContractsPage() {
       setCreateForm(EMPTY_CREATE);
       setSelectedPersonnelId('');
       setFormError(null);
-      toast.showSuccess('Contract created.');
+      toast.showSuccess(t.contracts.createdSuccess);
     },
     onError: (err) => {
-      const message = getErrorMessage(err, 'Unable to create the contract');
+      const message = getErrorMessage(err, t.contracts.errorCreate);
       setFormError(message);
       toast.showError(message);
     },
@@ -125,10 +117,10 @@ export function ContractsPage() {
       setEditing(null);
       setEditForm(null);
       setFormError(null);
-      toast.showSuccess('Contract updated.');
+      toast.showSuccess(t.contracts.updatedSuccess);
     },
     onError: (err) => {
-      const message = getErrorMessage(err, 'Unable to update the contract');
+      const message = getErrorMessage(err, t.contracts.errorUpdate);
       setFormError(message);
       toast.showError(message);
     },
@@ -139,9 +131,9 @@ export function ContractsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
       queryClient.invalidateQueries({ queryKey: ['personnel'] });
-      toast.showSuccess('Contract deleted.');
+      toast.showSuccess(t.contracts.deletedSuccess);
     },
-    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to delete the contract')),
+    onError: (err) => toast.showError(getErrorMessage(err, t.contracts.errorDelete)),
   });
 
   const filtered = useMemo(() => {
@@ -202,11 +194,11 @@ export function ContractsPage() {
     e.preventDefault();
     setFormError(null);
     if (!selectedPersonnelId) {
-      setFormError('Please select an employee');
+      setFormError(t.contracts.errorSelectEmployee);
       return;
     }
     if (!createForm.categorie) {
-      setFormError('Please select a salary category');
+      setFormError(t.contracts.errorSelectCategory);
       return;
     }
     createMutation.mutate({ ...createForm, personnel: { idPersonnel: selectedPersonnelId } });
@@ -222,9 +214,9 @@ export function ContractsPage() {
   const handleDelete = (c: Contract) => {
     const employee = personnelName(personnelByContractId.get(c.idContract));
     requestConfirm({
-      title: 'Delete contract',
-      message: `Delete the contract for ${employee}? This cannot be undone.`,
-      confirmLabel: 'Delete',
+      title: t.contracts.deleteTitle,
+      message: t.contracts.deleteMessage(employee),
+      confirmLabel: t.contracts.delete,
       variant: 'danger',
       onConfirm: () => deleteMutation.mutate(c.idContract),
     });
@@ -234,21 +226,17 @@ export function ContractsPage() {
     <div>
       <div className="page__header page__header--row">
         <div>
-          <h1>Contracts</h1>
-          <p className="page__subtitle">
-            Create and manage employment contracts for your staff, with salary automatically
-            derived from the official pay grid based on category and echelon. Track contract
-            type, start and end dates, and benefits in one consolidated view.
-          </p>
+          <h1>{t.contracts.title}</h1>
+          <p className="page__subtitle">{t.contracts.subtitle}</p>
         </div>
         <div className="page__header-actions">
           <button className="btn btn--ghost" onClick={() => contractsApi.exportCsv()}>
             <Download size={16} aria-hidden="true" />
-            Export CSV
+            {t.contracts.exportCsv}
           </button>
           <button className="btn btn--primary" onClick={openAddModal}>
             <Plus size={16} aria-hidden="true" />
-            Add contract
+            {t.contracts.addContract}
           </button>
         </div>
       </div>
@@ -257,19 +245,19 @@ export function ContractsPage() {
         <input
           className="toolbar__search"
           type="search"
-          placeholder="Search by employee, role, category…"
+          placeholder={t.contracts.searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
       {isLoading && <TableSkeleton columns={7} />}
-      {isError && <p className="jobs__status">Unable to load contracts.</p>}
+      {isError && <p className="jobs__status">{t.contracts.errorLoad}</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
-          <p>{search ? 'No contracts match your search.' : 'No contracts yet. Add the first one.'}</p>
+          <span className="placeholder-box__badge">{t.common.noRecords}</span>
+          <p>{search ? t.contracts.noneMatchSearch : t.contracts.noneYet}</p>
         </div>
       )}
 
@@ -280,16 +268,16 @@ export function ContractsPage() {
               <tr>
                 <th className="w-icon"></th>
                 <SortableTh
-                  label="Employee"
+                  label={t.contracts.columnEmployee}
                   sortKey="employee"
                   activeKey={sortKey}
                   direction={direction}
                   onSort={toggleSort}
                 />
-                <SortableTh label="Role" sortKey="work" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label="Type" sortKey="type" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label="Start" sortKey="start" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label="End" sortKey="end" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.contracts.columnRole} sortKey="work" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.contracts.columnType} sortKey="type" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.contracts.columnStart} sortKey="start" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.contracts.columnEnd} sortKey="end" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
@@ -305,36 +293,36 @@ export function ContractsPage() {
                           type="button"
                           className={`data-table__expand-toggle${expanded ? ' data-table__expand-toggle--open' : ''}`}
                           onClick={() => toggleExpand(c.idContract)}
-                          aria-label={expanded ? 'Hide salary details' : 'Show salary details'}
-                          title={expanded ? 'Hide salary details' : 'Show salary details'}
+                          aria-label={expanded ? t.contracts.hideSalaryDetails : t.contracts.showSalaryDetails}
+                          title={expanded ? t.contracts.hideSalaryDetails : t.contracts.showSalaryDetails}
                         >
                           <ChevronDown size={16} aria-hidden="true" />
                         </button>
                       </td>
-                      <td data-label="Employee">
+                      <td data-label={t.contracts.columnEmployee}>
                         {employee ? (
                           personnelName(employee)
                         ) : (
-                          <span className="badge badge--muted">Unassigned</span>
+                          <span className="badge badge--muted">{t.contracts.unassigned}</span>
                         )}
                       </td>
-                      <td data-label="Role">{c.work || '—'}</td>
-                      <td data-label="Type">
+                      <td data-label={t.contracts.columnRole}>{c.work || '—'}</td>
+                      <td data-label={t.contracts.columnType}>
                         {c.typeContrat ? (
                           <span className="badge badge--soft">{TYPE_LABEL[c.typeContrat]}</span>
                         ) : (
                           '—'
                         )}
                       </td>
-                      <td data-label="Start">{c.dateDebut || '—'}</td>
-                      <td data-label="End">{c.dateFin || '—'}</td>
+                      <td data-label={t.contracts.columnStart}>{c.dateDebut || '—'}</td>
+                      <td data-label={t.contracts.columnEnd}>{c.dateFin || '—'}</td>
                       <td className="data-table__actions" data-label="">
                         <RowActionsMenu
                           ariaLabel={`Actions for the contract of ${personnelName(employee)}`}
                           items={[
-                            { label: 'Edit', icon: <Pencil size={15} aria-hidden="true" />, onClick: () => openEditModal(c) },
+                            { label: t.contracts.edit, icon: <Pencil size={15} aria-hidden="true" />, onClick: () => openEditModal(c) },
                             {
-                              label: 'Delete',
+                              label: t.contracts.delete,
                               icon: <Trash2 size={15} aria-hidden="true" />,
                               danger: true,
                               disabled: deleteMutation.isPending,
@@ -350,16 +338,16 @@ export function ContractsPage() {
                           <div className="contract-panel">
                             <div className="contract-panel__grid">
                               <div className="contract-panel__item">
-                                <span className="contract-panel__label">Category</span>
+                                <span className="contract-panel__label">{t.contracts.category}</span>
                                 <span className="contract-panel__value">
-                                  {c.categorie} {c.echelon ? `· step ${c.echelon}` : ''}
+                                  {c.categorie} {c.echelon ? t.contracts.step(c.echelon) : ''}
                                 </span>
                               </div>
                               {[
-                                ['Base salary', formatAmount(c.salaireBase)],
-                                ['Supplementary salary', formatAmount(c.salaireComplementaire)],
-                                ['Overtime hourly rate', formatAmount(c.tauxHoraireSup)],
-                                ['Allowances', formatAmount(c.avantages)],
+                                [t.contracts.baseSalary, formatAmount(c.salaireBase)],
+                                [t.contracts.supplementarySalary, formatAmount(c.salaireComplementaire)],
+                                [t.contracts.overtimeRate, formatAmount(c.tauxHoraireSup)],
+                                [t.contracts.allowances, formatAmount(c.avantages)],
                               ]
                                 .filter((entry): entry is [string, string] => !!entry[1])
                                 .map(([label, value]) => (
@@ -386,20 +374,20 @@ export function ContractsPage() {
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Add contract</h2>
+            <h2>{t.contracts.addContractTitle}</h2>
             <form onSubmit={handleCreateSubmit}>
               {formError && <div className="alert alert--error">{formError}</div>}
 
               <div className="fieldset">
                 <label className="field">
-                  <span>Employee</span>
+                  <span>{t.contracts.employee}</span>
                   <select
                     value={selectedPersonnelId}
                     onChange={(e) => setSelectedPersonnelId(Number(e.target.value) || '')}
                     required
                   >
                     <option value="">
-                      {unassignedPersonnel.length === 0 ? 'No unassigned employees' : 'Select an employee…'}
+                      {unassignedPersonnel.length === 0 ? t.contracts.noUnassignedEmployees : t.contracts.selectEmployee}
                     </option>
                     {unassignedPersonnel.map((p) => (
                       <option key={p.idPersonnel} value={p.idPersonnel}>
@@ -409,16 +397,16 @@ export function ContractsPage() {
                   </select>
                 </label>
                 <label className="field">
-                  <span>Role / position</span>
+                  <span>{t.contracts.rolePosition}</span>
                   <input
                     value={createForm.work}
                     onChange={(e) => setCreateForm((f) => ({ ...f, work: e.target.value }))}
-                    placeholder="e.g. Backend developer"
+                    placeholder={t.contracts.rolePlaceholder}
                   />
                 </label>
                 <div className="field-row">
                   <label className="field">
-                    <span>Contract type</span>
+                    <span>{t.contracts.contractType}</span>
                     <select
                       value={createForm.typeContrat}
                       onChange={(e) =>
@@ -433,13 +421,13 @@ export function ContractsPage() {
                     </select>
                   </label>
                   <label className="field">
-                    <span>Salary category</span>
+                    <span>{t.contracts.salaryCategory}</span>
                     <select
                       value={createForm.categorie}
                       onChange={(e) => setCreateForm((f) => ({ ...f, categorie: e.target.value }))}
                       required
                     >
-                      <option value="">Select…</option>
+                      <option value="">{t.contracts.select}</option>
                       {Object.entries(categories ?? {}).map(([code, description]) => (
                         <option key={code} value={code}>
                           {code} — {description}
@@ -450,7 +438,7 @@ export function ContractsPage() {
                 </div>
                 <div className="field-row">
                   <label className="field">
-                    <span>Start date</span>
+                    <span>{t.contracts.startDate}</span>
                     <input
                       type="date"
                       value={createForm.dateDebut}
@@ -459,7 +447,7 @@ export function ContractsPage() {
                     />
                   </label>
                   <label className="field">
-                    <span>End date (optional)</span>
+                    <span>{t.contracts.endDateOptional}</span>
                     <input
                       type="date"
                       value={createForm.dateFin}
@@ -472,7 +460,7 @@ export function ContractsPage() {
               <div className="fieldset">
                 <div className="field-row">
                   <label className="field">
-                    <span>Extra allowances (optional)</span>
+                    <span>{t.contracts.extraAllowancesOptional}</span>
                     <input
                       type="number"
                       step="0.001"
@@ -483,7 +471,7 @@ export function ContractsPage() {
                     />
                   </label>
                   <label className="field">
-                    <span>Overtime hourly rate (optional)</span>
+                    <span>{t.contracts.overtimeRateOptional}</span>
                     <input
                       type="number"
                       step="0.001"
@@ -498,7 +486,7 @@ export function ContractsPage() {
                   </label>
                 </div>
                 <label className="field">
-                  <span>Supplementary salary (optional)</span>
+                  <span>{t.contracts.supplementarySalaryOptional}</span>
                   <input
                     type="number"
                     step="0.001"
@@ -511,17 +499,15 @@ export function ContractsPage() {
                     }
                   />
                 </label>
-                <p className="auth-shell__subtitle" style={{ margin: 0 }}>
-                  Base salary and salary step are computed automatically from the category and start date.
-                </p>
+                <p className="auth-shell__subtitle" style={{ margin: 0 }}>{t.contracts.autoSalaryHint}</p>
               </div>
 
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setShowAddModal(false)}>
-                  Cancel
+                  {t.contracts.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? 'Creating…' : 'Create contract'}
+                  {createMutation.isPending ? t.contracts.creating : t.contracts.createContract}
                 </button>
               </div>
             </form>
@@ -532,13 +518,13 @@ export function ContractsPage() {
       {editing && editForm && (
         <div className="modal-overlay" onClick={() => setEditing(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Edit contract — {personnelName(personnelByContractId.get(editing.idContract))}</h2>
+            <h2>{t.contracts.editTitle(personnelName(personnelByContractId.get(editing.idContract)))}</h2>
             <form onSubmit={handleEditSubmit}>
               {formError && <div className="alert alert--error">{formError}</div>}
 
               <div className="fieldset">
                 <label className="field">
-                  <span>Role / position</span>
+                  <span>{t.contracts.rolePosition}</span>
                   <input
                     value={editForm.work}
                     onChange={(e) => setEditForm((f) => f && { ...f, work: e.target.value })}
@@ -546,7 +532,7 @@ export function ContractsPage() {
                 </label>
                 <div className="field-row">
                   <label className="field">
-                    <span>Contract type</span>
+                    <span>{t.contracts.contractType}</span>
                     <select
                       value={editForm.typeContrat}
                       onChange={(e) =>
@@ -561,13 +547,13 @@ export function ContractsPage() {
                     </select>
                   </label>
                   <label className="field">
-                    <span>Salary category</span>
+                    <span>{t.contracts.salaryCategory}</span>
                     <select
                       value={editForm.categorie}
                       onChange={(e) => setEditForm((f) => f && { ...f, categorie: e.target.value })}
                       required
                     >
-                      <option value="">Select…</option>
+                      <option value="">{t.contracts.select}</option>
                       {Object.entries(categories ?? {}).map(([code, description]) => (
                         <option key={code} value={code}>
                           {code} — {description}
@@ -578,7 +564,7 @@ export function ContractsPage() {
                 </div>
                 <div className="field-row">
                   <label className="field">
-                    <span>Start date</span>
+                    <span>{t.contracts.startDate}</span>
                     <input
                       type="date"
                       value={editForm.dateDebut}
@@ -587,7 +573,7 @@ export function ContractsPage() {
                     />
                   </label>
                   <label className="field">
-                    <span>End date (optional)</span>
+                    <span>{t.contracts.endDateOptional}</span>
                     <input
                       type="date"
                       value={editForm.dateFin}
@@ -600,7 +586,7 @@ export function ContractsPage() {
               <div className="fieldset">
                 <div className="field-row">
                   <label className="field">
-                    <span>Extra allowances (optional)</span>
+                    <span>{t.contracts.extraAllowancesOptional}</span>
                     <input
                       type="number"
                       step="0.001"
@@ -613,7 +599,7 @@ export function ContractsPage() {
                     />
                   </label>
                   <label className="field">
-                    <span>Overtime hourly rate (optional)</span>
+                    <span>{t.contracts.overtimeRateOptional}</span>
                     <input
                       type="number"
                       step="0.001"
@@ -627,7 +613,7 @@ export function ContractsPage() {
                   </label>
                 </div>
                 <label className="field">
-                  <span>Supplementary salary (optional)</span>
+                  <span>{t.contracts.supplementarySalaryOptional}</span>
                   <input
                     type="number"
                     step="0.001"
@@ -647,10 +633,10 @@ export function ContractsPage() {
 
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setEditing(null)}>
-                  Cancel
+                  {t.contracts.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+                  {updateMutation.isPending ? t.contracts.saving : t.contracts.saveChanges}
                 </button>
               </div>
             </form>

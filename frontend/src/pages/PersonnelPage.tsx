@@ -6,6 +6,8 @@ import { personnelApi } from '@/api/personnel';
 import { companiesApi } from '@/api/companies';
 import { fileUrl } from '@/api/axios';
 import { useAuth } from '@/auth/useAuth';
+import { useLanguage } from '@/i18n/useLanguage';
+import type { Messages } from '@/i18n/en';
 import { getErrorMessage } from '@/lib/errors';
 import { usePagination } from '@/lib/usePagination';
 import { useEscapeKey } from '@/lib/useEscapeKey';
@@ -55,18 +57,18 @@ function formatAmount(value?: number): string | undefined {
   return value != null ? `${value} TND` : undefined;
 }
 
-function contractDetails(c: Contract): Array<[string, string]> {
+function contractDetails(c: Contract, labels: Messages['personnel']['contractDetailLabels']): Array<[string, string]> {
   const entries: Array<[string, string | undefined]> = [
-    ['Type de contrat', c.typeContrat],
-    ['Poste', c.work],
-    ['Catégorie', c.categorie],
-    ['Échelon', c.echelon != null ? String(c.echelon) : undefined],
-    ['Date de début', formatDate(c.dateDebut)],
-    ['Date de fin', c.dateFin ? formatDate(c.dateFin) : 'Indéterminée'],
-    ['Salaire de base', formatAmount(c.salaireBase)],
-    ['Salaire complémentaire', formatAmount(c.salaireComplementaire)],
-    ['Taux horaire sup.', formatAmount(c.tauxHoraireSup)],
-    ['Avantages', formatAmount(c.avantages)],
+    [labels.typeContrat, c.typeContrat],
+    [labels.work, c.work],
+    [labels.categorie, c.categorie],
+    [labels.echelon, c.echelon != null ? String(c.echelon) : undefined],
+    [labels.dateDebut, formatDate(c.dateDebut)],
+    [labels.dateFin, c.dateFin ? formatDate(c.dateFin) : labels.indeterminate],
+    [labels.salaireBase, formatAmount(c.salaireBase)],
+    [labels.salaireComplementaire, formatAmount(c.salaireComplementaire)],
+    [labels.tauxHoraireSup, formatAmount(c.tauxHoraireSup)],
+    [labels.avantages, formatAmount(c.avantages)],
   ];
   return entries.filter((e): e is [string, string] => !!e[1]);
 }
@@ -102,6 +104,7 @@ interface PersonnelPrefillState {
 
 export function PersonnelPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const isAdmin = user?.role === 'ADMIN';
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -163,9 +166,9 @@ export function PersonnelPage() {
       setCreateForm(EMPTY_CREATE);
       setCreatePhoto(null);
       setFormError(null);
-      toast.showSuccess('Personnel record created.');
+      toast.showSuccess(t.personnel.createdSuccess);
     },
-    onError: (err) => setFormError(getErrorMessage(err, 'Unable to create the personnel record')),
+    onError: (err) => setFormError(getErrorMessage(err, t.personnel.errorCreate)),
   });
 
   const uploadImageMutation = useMutation({
@@ -175,7 +178,7 @@ export function PersonnelPage() {
       setEditing(updated);
       setPhotoError(null);
     },
-    onError: (err) => setPhotoError(getErrorMessage(err, 'Unable to upload the photo')),
+    onError: (err) => setPhotoError(getErrorMessage(err, t.personnel.errorUploadPhoto)),
   });
 
   const updateMutation = useMutation({
@@ -186,9 +189,9 @@ export function PersonnelPage() {
       setEditing(null);
       setEditForm(null);
       setFormError(null);
-      toast.showSuccess('Personnel record updated.');
+      toast.showSuccess(t.personnel.updatedSuccess);
     },
-    onError: (err) => setFormError(getErrorMessage(err, 'Unable to update the personnel record')),
+    onError: (err) => setFormError(getErrorMessage(err, t.personnel.errorUpdate)),
   });
 
   const deleteMutation = useMutation({
@@ -196,9 +199,9 @@ export function PersonnelPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['personnel'] });
       setDeleteError(null);
-      toast.showSuccess('Personnel record deleted.');
+      toast.showSuccess(t.personnel.deletedSuccess);
     },
-    onError: (err) => setDeleteError(getErrorMessage(err, 'Unable to delete this personnel record')),
+    onError: (err) => setDeleteError(getErrorMessage(err, t.personnel.errorDelete)),
   });
 
   const filtered = useMemo(() => {
@@ -246,7 +249,7 @@ export function PersonnelPage() {
     e.preventDefault();
     setFormError(null);
     if (isAdmin && !createForm.companyId) {
-      setFormError('Please select a company');
+      setFormError(t.personnel.errorSelectCompany);
       return;
     }
     createMutation.mutate(createForm);
@@ -264,9 +267,9 @@ export function PersonnelPage() {
 
   const handleDelete = (p: Personnel) => {
     requestConfirm({
-      title: 'Remove from personnel',
-      message: `Remove ${fullName(p)} from personnel? This cannot be undone.`,
-      confirmLabel: 'Remove',
+      title: t.personnel.removeTitle,
+      message: t.personnel.removeMessage(fullName(p)),
+      confirmLabel: t.personnel.remove,
       variant: 'danger',
       onConfirm: () => {
         setDeleteError(null);
@@ -288,21 +291,17 @@ export function PersonnelPage() {
     <div>
       <div className="page__header page__header--row">
         <div>
-          <h1>Personnel</h1>
-          <p className="page__subtitle">
-            Manage your company's employee records from a single place: personal details,
-            contract status, and documents for each employee. Every profile links directly
-            to that employee's contract and absence history for quick reference.
-          </p>
+          <h1>{t.personnel.title}</h1>
+          <p className="page__subtitle">{t.personnel.subtitle}</p>
         </div>
         <div className="page__header-actions">
           <button className="btn btn--ghost" onClick={() => personnelApi.exportCsv()}>
             <Download size={16} aria-hidden="true" />
-            Export CSV
+            {t.personnel.exportCsv}
           </button>
           <button className="btn btn--primary" onClick={openAddModal}>
             <Plus size={16} aria-hidden="true" />
-            Add personnel
+            {t.personnel.addPersonnel}
           </button>
         </div>
       </div>
@@ -311,7 +310,7 @@ export function PersonnelPage() {
         <input
           className="toolbar__search"
           type="search"
-          placeholder="Search by name, email, CIN…"
+          placeholder={t.personnel.searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -320,12 +319,12 @@ export function PersonnelPage() {
       {deleteError && <div className="alert alert--error">{deleteError}</div>}
 
       {isLoading && <TableSkeleton columns={isAdmin ? 7 : 6} />}
-      {isError && <p className="jobs__status">Unable to load personnel records.</p>}
+      {isError && <p className="jobs__status">{t.personnel.errorLoad}</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
-          <p>{search ? 'No personnel match your search.' : 'No personnel records yet. Add your first employee.'}</p>
+          <span className="placeholder-box__badge">{t.common.noRecords}</span>
+          <p>{search ? t.personnel.noneMatchSearch : t.personnel.noneYet}</p>
         </div>
       )}
 
@@ -335,12 +334,12 @@ export function PersonnelPage() {
             <thead>
               <tr>
                 <th className="w-icon"></th>
-                <SortableTh label="Employee" sortKey="name" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label="Email" sortKey="email" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label="Phone" sortKey="phone" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.personnel.columnEmployee} sortKey="name" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.personnel.columnEmail} sortKey="email" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.personnel.columnPhone} sortKey="phone" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 {isAdmin && (
                   <SortableTh
-                    label="Company"
+                    label={t.personnel.columnCompany}
                     sortKey="company"
                     activeKey={sortKey}
                     direction={direction}
@@ -348,7 +347,7 @@ export function PersonnelPage() {
                   />
                 )}
                 <SortableTh
-                  label="Contract"
+                  label={t.personnel.columnContract}
                   sortKey="contract"
                   activeKey={sortKey}
                   direction={direction}
@@ -369,13 +368,13 @@ export function PersonnelPage() {
                           type="button"
                           className={`data-table__expand-toggle${expanded ? ' data-table__expand-toggle--open' : ''}`}
                           onClick={() => toggleExpand(p.idPersonnel)}
-                          aria-label={expanded ? 'Hide contract details' : 'Show contract details'}
-                          title={expanded ? 'Hide contract details' : 'Show contract details'}
+                          aria-label={expanded ? t.personnel.hideContractDetails : t.personnel.showContractDetails}
+                          title={expanded ? t.personnel.hideContractDetails : t.personnel.showContractDetails}
                         >
                           <ChevronDown size={16} aria-hidden="true" />
                         </button>
                       </td>
-                      <td className="data-table__name-cell" data-label="Employee">
+                      <td className="data-table__name-cell" data-label={t.personnel.columnEmployee}>
                         {p.image ? (
                           <img className="avatar" src={fileUrl(p.image)} alt={fullName(p)} />
                         ) : (
@@ -386,15 +385,15 @@ export function PersonnelPage() {
                           {p.matricule && <span className="data-table__name-cell-sub">{p.matricule}</span>}
                         </span>
                       </td>
-                      <td data-label="Email">{p.user?.email ?? '—'}</td>
-                      <td data-label="Phone">
+                      <td data-label={t.personnel.columnEmail}>{p.user?.email ?? '—'}</td>
+                      <td data-label={t.personnel.columnPhone}>
                         <span className="cell-with-icon">
                           <Phone size={13} aria-hidden="true" />
                           {p.telephone || '—'}
                         </span>
                       </td>
-                      {isAdmin && <td data-label="Company">{p.user?.company?.companyName ?? '—'}</td>}
-                      <td data-label="Contract">
+                      {isAdmin && <td data-label={t.personnel.columnCompany}>{p.user?.company?.companyName ?? '—'}</td>}
+                      <td data-label={t.personnel.columnContract}>
                         {p.contract ? (
                           <span className={`badge ${isContractActive(p.contract) ? 'badge--success' : 'badge--muted'}`}>
                             {isContractActive(p.contract) ? (
@@ -407,20 +406,20 @@ export function PersonnelPage() {
                         ) : (
                           <span className="badge badge--muted">
                             <Circle size={11} aria-hidden="true" />
-                            No contract
+                            {t.personnel.noContract}
                           </span>
                         )}
                       </td>
                       <td className="data-table__actions" data-label="">
                         <IconButton
                           icon={<FileSignature size={15} aria-hidden="true" />}
-                          label={p.contract ? 'Download work contract' : 'No contract linked yet'}
+                          label={p.contract ? t.personnel.downloadWorkContract : t.personnel.noContractLinkedYet}
                           disabled={!p.contract}
                           onClick={() => personnelApi.downloadContractPdf(p.idPersonnel)}
                         />
                         <IconButton
                           icon={<FileText size={15} aria-hidden="true" />}
-                          label="Download attestation"
+                          label={t.personnel.downloadAttestation}
                           onClick={() => personnelApi.downloadAttestationPdf(p.idPersonnel)}
                         />
                         <span className="data-table__actions-divider" />
@@ -428,12 +427,12 @@ export function PersonnelPage() {
                           ariaLabel={`Actions for ${fullName(p)}`}
                           items={[
                             {
-                              label: 'Edit',
+                              label: t.personnel.edit,
                               icon: <Pencil size={15} aria-hidden="true" />,
                               onClick: () => openEditModal(p),
                             },
                             {
-                              label: 'Delete',
+                              label: t.personnel.delete,
                               icon: <Trash2 size={15} aria-hidden="true" />,
                               danger: true,
                               disabled: deleteMutation.isPending,
@@ -449,19 +448,19 @@ export function PersonnelPage() {
                           <div className="contract-panel">
                             <div className="contract-panel__grid">
                               <div className="contract-panel__item">
-                                <span className="contract-panel__label">CIN</span>
+                                <span className="contract-panel__label">{t.personnel.cin}</span>
                                 <span className="contract-panel__value">{p.cin || '—'}</span>
                               </div>
                               <div className="contract-panel__item">
-                                <span className="contract-panel__label">N° CNSS</span>
+                                <span className="contract-panel__label">{t.personnel.cnssNumberShort}</span>
                                 <span className="contract-panel__value">{p.cnssNumber || '—'}</span>
                               </div>
                               <div className="contract-panel__item">
-                                <span className="contract-panel__label">RIB</span>
+                                <span className="contract-panel__label">{t.personnel.rib}</span>
                                 <span className="contract-panel__value">{p.rib || '—'}</span>
                               </div>
                               {p.contract ? (
-                                contractDetails(p.contract).map(([label, value]) => (
+                                contractDetails(p.contract, t.personnel.contractDetailLabels).map(([label, value]) => (
                                   <div className="contract-panel__item" key={label}>
                                     <span className="contract-panel__label">{label}</span>
                                     <span className="contract-panel__value">{value}</span>
@@ -469,8 +468,8 @@ export function PersonnelPage() {
                                 ))
                               ) : (
                                 <div className="contract-panel__item">
-                                  <span className="contract-panel__label">Contract</span>
-                                  <span className="contract-panel__value">No contract linked yet</span>
+                                  <span className="contract-panel__label">{t.personnel.contractLabel}</span>
+                                  <span className="contract-panel__value">{t.personnel.noContractLinkedYet}</span>
                                 </div>
                               )}
                             </div>
@@ -491,23 +490,20 @@ export function PersonnelPage() {
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Add personnel</h2>
-            <p className="auth-shell__subtitle">
-              This creates a new employee account and personnel record together.
-            </p>
+            <h2>{t.personnel.addPersonnelTitle}</h2>
+            <p className="auth-shell__subtitle">{t.personnel.addPersonnelSubtitle}</p>
             <form onSubmit={handleCreateSubmit}>
               {formError && <div className="alert alert--error">{formError}</div>}
               {prefillNotice && (
                 <div className="alert alert--info">
-                  Pre-filled from the interview candidate — set a temporary password and complete
-                  the remaining fields (CNSS number, RIB{isAdmin ? ', company' : ''}).
+                  {t.personnel.prefillNotice(isAdmin ? t.personnel.prefillCompanyExtra : '')}
                 </div>
               )}
 
               <div className="fieldset">
                 <div className="field-row">
                   <label className="field">
-                    <span>First name</span>
+                    <span>{t.personnel.firstName}</span>
                     <input
                       value={createForm.firstname}
                       onChange={(e) => setCreateForm((f) => ({ ...f, firstname: e.target.value }))}
@@ -515,7 +511,7 @@ export function PersonnelPage() {
                     />
                   </label>
                   <label className="field">
-                    <span>Last name</span>
+                    <span>{t.personnel.lastName}</span>
                     <input
                       value={createForm.lastname}
                       onChange={(e) => setCreateForm((f) => ({ ...f, lastname: e.target.value }))}
@@ -524,7 +520,7 @@ export function PersonnelPage() {
                   </label>
                 </div>
                 <label className="field">
-                  <span>Email</span>
+                  <span>{t.personnel.email}</span>
                   <input
                     type="email"
                     value={createForm.email}
@@ -533,7 +529,7 @@ export function PersonnelPage() {
                   />
                 </label>
                 <label className="field">
-                  <span>Temporary password</span>
+                  <span>{t.personnel.temporaryPassword}</span>
                   <div className="password-field">
                     <input
                       type={showPassword ? 'text' : 'password'}
@@ -545,8 +541,8 @@ export function PersonnelPage() {
                       type="button"
                       className="icon-btn"
                       onClick={() => setShowPassword((v) => !v)}
-                      title={showPassword ? 'Hide password' : 'Show password'}
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      title={showPassword ? t.personnel.hidePassword : t.personnel.showPassword}
+                      aria-label={showPassword ? t.personnel.hidePassword : t.personnel.showPassword}
                     >
                       <span aria-hidden="true">{showPassword ? '🙈' : '👁️'}</span>
                     </button>
@@ -555,13 +551,13 @@ export function PersonnelPage() {
                       className="btn btn--ghost btn--sm"
                       onClick={() => setCreateForm((f) => ({ ...f, password: generateTempPassword() }))}
                     >
-                      Generate
+                      {t.personnel.generate}
                     </button>
                   </div>
                 </label>
                 {isAdmin && (
                   <label className="field">
-                    <span>Company</span>
+                    <span>{t.personnel.company}</span>
                     <select
                       value={createForm.companyId ?? ''}
                       onChange={(e) =>
@@ -569,7 +565,7 @@ export function PersonnelPage() {
                       }
                       required
                     >
-                      <option value="">Select a company…</option>
+                      <option value="">{t.personnel.selectCompany}</option>
                       {(companies ?? []).map((c: Company) => (
                         <option key={c.idCompany} value={c.idCompany}>
                           {c.companyName}
@@ -583,7 +579,7 @@ export function PersonnelPage() {
               <div className="fieldset">
                 <div className="field-row">
                   <label className="field">
-                    <span>CIN</span>
+                    <span>{t.personnel.cin}</span>
                     <input
                       value={createForm.cin}
                       onChange={(e) => setCreateForm((f) => ({ ...f, cin: e.target.value }))}
@@ -591,7 +587,7 @@ export function PersonnelPage() {
                     />
                   </label>
                   <label className="field">
-                    <span>Phone</span>
+                    <span>{t.personnel.phone}</span>
                     <input
                       value={createForm.telephone}
                       onChange={(e) => setCreateForm((f) => ({ ...f, telephone: e.target.value }))}
@@ -599,18 +595,16 @@ export function PersonnelPage() {
                   </label>
                 </div>
                 <label className="field">
-                  <span>CNSS number</span>
+                  <span>{t.personnel.cnssNumber}</span>
                   <input
                     value={createForm.cnssNumber}
                     onChange={(e) => setCreateForm((f) => ({ ...f, cnssNumber: e.target.value }))}
                     required
                   />
                 </label>
-                <p className="field-hint">
-                  The matricule is assigned automatically once this employee's first contract is created.
-                </p>
+                <p className="field-hint">{t.personnel.matriculeHint}</p>
                 <label className="field">
-                  <span>Bank account number (RIB)</span>
+                  <span>{t.registerCompany.rib}</span>
                   <input
                     value={createForm.rib}
                     onChange={(e) => setCreateForm((f) => ({ ...f, rib: e.target.value }))}
@@ -618,7 +612,7 @@ export function PersonnelPage() {
                   />
                 </label>
                 <label className="field">
-                  <span>Photo (optional)</span>
+                  <span>{t.personnel.photoOptional}</span>
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/gif,image/svg+xml"
@@ -633,10 +627,10 @@ export function PersonnelPage() {
                   className="btn btn--ghost"
                   onClick={() => setShowAddModal(false)}
                 >
-                  Cancel
+                  {t.personnel.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? 'Creating…' : 'Create personnel'}
+                  {createMutation.isPending ? t.personnel.creating : t.personnel.createPersonnel}
                 </button>
               </div>
             </form>
@@ -647,14 +641,14 @@ export function PersonnelPage() {
       {editing && editForm && (
         <div className="modal-overlay" onClick={() => setEditing(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Edit {fullName(editing)}</h2>
+            <h2>{t.personnel.editTitle(fullName(editing))}</h2>
             <form onSubmit={handleEditSubmit}>
               {formError && <div className="alert alert--error">{formError}</div>}
 
               <div className="fieldset">
                 <div className="field-row">
                   <label className="field">
-                    <span>CIN</span>
+                    <span>{t.personnel.cin}</span>
                     <input
                       value={editForm.cin}
                       onChange={(e) => setEditForm((f) => f && { ...f, cin: e.target.value })}
@@ -662,7 +656,7 @@ export function PersonnelPage() {
                     />
                   </label>
                   <label className="field">
-                    <span>Phone</span>
+                    <span>{t.personnel.phone}</span>
                     <input
                       value={editForm.telephone}
                       onChange={(e) => setEditForm((f) => f && { ...f, telephone: e.target.value })}
@@ -670,16 +664,18 @@ export function PersonnelPage() {
                   </label>
                 </div>
                 <label className="field">
-                  <span>CNSS number</span>
+                  <span>{t.personnel.cnssNumber}</span>
                   <input
                     value={editForm.cnssNumber}
                     onChange={(e) => setEditForm((f) => f && { ...f, cnssNumber: e.target.value })}
                     required
                   />
                 </label>
-                <p className="field-hint">Matricule: {editing.matricule || 'not assigned yet (create a contract first)'}</p>
+                <p className="field-hint">
+                  {t.personnel.matriculeLabel(editing.matricule || t.personnel.matriculeNotAssigned)}
+                </p>
                 <label className="field">
-                  <span>Bank account number (RIB)</span>
+                  <span>{t.registerCompany.rib}</span>
                   <input
                     value={editForm.rib}
                     onChange={(e) => setEditForm((f) => f && { ...f, rib: e.target.value })}
@@ -687,7 +683,7 @@ export function PersonnelPage() {
                   />
                 </label>
                 <label className="field">
-                  <span>Photo</span>
+                  <span>{t.personnel.photo}</span>
                   <div className="field-with-preview">
                     {editing.image && (
                       <img className="avatar" src={fileUrl(editing.image)} alt={fullName(editing)} />
@@ -705,10 +701,10 @@ export function PersonnelPage() {
 
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setEditing(null)}>
-                  Cancel
+                  {t.personnel.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+                  {updateMutation.isPending ? t.personnel.saving : t.personnel.saveChanges}
                 </button>
               </div>
             </form>

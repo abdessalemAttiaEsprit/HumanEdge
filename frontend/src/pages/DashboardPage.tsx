@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Users, CalendarX2, Briefcase } from 'lucide-react';
 import { useAuth } from '@/auth/useAuth';
+import { useLanguage } from '@/i18n/useLanguage';
 import { navItemsForRole } from '@/config/navigation';
 import { personnelApi } from '@/api/personnel';
 import { paymentsApi } from '@/api/payments';
@@ -34,6 +35,7 @@ function formatDateTime(v?: string): string {
 
 export function DashboardPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   if (!user) return null;
 
   if (user.role === 'COMPANY') {
@@ -50,19 +52,15 @@ export function DashboardPage() {
   return (
     <div className="page">
       <div className="page__header">
-        <h1>Hello {user.firstname} 👋</h1>
-        <p className="page__subtitle">
-          Your personal workspace, with quick access to the modules relevant to your role.
-          Use the shortcuts below to manage your day-to-day HR tasks — absences, payslips,
-          and open positions — without digging through menus.
-        </p>
+        <h1>{t.dashboard.greeting(user.firstname)} 👋</h1>
+        <p className="page__subtitle">{t.dashboard.employeeSubtitle}</p>
       </div>
 
       <div className="card-grid">
         {cards.map((item) => (
           <Link key={item.path} to={item.path} className="module-card">
             <span className="module-card__icon">{item.icon}</span>
-            <span className="module-card__label">{item.label}</span>
+            <span className="module-card__label">{t.nav[item.key]}</span>
           </Link>
         ))}
       </div>
@@ -71,6 +69,7 @@ export function DashboardPage() {
 }
 
 function CompanyDashboard({ firstname }: { firstname: string }) {
+  const { t } = useLanguage();
   const [year, setYear] = useState<number | null>(null);
 
   const { data: personnelList, isLoading: personnelLoading } = useQuery({
@@ -150,35 +149,34 @@ function CompanyDashboard({ firstname }: { firstname: string }) {
   const contractBreakdown = useMemo(() => {
     const counts = new Map<string, number>();
     (personnelList ?? []).forEach((p) => {
-      const label = p.contract?.typeContrat ? p.contract.typeContrat.replace(/_/g, ' ') : 'Unassigned';
+      const label = p.contract?.typeContrat ? p.contract.typeContrat.replace(/_/g, ' ') : t.dashboard.quickStats.unassigned;
       counts.set(label, (counts.get(label) ?? 0) + 1);
     });
     return [...counts.entries()]
       .map(([label, value]) => ({ label, value }))
       .sort((a, b) => b.value - a.value);
-  }, [personnelList]);
+  }, [personnelList, t]);
 
   const loading = personnelLoading || paymentsLoading;
 
   return (
     <div className="page">
       <div className="page__header">
-        <h1>Hello {firstname} 👋</h1>
-        <p className="page__subtitle">
-          A real-time snapshot of your company's HR activity: headcount and payroll by role
-          and pay grade, absence trends, and recruitment pipeline health. Use it to spot
-          issues early and track payroll costs across the year.
-        </p>
+        <h1>{t.dashboard.greeting(firstname)} 👋</h1>
+        <p className="page__subtitle">{t.dashboard.company.subtitle}</p>
       </div>
 
       <div className="stat-grid">
-        <StatTile label="Personnel" value={formatInt((personnelList ?? []).length)} />
-        <StatTile label={`Net payroll (${selectedYear})`} value={formatTnd(totals.net)} />
-        <StatTile label={`CNSS contributions (${(CNSS_RATE * 100).toFixed(2)}%)`} value={formatTnd(totals.cnss)} />
-        <StatTile label={`IRPP (${selectedYear})`} value={formatTnd(totals.irpp)} />
+        <StatTile label={t.dashboard.company.statPersonnel} value={formatInt((personnelList ?? []).length)} />
+        <StatTile label={t.dashboard.company.statNetPayroll(selectedYear)} value={formatTnd(totals.net)} />
+        <StatTile
+          label={t.dashboard.company.statCnss((CNSS_RATE * 100).toFixed(2))}
+          value={formatTnd(totals.cnss)}
+        />
+        <StatTile label={t.dashboard.company.statIrpp(selectedYear)} value={formatTnd(totals.irpp)} />
       </div>
 
-      {quickStatsLoading && <p className="jobs__status">Loading quick stats…</p>}
+      {quickStatsLoading && <p className="jobs__status">{t.dashboard.company.loadingQuickStats}</p>}
       {!quickStatsLoading && (
         <QuickStatsDomains
           personnelList={personnelList}
@@ -191,13 +189,13 @@ function CompanyDashboard({ firstname }: { firstname: string }) {
 
       <div className="dashboard-grid">
         <div className="chart-card">
-          <h2 className="chart-card__title">Personnel by contract type</h2>
+          <h2 className="chart-card__title">{t.dashboard.company.personnelByContractType}</h2>
           {!loading && <BarChart data={contractBreakdown} formatValue={formatInt} />}
         </div>
 
         <div className="chart-card">
           <div className="chart-card__header">
-            <h2 className="chart-card__title">Monthly payroll breakdown</h2>
+            <h2 className="chart-card__title">{t.dashboard.company.monthlyPayrollBreakdown}</h2>
             {years.length > 1 && (
               <select
                 className="chart-card__year-select"
@@ -214,9 +212,9 @@ function CompanyDashboard({ firstname }: { firstname: string }) {
             <StackedBarChart
               data={monthlyData}
               series={[
-                { key: 'net', label: 'Net pay', color: '#3b5bdb' },
-                { key: 'cnss', label: 'CNSS', color: '#1baf7a' },
-                { key: 'irpp', label: 'IRPP', color: '#eda100' },
+                { key: 'net', label: t.dashboard.company.seriesNetPay, color: '#3b5bdb' },
+                { key: 'cnss', label: t.dashboard.company.seriesCnss, color: '#1baf7a' },
+                { key: 'irpp', label: t.dashboard.company.seriesIrpp, color: '#eda100' },
               ]}
               formatValue={(v) => `${Math.round(v)}`}
             />
@@ -239,6 +237,7 @@ function planLabel(code: string): string {
 // SubscriptionController for the global subscription endpoint.
 // ============================================================================
 function AdminDashboard({ firstname }: { firstname: string }) {
+  const { t } = useLanguage();
   const { data: companies, isLoading: companiesLoading, isError: companiesError } = useQuery({
     queryKey: ['companies'],
     queryFn: companiesApi.list,
@@ -289,44 +288,40 @@ function AdminDashboard({ firstname }: { firstname: string }) {
   return (
     <div className="page">
       <div className="page__header">
-        <h1>Hello {firstname} 👋</h1>
-        <p className="page__subtitle">
-          A platform-wide view across every company on HumanEdge: registration and
-          verification status, active subscriptions, and recurring revenue. Use it to
-          monitor platform health without drilling into any single company's internal data.
-        </p>
+        <h1>{t.dashboard.greeting(firstname)} 👋</h1>
+        <p className="page__subtitle">{t.dashboard.admin.subtitle}</p>
       </div>
 
       <div className="stat-grid">
-        <StatTile label="Companies" value={formatInt((companies ?? []).length)} />
-        <StatTile label="Verified companies" value={formatInt(verifiedCompaniesCount)} />
-        <StatTile label="Active subscriptions" value={formatInt(activeSubscriptions.length)} />
-        <StatTile label="MRR" value={formatTnd(mrr)} />
+        <StatTile label={t.dashboard.admin.statCompanies} value={formatInt((companies ?? []).length)} />
+        <StatTile label={t.dashboard.admin.statVerifiedCompanies} value={formatInt(verifiedCompaniesCount)} />
+        <StatTile label={t.dashboard.admin.statActiveSubscriptions} value={formatInt(activeSubscriptions.length)} />
+        <StatTile label={t.dashboard.admin.statMrr} value={formatTnd(mrr)} />
       </div>
 
       <div className="chart-card" style={{ maxWidth: 480 }}>
-        <h2 className="chart-card__title">Active subscriptions by plan</h2>
-        {chartsError && <p className="jobs__status">Unable to load subscriptions.</p>}
+        <h2 className="chart-card__title">{t.dashboard.admin.activeSubscriptionsByPlan}</h2>
+        {chartsError && <p className="jobs__status">{t.dashboard.admin.unableToLoadSubscriptions}</p>}
         {!chartsLoading && !chartsError && planBreakdown.length > 0 && (
           <BarChart data={planBreakdown} formatValue={formatInt} />
         )}
         {!chartsLoading && !chartsError && planBreakdown.length === 0 && (
-          <p className="jobs__status">No active subscriptions.</p>
+          <p className="jobs__status">{t.dashboard.admin.noActiveSubscriptions}</p>
         )}
       </div>
 
       <div className="page__header" style={{ marginTop: 32 }}>
-        <h2 style={{ margin: 0 }}>Companies</h2>
+        <h2 style={{ margin: 0 }}>{t.dashboard.admin.companiesTitle}</h2>
       </div>
 
       {companiesSectionLoading && <TableSkeleton columns={5} />}
       {!companiesSectionLoading && companiesSectionError && (
-        <p className="jobs__status">Unable to load companies.</p>
+        <p className="jobs__status">{t.dashboard.admin.unableToLoadCompanies}</p>
       )}
       {!companiesSectionLoading && !companiesSectionError && (companies ?? []).length === 0 && (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
-          <p>No companies registered yet.</p>
+          <span className="placeholder-box__badge">{t.common.noRecords}</span>
+          <p>{t.dashboard.admin.noCompaniesYet}</p>
         </div>
       )}
       {!companiesSectionLoading && !companiesSectionError && (companies ?? []).length > 0 && (
@@ -334,11 +329,11 @@ function AdminDashboard({ firstname }: { firstname: string }) {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Company</th>
-                <th>Plan</th>
-                <th>Subscription</th>
-                <th>Verified</th>
-                <th>Status</th>
+                <th>{t.dashboard.admin.tableCompany}</th>
+                <th>{t.dashboard.admin.tablePlan}</th>
+                <th>{t.dashboard.admin.tableSubscription}</th>
+                <th>{t.dashboard.admin.tableVerified}</th>
+                <th>{t.dashboard.admin.tableStatus}</th>
               </tr>
             </thead>
             <tbody>
@@ -346,9 +341,9 @@ function AdminDashboard({ firstname }: { firstname: string }) {
                 const sub = subscriptionByCompany.get(c.idCompany);
                 return (
                   <tr key={c.idCompany}>
-                    <td data-label="Company">{c.companyName}</td>
-                    <td data-label="Plan">{sub ? planLabel(sub.plan) : '—'}</td>
-                    <td data-label="Subscription">
+                    <td data-label={t.dashboard.admin.tableCompany}>{c.companyName}</td>
+                    <td data-label={t.dashboard.admin.tablePlan}>{sub ? planLabel(sub.plan) : '—'}</td>
+                    <td data-label={t.dashboard.admin.tableSubscription}>
                       {sub ? (
                         <span className={sub.status === 'ACTIVE' ? 'badge badge--success' : 'badge badge--muted'}>
                           {sub.status}
@@ -358,18 +353,18 @@ function AdminDashboard({ firstname }: { firstname: string }) {
                         '—'
                       )}
                     </td>
-                    <td data-label="Verified">
+                    <td data-label={t.dashboard.admin.tableVerified}>
                       {c.verified ? (
-                        <span className="badge badge--success">Verified</span>
+                        <span className="badge badge--success">{t.dashboard.admin.verified}</span>
                       ) : (
-                        <span className="badge badge--warning">Pending</span>
+                        <span className="badge badge--warning">{t.dashboard.admin.pending}</span>
                       )}
                     </td>
-                    <td data-label="Status">
+                    <td data-label={t.dashboard.admin.tableStatus}>
                       {c.active ? (
-                        <span className="badge badge--success">Active</span>
+                        <span className="badge badge--success">{t.dashboard.admin.active}</span>
                       ) : (
-                        <span className="badge badge--muted">Inactive</span>
+                        <span className="badge badge--muted">{t.dashboard.admin.inactive}</span>
                       )}
                     </td>
                   </tr>
@@ -413,18 +408,21 @@ function QuickStatsDomains({
   applicationsCount: number;
   interviews?: Interview[];
 }) {
+  const { t } = useLanguage();
+  const unassigned = t.dashboard.quickStats.unassigned;
+
   // --- Domaine Personnel : répartition par rôle (Contract.categorie) et par
   // échelon (Contract.echelon), plus la somme des salaires de base des contrats.
   const roleBreakdown = useMemo(() => {
     const counts = new Map<string, number>();
     (personnelList ?? []).forEach((p) => {
-      const label = p.contract?.categorie || 'Unassigned';
+      const label = p.contract?.categorie || unassigned;
       counts.set(label, (counts.get(label) ?? 0) + 1);
     });
     return [...counts.entries()]
       .map(([label, value]) => ({ label, value }))
       .sort((a, b) => b.value - a.value);
-  }, [personnelList]);
+  }, [personnelList, unassigned]);
 
   const echelonBreakdown = useMemo(() => {
     const counts = new Map<number | 'Unassigned', number>();
@@ -438,8 +436,8 @@ function QuickStatsDomains({
         if (b[0] === 'Unassigned') return -1;
         return (a[0] as number) - (b[0] as number);
       })
-      .map(([key, value]) => ({ label: key === 'Unassigned' ? key : `Échelon ${key}`, value }));
-  }, [personnelList]);
+      .map(([key, value]) => ({ label: key === 'Unassigned' ? unassigned : t.dashboard.quickStats.echelon(key), value }));
+  }, [personnelList, unassigned, t]);
 
   const totalBaseSalary = useMemo(
     () => (personnelList ?? []).reduce((sum, p) => sum + (p.contract?.salaireBase ?? 0), 0),
@@ -467,20 +465,20 @@ function QuickStatsDomains({
           <Users size={20} aria-hidden="true" />
         </div>
         <div className="domain-row__content">
-          <h3 className="domain-row__title">Personnel — roles &amp; échelons</h3>
+          <h3 className="domain-row__title">{t.dashboard.quickStats.personnelTitle}</h3>
           <div className="domain-row__metrics">
             <div className="domain-row__metric">
               <span className="domain-row__metric-value">{formatTnd(totalBaseSalary)}</span>
-              <span className="domain-row__metric-label">Base salary total</span>
+              <span className="domain-row__metric-label">{t.dashboard.quickStats.baseSalaryTotal}</span>
             </div>
           </div>
           <div className="domain-row__breakdowns">
             <div>
-              <p className="quick-stats__label">By role (category)</p>
+              <p className="quick-stats__label">{t.dashboard.quickStats.byRole}</p>
               <BarChart data={roleBreakdown} formatValue={formatInt} />
             </div>
             <div>
-              <p className="quick-stats__label">By échelon (pay grade)</p>
+              <p className="quick-stats__label">{t.dashboard.quickStats.byEchelon}</p>
               <BarChart data={echelonBreakdown} formatValue={formatInt} />
             </div>
           </div>
@@ -492,15 +490,15 @@ function QuickStatsDomains({
           <CalendarX2 size={20} aria-hidden="true" />
         </div>
         <div className="domain-row__content">
-          <h3 className="domain-row__title">Absences</h3>
+          <h3 className="domain-row__title">{t.dashboard.quickStats.absencesTitle}</h3>
           <div className="domain-row__metrics">
             <div className="domain-row__metric">
               <span className="domain-row__metric-value">{formatInt(justifiedCount)}</span>
-              <span className="domain-row__metric-label">Justified</span>
+              <span className="domain-row__metric-label">{t.dashboard.quickStats.justified}</span>
             </div>
             <div className="domain-row__metric">
               <span className="domain-row__metric-value">{formatInt(unjustifiedCount)}</span>
-              <span className="domain-row__metric-label">Unjustified</span>
+              <span className="domain-row__metric-label">{t.dashboard.quickStats.unjustified}</span>
             </div>
           </div>
         </div>
@@ -511,21 +509,21 @@ function QuickStatsDomains({
           <Briefcase size={20} aria-hidden="true" />
         </div>
         <div className="domain-row__content">
-          <h3 className="domain-row__title">Recruitment</h3>
+          <h3 className="domain-row__title">{t.dashboard.quickStats.recruitmentTitle}</h3>
           <div className="domain-row__metrics">
             <div className="domain-row__metric">
               <span className="domain-row__metric-value">{formatInt(jobPostingsCount)}</span>
-              <span className="domain-row__metric-label">Job postings</span>
+              <span className="domain-row__metric-label">{t.dashboard.quickStats.jobPostings}</span>
             </div>
             <div className="domain-row__metric">
               <span className="domain-row__metric-value">{formatInt(applicationsCount)}</span>
-              <span className="domain-row__metric-label">Applications</span>
+              <span className="domain-row__metric-label">{t.dashboard.quickStats.applications}</span>
             </div>
             <div className="domain-row__metric">
               <span className="domain-row__metric-value">
-                {nextInterview ? formatDateTime(nextInterview.interviewDate) : 'None scheduled'}
+                {nextInterview ? formatDateTime(nextInterview.interviewDate) : t.dashboard.quickStats.noneScheduled}
               </span>
-              <span className="domain-row__metric-label">Next interview</span>
+              <span className="domain-row__metric-label">{t.dashboard.quickStats.nextInterview}</span>
             </div>
           </div>
         </div>

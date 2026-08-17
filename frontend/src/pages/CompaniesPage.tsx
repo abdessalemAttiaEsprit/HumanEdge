@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bomb, CheckCircle2, Download, Eye, Lock, Trash2, Unlock } from 'lucide-react';
 import { companiesApi } from '@/api/companies';
 import { fileUrl } from '@/api/axios';
+import { useLanguage } from '@/i18n/useLanguage';
 import { getErrorMessage } from '@/lib/errors';
 import { formatDateFr } from '@/lib/format';
 import { usePagination } from '@/lib/usePagination';
@@ -35,6 +36,7 @@ function getCompanySortValue(c: Company, key: CompanySortKey): string | number {
 }
 
 export function CompaniesPage() {
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const toast = useToast();
   const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
@@ -63,10 +65,10 @@ export function CompaniesPage() {
     onSuccess: (c) => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
       setActionError(null);
-      toast.showSuccess(`"${c.companyName}" marked as verified.`);
+      toast.showSuccess(t.companies.verifiedSuccess(c.companyName));
     },
     onError: (err) => {
-      const message = getErrorMessage(err, 'Unable to verify this company');
+      const message = getErrorMessage(err, t.companies.errorVerify);
       setActionError(message);
       toast.showError(message);
     },
@@ -77,10 +79,10 @@ export function CompaniesPage() {
     onSuccess: (c) => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
       setActionError(null);
-      toast.showSuccess(`"${c.companyName}" ${c.active ? 'activated' : 'deactivated'}.`);
+      toast.showSuccess(c.active ? t.companies.activatedSuccess(c.companyName) : t.companies.deactivatedSuccess(c.companyName));
     },
     onError: (err) => {
-      const message = getErrorMessage(err, 'Unable to update this company');
+      const message = getErrorMessage(err, t.companies.errorUpdate);
       setActionError(message);
       toast.showError(message);
     },
@@ -91,10 +93,10 @@ export function CompaniesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
       setActionError(null);
-      toast.showSuccess('Company deleted.');
+      toast.showSuccess(t.companies.deletedSuccess);
     },
     onError: (err) => {
-      const message = getErrorMessage(err, 'Unable to delete this company');
+      const message = getErrorMessage(err, t.companies.errorDelete);
       setActionError(message);
       toast.showError(message);
     },
@@ -107,9 +109,9 @@ export function CompaniesPage() {
       setForceDeleting(null);
       setForceConfirmText('');
       setForceError(null);
-      toast.showSuccess('Company and all its data were deleted.');
+      toast.showSuccess(t.companies.forceDeletedSuccess);
     },
-    onError: (err) => setForceError(getErrorMessage(err, 'Unable to delete this company')),
+    onError: (err) => setForceError(getErrorMessage(err, t.companies.errorDelete)),
   });
 
   const filtered = useMemo(() => {
@@ -126,9 +128,9 @@ export function CompaniesPage() {
 
   const handleDelete = (c: Company) => {
     requestConfirm({
-      title: 'Delete company',
-      message: `Delete "${c.companyName}"? This removes the company and cannot be undone.`,
-      confirmLabel: 'Delete',
+      title: t.companies.deleteTitle,
+      message: t.companies.deleteMessage(c.companyName),
+      confirmLabel: t.companies.delete,
       variant: 'danger',
       onConfirm: () => {
         setActionError(null);
@@ -165,36 +167,32 @@ export function CompaniesPage() {
   return (
     <div>
       <div className="page__header">
-        <h1>Companies</h1>
-        <p className="page__subtitle">
-          Review every company registered on HumanEdge, verify their information, and manage
-          account status. Verification confirms a company's legitimacy before its staff can
-          fully operate on the platform.
-        </p>
+        <h1>{t.companies.title}</h1>
+        <p className="page__subtitle">{t.companies.subtitle}</p>
       </div>
 
       <div className="toolbar">
         <input
           className="toolbar__search"
           type="search"
-          placeholder="Search by name, fiscal number, city…"
+          placeholder={t.companies.searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         <button className="btn btn--ghost" onClick={() => companiesApi.exportCsv()}>
           <Download size={16} aria-hidden="true" />
-          Export CSV
+          {t.companies.exportCsv}
         </button>
       </div>
 
       {actionError && <div className="alert alert--error">{actionError}</div>}
 
       {isLoading && <TableSkeleton columns={6} />}
-      {isError && <p className="jobs__status">Unable to load companies.</p>}
+      {isError && <p className="jobs__status">{t.companies.errorLoad}</p>}
       {!isLoading && !isError && filtered.length === 0 && (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
-          <p>{search ? 'No companies match your search.' : 'No companies registered yet.'}</p>
+          <span className="placeholder-box__badge">{t.common.noRecords}</span>
+          <p>{search ? t.companies.noneMatchSearch : t.companies.noneYet}</p>
         </div>
       )}
 
@@ -203,18 +201,18 @@ export function CompaniesPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <SortableTh label="Company" sortKey="name" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label="Fiscal number" sortKey="fiscal" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label="City" sortKey="city" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label="Verified" sortKey="verified" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label="Status" sortKey="active" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.companies.columnCompany} sortKey="name" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.companies.columnFiscalNumber} sortKey="fiscal" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.companies.columnCity} sortKey="city" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.companies.columnVerified} sortKey="verified" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.companies.columnStatus} sortKey="active" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {pageItems.map((c) => (
                 <tr key={c.idCompany}>
-                  <td className="data-table__name-cell" data-label="Company">
+                  <td className="data-table__name-cell" data-label={t.companies.columnCompany}>
                     {c.logoUrl ? (
                       <img className="avatar" src={fileUrl(c.logoUrl)} alt={c.companyName} />
                     ) : (
@@ -222,52 +220,52 @@ export function CompaniesPage() {
                     )}
                     {c.companyName}
                   </td>
-                  <td data-label="Fiscal number">{c.fiscalNumber}</td>
-                  <td data-label="City">{c.city || '—'}</td>
-                  <td data-label="Verified">
+                  <td data-label={t.companies.columnFiscalNumber}>{c.fiscalNumber}</td>
+                  <td data-label={t.companies.columnCity}>{c.city || '—'}</td>
+                  <td data-label={t.companies.columnVerified}>
                     {c.verified ? (
-                      <span className="badge badge--success">Verified</span>
+                      <span className="badge badge--success">{t.companies.verified}</span>
                     ) : (
-                      <span className="badge badge--warning">Pending</span>
+                      <span className="badge badge--warning">{t.companies.pending}</span>
                     )}
                   </td>
-                  <td data-label="Status">
+                  <td data-label={t.companies.columnStatus}>
                     {c.active ? (
-                      <span className="badge badge--success">Active</span>
+                      <span className="badge badge--success">{t.companies.active}</span>
                     ) : (
-                      <span className="badge badge--muted">Inactive</span>
+                      <span className="badge badge--muted">{t.companies.inactive}</span>
                     )}
                   </td>
                   <td className="data-table__actions" data-label="">
                     <RowActionsMenu
                       ariaLabel={`Actions for ${c.companyName}`}
                       items={[
-                        { label: 'View details', icon: <Eye size={15} aria-hidden="true" />, onClick: () => setViewing(c) },
+                        { label: t.companies.viewDetails, icon: <Eye size={15} aria-hidden="true" />, onClick: () => setViewing(c) },
                         ...(c.verified
                           ? []
                           : [
                               {
-                                label: 'Mark as verified',
+                                label: t.companies.markAsVerified,
                                 icon: <CheckCircle2 size={15} aria-hidden="true" />,
                                 disabled: verifyMutation.isPending,
                                 onClick: () => verifyMutation.mutate(c.idCompany),
                               },
                             ]),
                         {
-                          label: c.active ? 'Deactivate' : 'Activate',
+                          label: c.active ? t.companies.deactivate : t.companies.activate,
                           icon: c.active ? <Lock size={15} aria-hidden="true" /> : <Unlock size={15} aria-hidden="true" />,
                           disabled: toggleActiveMutation.isPending,
                           onClick: () => toggleActiveMutation.mutate(c),
                         },
                         {
-                          label: 'Delete',
+                          label: t.companies.delete,
                           icon: <Trash2 size={15} aria-hidden="true" />,
                           danger: true,
                           disabled: deleteMutation.isPending,
                           onClick: () => handleDelete(c),
                         },
                         {
-                          label: 'Force delete (cascade)',
+                          label: t.companies.forceDeleteCascade,
                           icon: <Bomb size={15} aria-hidden="true" />,
                           danger: true,
                           onClick: () => openForceDelete(c),
@@ -292,52 +290,52 @@ export function CompaniesPage() {
             <div className="fieldset">
               <div className="field-row">
                 <label className="field">
-                  <span>Fiscal number</span>
+                  <span>{t.companies.fiscalNumber}</span>
                   <input value={viewing.fiscalNumber} disabled />
                 </label>
                 <label className="field">
-                  <span>CNSS number</span>
+                  <span>{t.companies.cnssNumber}</span>
                   <input value={viewing.cnssNumber} disabled />
                 </label>
               </div>
               <label className="field">
-                <span>Bank account number (RIB)</span>
+                <span>{t.companies.rib}</span>
                 <input value={viewing.rib} disabled />
               </label>
               <div className="field-row">
                 <label className="field">
-                  <span>Phone</span>
+                  <span>{t.companies.phone}</span>
                   <input value={viewing.phone || '—'} disabled />
                 </label>
                 <label className="field">
-                  <span>City</span>
+                  <span>{t.companies.city}</span>
                   <input value={viewing.city || '—'} disabled />
                 </label>
               </div>
               <label className="field">
-                <span>Address</span>
+                <span>{t.companies.address}</span>
                 <input value={viewing.address || '—'} disabled />
               </label>
               {viewing.createdAt && (
-                <p className="field-hint">Registered on {formatDateFr(viewing.createdAt)}</p>
+                <p className="field-hint">{t.companies.registeredOn(formatDateFr(viewing.createdAt))}</p>
               )}
             </div>
 
-            <h3 className="chart-card__title">Subscription</h3>
-            {subscriptionLoading && <p className="field-hint">Loading…</p>}
+            <h3 className="chart-card__title">{t.companies.subscription}</h3>
+            {subscriptionLoading && <p className="field-hint">{t.companies.loading}</p>}
             {!subscriptionLoading && subscription && (
               <p className="field-hint">
-                Plan: <strong>{planLabel}</strong> — {subscription.amount.toFixed(0)} {subscription.currency}/mo
-                {subscription.periodEnd && ` — active until ${formatDateFr(subscription.periodEnd)}`}
+                {t.companies.plan(planLabel ?? '—')} — {subscription.amount.toFixed(0)} {subscription.currency}/mo
+                {subscription.periodEnd && ` — ${t.companies.activeUntil(formatDateFr(subscription.periodEnd))}`}
               </p>
             )}
             {!subscriptionLoading && !subscription && (
-              <p className="field-hint">No subscription on file.</p>
+              <p className="field-hint">{t.companies.noSubscription}</p>
             )}
 
             <div className="modal__actions">
               <button type="button" className="btn btn--ghost" onClick={() => setViewing(null)}>
-                Close
+                {t.companies.close}
               </button>
             </div>
           </div>
@@ -347,21 +345,14 @@ export function CompaniesPage() {
       {forceDeleting && (
         <div className="modal-overlay" onClick={closeForceDelete}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Force delete "{forceDeleting.companyName}"</h2>
+            <h2>{t.companies.forceDeleteTitle(forceDeleting.companyName)}</h2>
 
             {forceError && <div className="alert alert--error">{forceError}</div>}
 
-            <div className="alert alert--error">
-              This permanently deletes the company <strong>and everything attached to it</strong>:
-              its user accounts (owner + employees), personnel records, contracts, absences,
-              payments, subscription and job postings (with their applications/interviews).
-              This cannot be undone.
-            </div>
+            <div className="alert alert--error">{t.companies.forceDeleteWarning}</div>
 
             <label className="field">
-              <span>
-                Type <strong>{forceDeleting.companyName}</strong> to confirm
-              </span>
+              <span>{t.companies.forceDeleteConfirmLabel(forceDeleting.companyName)}</span>
               <input
                 value={forceConfirmText}
                 onChange={(e) => setForceConfirmText(e.target.value)}
@@ -371,7 +362,7 @@ export function CompaniesPage() {
 
             <div className="modal__actions">
               <button type="button" className="btn btn--ghost" onClick={closeForceDelete}>
-                Cancel
+                {t.companies.cancel}
               </button>
               <button
                 type="button"
@@ -379,7 +370,7 @@ export function CompaniesPage() {
                 onClick={handleForceDeleteSubmit}
                 disabled={forceConfirmText !== forceDeleting.companyName || forceDeleteMutation.isPending}
               >
-                {forceDeleteMutation.isPending ? 'Deleting…' : 'Delete everything'}
+                {forceDeleteMutation.isPending ? t.companies.deleting : t.companies.deleteEverything}
               </button>
             </div>
           </div>

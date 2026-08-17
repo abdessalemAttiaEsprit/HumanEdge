@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+
 interface ModulePlaceholderPageProps {
   title: string;
   icon?: string;
@@ -8,6 +10,7 @@ interface ModulePlaceholderPageProps {
  * entries until their dedicated CRUD screens are built.
  */
 export function ModulePlaceholderPage({ title, icon }: ModulePlaceholderPageProps) {
+  const { t } = useLanguage();
   return (
     <div className="page">
       <div className="page__header">
@@ -15,14 +18,11 @@ export function ModulePlaceholderPage({ title, icon }: ModulePlaceholderPageProp
           {icon && <span style={{ marginRight: 8 }}>{icon}</span>}
           {title}
         </h1>
-        <p className="page__subtitle">This module will be implemented in a future step.</p>
+        <p className="page__subtitle">{t.modulePlaceholder.subtitle}</p>
       </div>
       <div className="placeholder-box">
-        <span className="placeholder-box__badge">Under construction</span>
-        <p>
-          Navigation, role-based security, and the API layer are already in place.
-          The management screens will be added here.
-        </p>
+        <span className="placeholder-box__badge">{t.modulePlaceholder.underConstruction}</span>
+        <p>{t.modulePlaceholder.description}</p>
       </div>
     </div>
   );

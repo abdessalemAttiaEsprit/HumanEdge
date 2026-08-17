@@ -1,7 +1,11 @@
 import type { Role } from '@/types';
+import type { Messages } from '@/i18n/en';
 
 export interface NavItem {
+  /** English fallback (also what non-translated call sites/tests match against). */
   label: string;
+  /** Looked up as t.nav[key] wherever the label is actually rendered — see Layout/DashboardPage/App. */
+  key: keyof Messages['nav'];
   path: string;
   /** Roles allowed to see/reach this entry. */
   roles: Role[];
@@ -18,17 +22,17 @@ export interface NavItem {
 // ce n'est pas rouvert explicitement). Le Dashboard ADMIN affiche déjà la liste des
 // entreprises en lecture seule, donc la visibilité plateforme reste disponible.
 export const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', path: '/dashboard', roles: ['ADMIN', 'COMPANY', 'EMPLOYE', 'GUEST'], icon: '🏠', iconSrc: '/assets/nav-icons/dashboard.png' },
-  { label: 'Companies', path: '/companies', roles: [], icon: '🏢' },
-  { label: 'Personnel', path: '/personnel', roles: ['COMPANY'], icon: '👥', iconSrc: '/assets/nav-icons/personnel.png' },
-  { label: 'Contracts', path: '/contracts', roles: ['COMPANY'], icon: '📄', iconSrc: '/assets/nav-icons/contracts.png' },
-  { label: 'Attendance', path: '/attendance', roles: ['COMPANY'], icon: '🕒', iconSrc: '/assets/nav-icons/attendance.png' },
-  { label: 'Absences', path: '/absences', roles: ['COMPANY', 'EMPLOYE'], icon: '🗓️', iconSrc: '/assets/nav-icons/absences.png' },
-  { label: 'Payroll', path: '/payments', roles: ['COMPANY', 'EMPLOYE'], icon: '💰', iconSrc: '/assets/nav-icons/payroll.png' },
-  { label: 'Job Postings', path: '/jobs', roles: ['COMPANY', 'EMPLOYE', 'GUEST'], icon: '📢', iconSrc: '/assets/nav-icons/job-postings.png' },
-  { label: 'Candidates', path: '/candidates', roles: ['GUEST'], icon: '🧑‍💼', iconSrc: '/assets/nav-icons/candidates.png' },
-  { label: 'Applications', path: '/applications', roles: ['COMPANY', 'GUEST'], icon: '📨', iconSrc: '/assets/nav-icons/applications.png' },
-  { label: 'Interviews', path: '/interviews', roles: ['COMPANY', 'GUEST'], icon: '💬', iconSrc: '/assets/nav-icons/interviews.png' },
+  { label: 'Dashboard', key: 'dashboard', path: '/dashboard', roles: ['ADMIN', 'COMPANY', 'EMPLOYE', 'GUEST'], icon: '🏠', iconSrc: '/assets/nav-icons/dashboard.png' },
+  { label: 'Companies', key: 'companies', path: '/companies', roles: [], icon: '🏢' },
+  { label: 'Personnel', key: 'personnel', path: '/personnel', roles: ['COMPANY'], icon: '👥', iconSrc: '/assets/nav-icons/personnel.png' },
+  { label: 'Contracts', key: 'contracts', path: '/contracts', roles: ['COMPANY'], icon: '📄', iconSrc: '/assets/nav-icons/contracts.png' },
+  { label: 'Attendance', key: 'attendance', path: '/attendance', roles: ['COMPANY'], icon: '🕒', iconSrc: '/assets/nav-icons/attendance.png' },
+  { label: 'Absences', key: 'absences', path: '/absences', roles: ['COMPANY', 'EMPLOYE'], icon: '🗓️', iconSrc: '/assets/nav-icons/absences.png' },
+  { label: 'Payroll', key: 'payroll', path: '/payments', roles: ['COMPANY', 'EMPLOYE'], icon: '💰', iconSrc: '/assets/nav-icons/payroll.png' },
+  { label: 'Job Postings', key: 'jobPostings', path: '/jobs', roles: ['COMPANY', 'EMPLOYE', 'GUEST'], icon: '📢', iconSrc: '/assets/nav-icons/job-postings.png' },
+  { label: 'Candidates', key: 'candidates', path: '/candidates', roles: ['GUEST'], icon: '🧑‍💼', iconSrc: '/assets/nav-icons/candidates.png' },
+  { label: 'Applications', key: 'applications', path: '/applications', roles: ['COMPANY', 'GUEST'], icon: '📨', iconSrc: '/assets/nav-icons/applications.png' },
+  { label: 'Interviews', key: 'interviews', path: '/interviews', roles: ['COMPANY', 'GUEST'], icon: '💬', iconSrc: '/assets/nav-icons/interviews.png' },
 ];
 
 export function navItemsForRole(role: Role): NavItem[] {

@@ -10,6 +10,8 @@ import { candidatesApi } from '@/api/candidates';
 import { applicationsApi } from '@/api/applications';
 import { interviewsApi } from '@/api/interviews';
 import { useAuth } from '@/auth/useAuth';
+import { useLanguage } from '@/i18n/useLanguage';
+import type { Messages } from '@/i18n/en';
 import { getErrorMessage } from '@/lib/errors';
 import { useConfirm } from '@/lib/useConfirm';
 import { useEscapeKey } from '@/lib/useEscapeKey';
@@ -22,17 +24,6 @@ import { RowActionsMenu } from '@/components/RowActionsMenu';
 import { useToast } from '@/components/ToastProvider';
 import { usePagination } from '@/lib/usePagination';
 import type { Application, Company, JobPosting, JobPostingCreateRequest, PublicJobResponse, TypeContrat } from '@/types';
-
-const TYPE_LABEL: Record<TypeContrat, string> = {
-  CDI: 'Permanent',
-  CDD: 'Fixed-term',
-  CDD_AI: 'Fixed-term (AI)',
-  PROJET: 'Project-based',
-  INTERIM: 'Temp / Interim',
-  APPRENTISSAGE: 'Apprenticeship',
-  STAGE: 'Internship',
-  CONVENTION: 'Agreement',
-};
 
 const EMPTY_FORM = {
   title: '',
@@ -59,14 +50,14 @@ function toRequestPayload(f: typeof EMPTY_FORM) {
 
 type JobSortKey = 'title' | 'department' | 'type' | 'company' | 'deadline' | 'status';
 
-function getJobSortValue(j: JobPosting, key: JobSortKey): string | number {
+function getJobSortValue(j: JobPosting, key: JobSortKey, typeLabel: Record<TypeContrat, string>): string | number {
   switch (key) {
     case 'title':
       return j.title ?? '';
     case 'department':
       return j.department ?? '';
     case 'type':
-      return j.jobType ? TYPE_LABEL[j.jobType] : '';
+      return j.jobType ? typeLabel[j.jobType] : '';
     case 'company':
       return j.createdByCompany?.companyName ?? '';
     case 'deadline':
@@ -105,6 +96,7 @@ interface JobPostingRowProps {
   onViewCandidateProfile: (a: Application) => void;
   onAcceptCandidate: (a: Application) => void;
   onDeleteApplication: (a: Application) => void;
+  t: Messages;
 }
 
 function JobPostingRow({
@@ -122,6 +114,7 @@ function JobPostingRow({
   onViewCandidateProfile,
   onAcceptCandidate,
   onDeleteApplication,
+  t,
 }: JobPostingRowProps) {
   const { data: applications, isLoading: applicationsLoading } = useQuery({
     queryKey: ['applications', 'by-job', job.id],
@@ -152,32 +145,32 @@ function JobPostingRow({
             <ChevronDown size={16} aria-hidden="true" />
           </span>
         </td>
-        <td data-label="Title">{job.title}</td>
-        <td data-label="Department">{job.department || '—'}</td>
-        <td data-label="Type">{job.jobType ? TYPE_LABEL[job.jobType] : '—'}</td>
-        {isAdmin && <td data-label="Company">{job.createdByCompany?.companyName ?? '—'}</td>}
-        <td data-label="Deadline">{job.deadline ? job.deadline.slice(0, 10) : '—'}</td>
-        <td data-label="Status">
+        <td data-label={t.jobPostings.columnTitle}>{job.title}</td>
+        <td data-label={t.jobPostings.columnDepartment}>{job.department || '—'}</td>
+        <td data-label={t.jobPostings.columnType}>{job.jobType ? t.contractTypes[job.jobType] : '—'}</td>
+        {isAdmin && <td data-label={t.jobPostings.columnCompany}>{job.createdByCompany?.companyName ?? '—'}</td>}
+        <td data-label={t.jobPostings.columnDeadline}>{job.deadline ? job.deadline.slice(0, 10) : '—'}</td>
+        <td data-label={t.jobPostings.columnStatus}>
           {job.status === 'OPEN' ? (
-            <span className="badge badge--success">Open</span>
+            <span className="badge badge--success">{t.jobPostings.open}</span>
           ) : (
-            <span className="badge badge--muted">{job.status || 'Closed'}</span>
+            <span className="badge badge--muted">{job.status || t.jobPostings.closed}</span>
           )}
         </td>
         <td className="data-table__actions" data-label="" onClick={(e) => e.stopPropagation()}>
           <RowActionsMenu
             ariaLabel={`Actions for ${job.title}`}
             items={[
-              { label: 'Edit', icon: <Pencil size={15} aria-hidden="true" />, onClick: onEdit },
+              { label: t.jobPostings.edit, icon: <Pencil size={15} aria-hidden="true" />, onClick: onEdit },
               {
-                label: job.status === 'OPEN' ? 'Close' : 'Reopen',
+                label: job.status === 'OPEN' ? t.jobPostings.close : t.jobPostings.reopen,
                 icon:
                   job.status === 'OPEN' ? <Lock size={15} aria-hidden="true" /> : <Unlock size={15} aria-hidden="true" />,
                 disabled: statusPending,
                 onClick: onToggleStatus,
               },
               {
-                label: 'Delete',
+                label: t.jobPostings.delete,
                 icon: <Trash2 size={15} aria-hidden="true" />,
                 danger: true,
                 disabled: deletePending,
@@ -193,64 +186,66 @@ function JobPostingRow({
             <div className="contract-panel">
               <div className="contract-panel__grid">
                 <div className="contract-panel__item">
-                  <span className="contract-panel__label">Description</span>
+                  <span className="contract-panel__label">{t.jobPostings.description}</span>
                   <span className="contract-panel__value">{job.description || '—'}</span>
                 </div>
                 <div className="contract-panel__item">
-                  <span className="contract-panel__label">Required skills</span>
+                  <span className="contract-panel__label">{t.jobPostings.requiredSkills}</span>
                   <span className="contract-panel__value">
                     {job.requiredSkills?.length ? job.requiredSkills.join(', ') : '—'}
                   </span>
                 </div>
               </div>
 
-              <h4 className="contract-panel__section-title">Candidates for this posting</h4>
-              {applicationsLoading && <p className="field-hint">Loading candidates…</p>}
+              <h4 className="contract-panel__section-title">{t.jobPostings.candidatesForPosting}</h4>
+              {applicationsLoading && <p className="field-hint">{t.jobPostings.loadingCandidates}</p>}
               {!applicationsLoading && (applications?.length ?? 0) === 0 && (
-                <p className="field-hint">No applications yet.</p>
+                <p className="field-hint">{t.jobPostings.noApplicationsYet}</p>
               )}
               {!applicationsLoading && (applications?.length ?? 0) > 0 && (
                 <table className="data-table data-table--nested">
                   <thead>
                     <tr>
-                      <th>Candidate</th>
-                      <th>Status</th>
-                      <th>Applied</th>
-                      <th>AI score</th>
+                      <th>{t.jobPostings.columnCandidate}</th>
+                      <th>{t.jobPostings.columnStatus}</th>
+                      <th>{t.jobPostings.columnApplied}</th>
+                      <th>{t.jobPostings.columnAiScore}</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {applications!.map((a) => (
                       <tr key={a.id} onClick={(e) => e.stopPropagation()}>
-                        <td data-label="Candidate">{applicantName(a)}</td>
-                        <td data-label="Status">
-                          <span className={applicationStatusBadgeClass(a.status)}>{a.status || '—'}</span>
+                        <td data-label={t.jobPostings.columnCandidate}>{applicantName(a)}</td>
+                        <td data-label={t.jobPostings.columnStatus}>
+                          <span className={applicationStatusBadgeClass(a.status)}>
+                            {a.status ? t.applicationStatus[a.status as keyof Messages['applicationStatus']] ?? a.status : '—'}
+                          </span>
                         </td>
-                        <td data-label="Applied">{a.appliedDate ? a.appliedDate.slice(0, 10) : '—'}</td>
-                        <td data-label="AI score">{a.aiScore != null ? a.aiScore.toFixed(1) : '—'}</td>
+                        <td data-label={t.jobPostings.columnApplied}>{a.appliedDate ? a.appliedDate.slice(0, 10) : '—'}</td>
+                        <td data-label={t.jobPostings.columnAiScore}>{a.aiScore != null ? a.aiScore.toFixed(1) : '—'}</td>
                         <td className="data-table__actions" data-label="">
                           <RowActionsMenu
                             ariaLabel={`Actions for the candidature of ${applicantName(a)}`}
                             items={[
                               {
-                                label: 'View CV',
+                                label: t.jobPostings.viewCv,
                                 icon: <FileText size={15} aria-hidden="true" />,
                                 disabled: !a.candidate?.cvFileId,
                                 onClick: () => onViewCandidateCv(a),
                               },
                               {
-                                label: 'Profile',
+                                label: t.jobPostings.profile,
                                 icon: <Eye size={15} aria-hidden="true" />,
                                 onClick: () => onViewCandidateProfile(a),
                               },
                               {
-                                label: 'Accept → schedule interview',
+                                label: t.jobPostings.acceptSchedule,
                                 icon: <CalendarCheck size={15} aria-hidden="true" />,
                                 onClick: () => onAcceptCandidate(a),
                               },
                               {
-                                label: 'Delete',
+                                label: t.jobPostings.delete,
                                 icon: <Trash2 size={15} aria-hidden="true" />,
                                 danger: true,
                                 onClick: () => onDeleteApplication(a),
@@ -283,6 +278,7 @@ export function JobPostingsPage() {
 // postings, which isn't appropriate for a plain browsing view).
 // ============================================================================
 function BrowseJobPostings() {
+  const { t } = useLanguage();
   const { user } = useAuth();
   const isGuest = user?.role === 'GUEST';
   const queryClient = useQueryClient();
@@ -323,7 +319,7 @@ function BrowseJobPostings() {
       setCoverLetter('');
       setFormError(null);
     },
-    onError: (err) => setFormError(getErrorMessage(err, 'Unable to submit your application')),
+    onError: (err) => setFormError(getErrorMessage(err, t.jobPostings.browse.errorApply)),
   });
 
   const openApply = (job: PublicJobResponse) => {
@@ -342,19 +338,16 @@ function BrowseJobPostings() {
   return (
     <div>
       <div className="page__header">
-        <h1>Job Postings</h1>
-        <p className="page__subtitle">
-          Browse open positions posted by companies on HumanEdge. Open a listing to see the
-          full description and required skills, and apply directly with a cover letter.
-        </p>
+        <h1>{t.jobPostings.title}</h1>
+        <p className="page__subtitle">{t.jobPostings.browse.subtitle}</p>
       </div>
 
-      {isLoading && <p className="jobs__status">Loading job openings…</p>}
-      {isError && <p className="jobs__status">Unable to load job openings right now.</p>}
+      {isLoading && <p className="jobs__status">{t.jobPostings.browse.loading}</p>}
+      {isError && <p className="jobs__status">{t.jobPostings.browse.errorLoad}</p>}
       {!isLoading && !isError && (jobs?.length ?? 0) === 0 && (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No openings</span>
-          <p>No open positions right now. Check back soon!</p>
+          <span className="placeholder-box__badge">{t.jobPostings.browse.noOpenings}</span>
+          <p>{t.jobPostings.browse.noneRightNow}</p>
         </div>
       )}
 
@@ -363,7 +356,7 @@ function BrowseJobPostings() {
           {jobs!.map((job) => (
             <div key={job.id} className="job-card">
               <div className="job-card__top">
-                {job.jobType && <span className="job-card__type">{TYPE_LABEL[job.jobType]}</span>}
+                {job.jobType && <span className="job-card__type">{t.contractTypes[job.jobType]}</span>}
                 {job.department && <span className="job-card__dept">{job.department}</span>}
               </div>
               <h3>{job.title}</h3>
@@ -371,14 +364,15 @@ function BrowseJobPostings() {
               {job.description && <p className="job-card__desc">{job.description}</p>}
               {isGuest && (
                 appliedJobIds.has(job.id) ? (
-                  <span className="badge badge--soft">Applied</span>
+                  <span className="badge badge--soft">{t.jobPostings.browse.applied}</span>
                 ) : hasProfile ? (
                   <button className="btn btn--ghost btn--sm" onClick={() => openApply(job)}>
-                    Apply
+                    {t.jobPostings.browse.apply}
                   </button>
                 ) : (
                   <p className="field-hint">
-                    <Link to="/candidates">Complete your candidate profile</Link> to apply.
+                    <Link to="/candidates">{t.jobPostings.browse.completeProfileToApply}</Link>{' '}
+                    {t.jobPostings.browse.completeProfileSuffix}
                   </p>
                 )
               )}
@@ -390,27 +384,27 @@ function BrowseJobPostings() {
       {applying && (
         <div className="modal-overlay" onClick={() => setApplying(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Apply — {applying.title}</h2>
+            <h2>{t.jobPostings.browse.applyModalTitle(applying.title ?? '')}</h2>
             <form onSubmit={handleApplySubmit}>
               {formError && <div className="alert alert--error">{formError}</div>}
               <div className="fieldset">
                 <label className="field">
-                  <span>Cover letter</span>
+                  <span>{t.jobPostings.browse.coverLetter}</span>
                   <textarea
                     rows={5}
                     value={coverLetter}
                     onChange={(e) => setCoverLetter(e.target.value)}
-                    placeholder="Tell them why you're a great fit…"
+                    placeholder={t.jobPostings.browse.coverLetterPlaceholder}
                     required
                   />
                 </label>
               </div>
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setApplying(null)}>
-                  Cancel
+                  {t.jobPostings.browse.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={applyMutation.isPending}>
-                  {applyMutation.isPending ? 'Submitting…' : 'Submit application'}
+                  {applyMutation.isPending ? t.jobPostings.browse.submitting : t.jobPostings.browse.submitApplication}
                 </button>
               </div>
             </form>
@@ -425,6 +419,8 @@ function BrowseJobPostings() {
 // ADMIN / COMPANY: manage postings.
 // ============================================================================
 function ManageJobPostings() {
+  const { t } = useLanguage();
+  const TYPE_LABEL = t.contractTypes;
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const queryClient = useQueryClient();
@@ -469,7 +465,9 @@ function ManageJobPostings() {
     );
   }, [jobs, search]);
 
-  const { sorted, sortKey, direction, toggleSort } = useSort<JobPosting, JobSortKey>(filtered, getJobSortValue);
+  const { sorted, sortKey, direction, toggleSort } = useSort<JobPosting, JobSortKey>(filtered, (j, key) =>
+    getJobSortValue(j, key, TYPE_LABEL),
+  );
   const { page, setPage, pageCount, pageItems } = usePagination(sorted, 10);
 
   const createMutation = useMutation({
@@ -481,7 +479,7 @@ function ManageJobPostings() {
       setCompanyId('');
       setFormError(null);
     },
-    onError: (err) => setFormError(getErrorMessage(err, 'Unable to create the job posting')),
+    onError: (err) => setFormError(getErrorMessage(err, t.jobPostings.manage.errorCreate)),
   });
 
   const updateMutation = useMutation({
@@ -492,25 +490,25 @@ function ManageJobPostings() {
       setEditing(null);
       setFormError(null);
     },
-    onError: (err) => setFormError(getErrorMessage(err, 'Unable to update the job posting')),
+    onError: (err) => setFormError(getErrorMessage(err, t.jobPostings.manage.errorUpdate)),
   });
 
   const deleteMutation = useMutation({
     mutationFn: jobPostingsApi.remove,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['job-postings'] });
-      toast.showSuccess('Job posting deleted.');
+      toast.showSuccess(t.jobPostings.manage.deletedSuccess);
     },
-    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to delete the job posting')),
+    onError: (err) => toast.showError(getErrorMessage(err, t.jobPostings.manage.errorDelete)),
   });
 
   const deleteApplicationMutation = useMutation({
     mutationFn: applicationsApi.remove,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
-      toast.showSuccess('Application deleted.');
+      toast.showSuccess(t.jobPostings.manage.applicationDeletedSuccess);
     },
-    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to delete this application')),
+    onError: (err) => toast.showError(getErrorMessage(err, t.jobPostings.manage.errorDeleteApplication)),
   });
 
   const scheduleMutation = useMutation({
@@ -521,18 +519,18 @@ function ManageJobPostings() {
       queryClient.invalidateQueries({ queryKey: ['interviews'] });
       setScheduling(null);
       setScheduleError(null);
-      toast.showSuccess('Interview scheduled.');
+      toast.showSuccess(t.jobPostings.manage.interviewScheduledSuccess);
     },
-    onError: (err) => setScheduleError(getErrorMessage(err, 'Unable to schedule the interview')),
+    onError: (err) => setScheduleError(getErrorMessage(err, t.jobPostings.manage.errorSchedule)),
   });
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string }) => jobPostingsApi.changeStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['job-postings'] });
-      toast.showSuccess('Job posting status updated.');
+      toast.showSuccess(t.jobPostings.manage.statusUpdatedSuccess);
     },
-    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to update the job posting status')),
+    onError: (err) => toast.showError(getErrorMessage(err, t.jobPostings.manage.errorStatus)),
   });
 
   const openAddModal = () => {
@@ -559,7 +557,7 @@ function ManageJobPostings() {
     e.preventDefault();
     setFormError(null);
     if (isAdmin && !companyId) {
-      setFormError('Please select a company');
+      setFormError(t.jobPostings.manage.errorSelectCompany);
       return;
     }
     const payload: JobPostingCreateRequest = {
@@ -578,9 +576,9 @@ function ManageJobPostings() {
 
   const handleDelete = (job: JobPosting) => {
     requestConfirm({
-      title: 'Delete job posting',
-      message: `Delete the job posting "${job.title}"? This cannot be undone.`,
-      confirmLabel: 'Delete',
+      title: t.jobPostings.manage.deleteTitle,
+      message: t.jobPostings.manage.deleteMessage(job.title ?? ''),
+      confirmLabel: t.jobPostings.manage.delete,
       variant: 'danger',
       onConfirm: () => deleteMutation.mutate(job.id),
     });
@@ -612,9 +610,9 @@ function ManageJobPostings() {
 
   const handleDeleteApplication = (a: Application) => {
     requestConfirm({
-      title: 'Delete application',
-      message: `Delete the application from ${applicantName(a)}? This cannot be undone.`,
-      confirmLabel: 'Delete',
+      title: t.jobPostings.manage.deleteApplicationTitle,
+      message: t.jobPostings.manage.deleteApplicationMessage(applicantName(a)),
+      confirmLabel: t.jobPostings.manage.delete,
       variant: 'danger',
       onConfirm: () => deleteApplicationMutation.mutate(a.id),
     });
@@ -627,16 +625,12 @@ function ManageJobPostings() {
     <div>
       <div className="page__header page__header--row">
         <div>
-          <h1>Job Postings</h1>
-          <p className="page__subtitle">
-            Publish and manage your company's open positions, and review every application
-            received for each one without leaving the page. Shortlist candidates, schedule
-            interviews, and track hiring progress from a single view.
-          </p>
+          <h1>{t.jobPostings.title}</h1>
+          <p className="page__subtitle">{t.jobPostings.manage.subtitle}</p>
         </div>
         <button className="btn btn--primary" onClick={openAddModal}>
           <Plus size={16} aria-hidden="true" />
-          Add job posting
+          {t.jobPostings.manage.addJobPosting}
         </button>
       </div>
 
@@ -644,19 +638,19 @@ function ManageJobPostings() {
         <input
           className="toolbar__search"
           type="search"
-          placeholder="Search by title, department, company…"
+          placeholder={t.jobPostings.manage.searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
       {isLoading && <TableSkeleton columns={isAdmin ? 8 : 7} />}
-      {isError && <p className="jobs__status">Unable to load job postings.</p>}
+      {isError && <p className="jobs__status">{t.jobPostings.manage.errorLoad}</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
-          <p>{search ? 'No job postings match your search.' : 'No job postings yet. Add the first one.'}</p>
+          <span className="placeholder-box__badge">{t.common.noRecords}</span>
+          <p>{search ? t.jobPostings.manage.noneMatchSearch : t.jobPostings.manage.noneYet}</p>
         </div>
       )}
 
@@ -666,18 +660,18 @@ function ManageJobPostings() {
             <thead>
               <tr>
                 <th className="w-icon"></th>
-                <SortableTh label="Title" sortKey="title" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.jobPostings.columnTitle} sortKey="title" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <SortableTh
-                  label="Department"
+                  label={t.jobPostings.columnDepartment}
                   sortKey="department"
                   activeKey={sortKey}
                   direction={direction}
                   onSort={toggleSort}
                 />
-                <SortableTh label="Type" sortKey="type" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.jobPostings.columnType} sortKey="type" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 {isAdmin && (
                   <SortableTh
-                    label="Company"
+                    label={t.jobPostings.columnCompany}
                     sortKey="company"
                     activeKey={sortKey}
                     direction={direction}
@@ -685,13 +679,13 @@ function ManageJobPostings() {
                   />
                 )}
                 <SortableTh
-                  label="Deadline"
+                  label={t.jobPostings.columnDeadline}
                   sortKey="deadline"
                   activeKey={sortKey}
                   direction={direction}
                   onSort={toggleSort}
                 />
-                <SortableTh label="Status" sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.jobPostings.columnStatus} sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
@@ -713,6 +707,7 @@ function ManageJobPostings() {
                   onViewCandidateProfile={setViewingCandidateApp}
                   onAcceptCandidate={openScheduleForApplication}
                   onDeleteApplication={handleDeleteApplication}
+                  t={t}
                 />
               ))}
             </tbody>
@@ -725,15 +720,15 @@ function ManageJobPostings() {
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Add job posting</h2>
+            <h2>{t.jobPostings.manage.addModalTitle}</h2>
             <form onSubmit={handleCreateSubmit}>
               {formError && <div className="alert alert--error">{formError}</div>}
               <div className="fieldset">
                 {isAdmin && (
                   <label className="field">
-                    <span>Company</span>
+                    <span>{t.jobPostings.manage.company}</span>
                     <select value={companyId} onChange={(e) => setCompanyId(Number(e.target.value) || '')} required>
-                      <option value="">Select a company…</option>
+                      <option value="">{t.jobPostings.manage.selectCompany}</option>
                       {(companies ?? []).map((c: Company) => (
                         <option key={c.idCompany} value={c.idCompany}>
                           {c.companyName}
@@ -743,7 +738,7 @@ function ManageJobPostings() {
                   </label>
                 )}
                 <label className="field">
-                  <span>Title</span>
+                  <span>{t.jobPostings.manage.titleLabel}</span>
                   <input
                     value={form.title}
                     onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
@@ -752,14 +747,14 @@ function ManageJobPostings() {
                 </label>
                 <div className="field-row">
                   <label className="field">
-                    <span>Department</span>
+                    <span>{t.jobPostings.manage.department}</span>
                     <input
                       value={form.department}
                       onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
                     />
                   </label>
                   <label className="field">
-                    <span>Contract type</span>
+                    <span>{t.jobPostings.manage.contractType}</span>
                     <select
                       value={form.jobType}
                       onChange={(e) => setForm((f) => ({ ...f, jobType: e.target.value as TypeContrat }))}
@@ -773,7 +768,7 @@ function ManageJobPostings() {
                   </label>
                 </div>
                 <label className="field">
-                  <span>Description</span>
+                  <span>{t.jobPostings.description}</span>
                   <textarea
                     rows={4}
                     value={form.description}
@@ -781,15 +776,15 @@ function ManageJobPostings() {
                   />
                 </label>
                 <label className="field">
-                  <span>Required skills (comma-separated)</span>
+                  <span>{t.jobPostings.manage.requiredSkillsLabel}</span>
                   <input
                     value={form.requiredSkills}
                     onChange={(e) => setForm((f) => ({ ...f, requiredSkills: e.target.value }))}
-                    placeholder="e.g. React, TypeScript, SQL"
+                    placeholder={t.jobPostings.manage.requiredSkillsPlaceholder}
                   />
                 </label>
                 <label className="field">
-                  <span>Application deadline (optional)</span>
+                  <span>{t.jobPostings.manage.deadlineOptional}</span>
                   <input
                     type="date"
                     value={form.deadline}
@@ -799,10 +794,10 @@ function ManageJobPostings() {
               </div>
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setShowAddModal(false)}>
-                  Cancel
+                  {t.jobPostings.manage.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? 'Creating…' : 'Create posting'}
+                  {createMutation.isPending ? t.jobPostings.manage.creating : t.jobPostings.manage.createPosting}
                 </button>
               </div>
             </form>
@@ -813,12 +808,12 @@ function ManageJobPostings() {
       {editing && (
         <div className="modal-overlay" onClick={() => setEditing(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Edit job posting</h2>
+            <h2>{t.jobPostings.manage.editModalTitle}</h2>
             <form onSubmit={handleEditSubmit}>
               {formError && <div className="alert alert--error">{formError}</div>}
               <div className="fieldset">
                 <label className="field">
-                  <span>Title</span>
+                  <span>{t.jobPostings.manage.titleLabel}</span>
                   <input
                     value={form.title}
                     onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
@@ -827,14 +822,14 @@ function ManageJobPostings() {
                 </label>
                 <div className="field-row">
                   <label className="field">
-                    <span>Department</span>
+                    <span>{t.jobPostings.manage.department}</span>
                     <input
                       value={form.department}
                       onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
                     />
                   </label>
                   <label className="field">
-                    <span>Contract type</span>
+                    <span>{t.jobPostings.manage.contractType}</span>
                     <select
                       value={form.jobType}
                       onChange={(e) => setForm((f) => ({ ...f, jobType: e.target.value as TypeContrat }))}
@@ -848,7 +843,7 @@ function ManageJobPostings() {
                   </label>
                 </div>
                 <label className="field">
-                  <span>Description</span>
+                  <span>{t.jobPostings.description}</span>
                   <textarea
                     rows={4}
                     value={form.description}
@@ -856,14 +851,14 @@ function ManageJobPostings() {
                   />
                 </label>
                 <label className="field">
-                  <span>Required skills (comma-separated)</span>
+                  <span>{t.jobPostings.manage.requiredSkillsLabel}</span>
                   <input
                     value={form.requiredSkills}
                     onChange={(e) => setForm((f) => ({ ...f, requiredSkills: e.target.value }))}
                   />
                 </label>
                 <label className="field">
-                  <span>Application deadline (optional)</span>
+                  <span>{t.jobPostings.manage.deadlineOptional}</span>
                   <input
                     type="date"
                     value={form.deadline}
@@ -873,10 +868,10 @@ function ManageJobPostings() {
               </div>
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setEditing(null)}>
-                  Cancel
+                  {t.jobPostings.manage.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+                  {updateMutation.isPending ? t.jobPostings.manage.saving : t.jobPostings.manage.saveChanges}
                 </button>
               </div>
             </form>
@@ -890,37 +885,41 @@ function ManageJobPostings() {
             <h2>{applicantName(viewingCandidateApp)}</h2>
             <div className="detail-grid">
               <div className="detail-grid__item">
-                <span>Email</span>
+                <span>{t.jobPostings.manage.email}</span>
                 <strong>{viewingCandidateApp.candidate?.email || '—'}</strong>
               </div>
               <div className="detail-grid__item">
-                <span>Phone</span>
+                <span>{t.jobPostings.manage.phone}</span>
                 <strong>{viewingCandidateApp.candidate?.phoneNumber || '—'}</strong>
               </div>
               <div className="detail-grid__item">
-                <span>CIN</span>
+                <span>{t.jobPostings.manage.cin}</span>
                 <strong>{viewingCandidateApp.candidate?.cin || '—'}</strong>
               </div>
               <div className="detail-grid__item">
-                <span>Experience</span>
+                <span>{t.jobPostings.manage.experience}</span>
                 <strong>
                   {viewingCandidateApp.candidate?.yearsOfExperience != null
-                    ? `${viewingCandidateApp.candidate.yearsOfExperience} yrs`
+                    ? t.jobPostings.manage.years(viewingCandidateApp.candidate.yearsOfExperience)
                     : '—'}
                 </strong>
               </div>
               <div className="detail-grid__item">
-                <span>Applied for</span>
+                <span>{t.jobPostings.manage.appliedFor}</span>
                 <strong>{viewingCandidateApp.jobPosting?.title || '—'}</strong>
               </div>
               <div className="detail-grid__item">
-                <span>Status</span>
-                <strong>{viewingCandidateApp.status || '—'}</strong>
+                <span>{t.jobPostings.manage.status}</span>
+                <strong>
+                  {viewingCandidateApp.status
+                    ? t.applicationStatus[viewingCandidateApp.status as keyof Messages['applicationStatus']] ?? viewingCandidateApp.status
+                    : '—'}
+                </strong>
               </div>
             </div>
             <div className="modal__actions">
               <button type="button" className="btn btn--ghost" onClick={() => setViewingCandidateApp(null)}>
-                Close
+                {t.jobPostings.close}
               </button>
             </div>
           </div>
@@ -930,12 +929,12 @@ function ManageJobPostings() {
       {scheduling && (
         <div className="modal-overlay" onClick={() => setScheduling(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Schedule interview — {applicantName(scheduling)}</h2>
+            <h2>{t.jobPostings.manage.scheduleModalTitle(applicantName(scheduling))}</h2>
             <form onSubmit={handleScheduleSubmit}>
               {scheduleError && <div className="alert alert--error">{scheduleError}</div>}
               <div className="fieldset">
                 <label className="field">
-                  <span>Date &amp; time</span>
+                  <span>{t.jobPostings.manage.dateTime}</span>
                   <input
                     type="datetime-local"
                     value={scheduleDate}
@@ -944,21 +943,21 @@ function ManageJobPostings() {
                   />
                 </label>
                 <label className="field">
-                  <span>Location</span>
+                  <span>{t.jobPostings.manage.location}</span>
                   <input
                     value={scheduleLocation}
                     onChange={(e) => setScheduleLocation(e.target.value)}
-                    placeholder="e.g. Office 3B or a video call link"
+                    placeholder={t.jobPostings.manage.locationPlaceholder}
                     required
                   />
                 </label>
               </div>
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setScheduling(null)}>
-                  Cancel
+                  {t.jobPostings.manage.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={scheduleMutation.isPending}>
-                  {scheduleMutation.isPending ? 'Scheduling…' : 'Accept & schedule interview'}
+                  {scheduleMutation.isPending ? t.jobPostings.manage.scheduling : t.jobPostings.manage.acceptAndSchedule}
                 </button>
               </div>
             </form>

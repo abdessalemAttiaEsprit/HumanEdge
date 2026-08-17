@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { authApi } from '@/api/auth';
+import { useLanguage } from '@/i18n/useLanguage';
 import { AuthLayout } from '@/components/AuthLayout';
 import { getErrorMessage } from '@/lib/errors';
 
 export function ForgotPasswordPage() {
+  const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,7 +23,7 @@ export function ForgotPasswordPage() {
       await authApi.forgotPassword({ email });
       setSent(true);
     } catch (err) {
-      setError(getErrorMessage(err, 'Unable to send the reset link'));
+      setError(getErrorMessage(err, t.forgotPassword.errorSend));
     } finally {
       setLoading(false);
     }
@@ -30,13 +32,12 @@ export function ForgotPasswordPage() {
   if (sent) {
     return (
       <AuthLayout>
-        <h1>Check your email</h1>
+        <h1>{t.forgotPassword.checkEmail}</h1>
         <p className="auth-shell__subtitle">
-          If an account exists for <strong>{email}</strong>, we&apos;ve sent a link to reset your
-          password. It expires in 45 minutes.
+          {t.forgotPassword.sentPrefix} <strong>{email}</strong>, {t.forgotPassword.sentSuffix}
         </p>
         <p className="auth-shell__footer">
-          <Link to="/login">Back to sign in</Link>
+          <Link to="/login">{t.forgotPassword.backToSignIn}</Link>
         </p>
       </AuthLayout>
     );
@@ -45,16 +46,14 @@ export function ForgotPasswordPage() {
   return (
     <AuthLayout>
       <form onSubmit={handleSubmit}>
-        <h1>Forgot password?</h1>
-        <p className="auth-shell__subtitle">
-          Enter your email and we&apos;ll send you a link to reset your password.
-        </p>
+        <h1>{t.forgotPassword.title}</h1>
+        <p className="auth-shell__subtitle">{t.forgotPassword.subtitle}</p>
 
         {error && <div className="alert alert--error">{error}</div>}
 
         <div className="auth-fields">
           <label className="field">
-            <span>Email</span>
+            <span>{t.forgotPassword.email}</span>
             <input
               type="email"
               value={email}
@@ -67,11 +66,11 @@ export function ForgotPasswordPage() {
         </div>
 
         <button className="btn btn--primary btn--block" type="submit" disabled={loading}>
-          {loading ? 'Sending…' : 'Send reset link'}
+          {loading ? t.forgotPassword.sending : t.forgotPassword.sendResetLink}
         </button>
 
         <p className="auth-shell__footer">
-          <Link to="/login">Back to sign in</Link>
+          <Link to="/login">{t.forgotPassword.backToSignIn}</Link>
         </p>
       </form>
     </AuthLayout>

@@ -4,20 +4,23 @@ import { useAuth } from '@/auth/useAuth';
 import { navItemsForRole } from '@/config/navigation';
 import { fileUrl } from '@/api/axios';
 import { useTheme } from '@/lib/useTheme';
+import { useLanguage } from '@/i18n/useLanguage';
 import { NotificationBell } from './NotificationBell';
 import { ThemeSwitch } from './ThemeSwitch';
+import { LanguageSwitch } from './LanguageSwitch';
 
-const ROLE_LABEL: Record<string, string> = {
-  ADMIN: 'Administrator',
-  COMPANY: 'Company',
-  EMPLOYE: 'Employee',
-  GUEST: 'Candidate',
+const ROLE_LABEL_KEY: Record<string, 'administrator' | 'company' | 'employee' | 'candidate'> = {
+  ADMIN: 'administrator',
+  COMPANY: 'company',
+  EMPLOYE: 'employee',
+  GUEST: 'candidate',
 };
 
 export function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { lang, setLang, t } = useLanguage();
 
   if (!user) return null;
 
@@ -37,11 +40,12 @@ export function Layout() {
           <div className="topbar__brand">
             <img className="topbar__brand-logo" src="/assets/favicon.png" alt="HumanEdge" />
           </div>
-          <div className="topbar__role">{ROLE_LABEL[user.role] ?? user.role}</div>
+          <div className="topbar__role">{t.layout.roleLabel[ROLE_LABEL_KEY[user.role] ?? 'employee']}</div>
           <div className="topbar__user">
+            <LanguageSwitch lang={lang} onChange={setLang} />
             <ThemeSwitch theme={theme} onToggle={toggleTheme} />
             <NotificationBell />
-            <Link to="/profile" className="topbar__user-link" title="My profile">
+            <Link to="/profile" className="topbar__user-link" title={t.layout.myProfile}>
               {avatar ? (
                 <img className="avatar" src={avatar} alt={user.firstname} />
               ) : (
@@ -56,7 +60,7 @@ export function Layout() {
             </Link>
             <button className="btn btn--ghost" onClick={handleLogout}>
               <LogOut size={16} aria-hidden="true" />
-              Log out
+              {t.common.logout}
             </button>
           </div>
         </header>
@@ -77,7 +81,7 @@ export function Layout() {
             <span className="bottom-nav__icon">
               {item.iconSrc ? <img src={item.iconSrc} alt="" aria-hidden="true" /> : item.icon}
             </span>
-            <span className="bottom-nav__label">{item.label}</span>
+            <span className="bottom-nav__label">{t.nav[item.key]}</span>
           </NavLink>
         ))}
       </nav>

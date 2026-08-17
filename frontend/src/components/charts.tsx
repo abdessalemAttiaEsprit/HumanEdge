@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLanguage } from '@/i18n/useLanguage';
 
 // =============================================================================
 // Lightweight, dependency-free chart primitives for the dashboards. Built as
@@ -25,10 +26,11 @@ export function BarChart({
   color?: string;
   formatValue?: (value: number) => string;
 }) {
+  const { t } = useLanguage();
   const max = Math.max(1, ...data.map((d) => d.value));
 
   if (data.length === 0) {
-    return <p className="chart-empty">No data yet.</p>;
+    return <p className="chart-empty">{t.charts.noDataYet}</p>;
   }
 
   return (
@@ -92,6 +94,7 @@ export function StackedBarChart({
   series: StackedSeries[];
   formatValue?: (value: number) => string;
 }) {
+  const { t } = useLanguage();
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const width = 640;
@@ -108,7 +111,7 @@ export function StackedBarChart({
   const barWidth = Math.min(24, bandWidth * 0.55);
 
   if (data.length === 0) {
-    return <p className="chart-empty">No data yet.</p>;
+    return <p className="chart-empty">{t.charts.noDataYet}</p>;
   }
 
   return (
@@ -125,7 +128,7 @@ export function StackedBarChart({
       )}
 
       <div className="stacked-chart__viz">
-        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Monthly payroll breakdown">
+        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t.charts.monthlyPayrollBreakdown}>
           {ticks.map((t) => {
             const y = margin.top + plotHeight - (t / niceMax) * plotHeight;
             return (

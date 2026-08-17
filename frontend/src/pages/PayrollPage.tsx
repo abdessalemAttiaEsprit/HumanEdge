@@ -5,6 +5,8 @@ import { paymentsApi } from '@/api/payments';
 import { personnelApi } from '@/api/personnel';
 import { companiesApi } from '@/api/companies';
 import { useAuth } from '@/auth/useAuth';
+import { useLanguage } from '@/i18n/useLanguage';
+import type { Messages } from '@/i18n/en';
 import { getErrorMessage } from '@/lib/errors';
 import { usePagination } from '@/lib/usePagination';
 import { useEscapeKey } from '@/lib/useEscapeKey';
@@ -53,11 +55,11 @@ function personnelName(p?: Personnel): string {
   return `${p.user.firstname} ${p.user.lastname}`;
 }
 
-function isJustified(a: Absence): boolean {
+export function isJustified(a: Absence): boolean {
   return Boolean(a.reason?.trim() || a.justification?.trim());
 }
 
-function absenceDayCount(a: Absence): number {
+export function absenceDayCount(a: Absence): number {
   if (a.startDate && a.endDate) {
     const days = (new Date(a.endDate).getTime() - new Date(a.startDate).getTime()) / 86_400_000;
     return Math.max(1, Math.round(days) + 1);
@@ -66,7 +68,7 @@ function absenceDayCount(a: Absence): number {
 }
 
 /** Annual progressive tax for a given taxable income, per IRPP_BRACKET_CEILINGS/RATES. */
-function annualBareme(annualTaxable: number): number {
+export function annualBareme(annualTaxable: number): number {
   let tax = 0;
   let previousCeiling = 0;
   for (let i = 0; i < IRPP_BRACKET_CEILINGS.length; i++) {
@@ -81,7 +83,7 @@ function annualBareme(annualTaxable: number): number {
 }
 
 /** Marginal rate (highest bracket reached) for a given taxable income. */
-function marginalIrppRate(annualTaxable: number): number {
+export function marginalIrppRate(annualTaxable: number): number {
   for (let i = 0; i < IRPP_BRACKET_CEILINGS.length; i++) {
     if (annualTaxable <= IRPP_BRACKET_CEILINGS[i]) return IRPP_BRACKET_RATES[i];
   }
@@ -89,7 +91,7 @@ function marginalIrppRate(annualTaxable: number): number {
 }
 
 /** Rough estimate only (net salary suggestion) — always editable before saving. */
-function suggestAmounts(personnel: Personnel, month: Month, year: number) {
+export function suggestAmounts(personnel: Personnel, month: Month, year: number) {
   const contract = personnel.contract;
   const salaireBase = contract?.salaireBase ?? 0;
   const avantages = contract?.avantages ?? 0;
@@ -122,9 +124,9 @@ function suggestAmounts(personnel: Personnel, month: Month, year: number) {
   return { montantCnss, montantIrpp, irppRate, payed, justifiedDays, nonJustifiedDays, deduction, grossBase };
 }
 
-type PaymentSortKey = 'employee' | 'period' | 'paymentDate' | 'netPay' | 'status';
+export type PaymentSortKey = 'employee' | 'period' | 'paymentDate' | 'netPay' | 'status';
 
-function getPaymentSortValue(p: Payment, key: PaymentSortKey): string | number {
+export function getPaymentSortValue(p: Payment, key: PaymentSortKey): string | number {
   switch (key) {
     case 'employee':
       return personnelName(p.personnel);
@@ -139,11 +141,11 @@ function getPaymentSortValue(p: Payment, key: PaymentSortKey): string | number {
   }
 }
 
-function StatusBadge({ status }: { status?: string }) {
+function StatusBadge({ status, t }: { status?: string; t: Messages }) {
   return status === 'VALIDATED' ? (
-    <span className="badge badge--success">Validated</span>
+    <span className="badge badge--success">{t.payroll.statusValidated}</span>
   ) : (
-    <span className="badge badge--warning">{status || 'Draft'}</span>
+    <span className="badge badge--warning">{status || t.payroll.statusDraft}</span>
   );
 }
 
@@ -162,6 +164,7 @@ function PayslipDetailModal({
   showEmployee?: boolean;
   onClose: () => void;
 }) {
+  const { t } = useLanguage();
   useEscapeKey(onClose, true);
 
   const contract = payment.contrat;
@@ -170,55 +173,56 @@ function PayslipDetailModal({
   const gross = salaireBase + avantages;
   const irppRateLabel = payment.irppRate != null ? `${(payment.irppRate * 100).toFixed(2)}%` : '—';
   const tnd = (v?: number) => (v != null ? `${v.toFixed(3)} TND` : '—');
+  const monthLabel = payment.month ? t.months[payment.month] : '';
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Payslip — {payment.month} {payment.year}</h2>
+        <h2>{t.payroll.payslipTitle(monthLabel, payment.year)}</h2>
         {showEmployee && <p className="page__subtitle">{personnelName(payment.personnel)}</p>}
 
         <div className="contract-panel">
           <div className="contract-panel__grid">
             <div className="contract-panel__item">
-              <span className="contract-panel__label">Base salary</span>
+              <span className="contract-panel__label">{t.payroll.baseSalary}</span>
               <span className="contract-panel__value">{tnd(salaireBase || undefined)}</span>
             </div>
             <div className="contract-panel__item">
-              <span className="contract-panel__label">Benefits</span>
+              <span className="contract-panel__label">{t.payroll.benefits}</span>
               <span className="contract-panel__value">{tnd(avantages || undefined)}</span>
             </div>
             <div className="contract-panel__item">
-              <span className="contract-panel__label">Gross</span>
+              <span className="contract-panel__label">{t.payroll.gross}</span>
               <span className="contract-panel__value">{tnd(gross || undefined)}</span>
             </div>
             <div className="contract-panel__item">
-              <span className="contract-panel__label">Justified absence days</span>
+              <span className="contract-panel__label">{t.payroll.justifiedAbsenceDays}</span>
               <span className="contract-panel__value">{payment.justifiedAbsenceDays ?? '—'}</span>
             </div>
             <div className="contract-panel__item">
-              <span className="contract-panel__label">Unjustified absence days</span>
+              <span className="contract-panel__label">{t.payroll.unjustifiedAbsenceDays}</span>
               <span className="contract-panel__value">{payment.unjustifiedAbsenceDays ?? '—'}</span>
             </div>
             <div className="contract-panel__item">
-              <span className="contract-panel__label">Absence deduction</span>
+              <span className="contract-panel__label">{t.payroll.absenceDeduction}</span>
               <span className="contract-panel__value">{tnd(payment.absenceDeduction)}</span>
             </div>
             <div className="contract-panel__item">
-              <span className="contract-panel__label">CNSS ({(CNSS_RATE * 100).toFixed(2)}%)</span>
+              <span className="contract-panel__label">{t.payroll.cnss((CNSS_RATE * 100).toFixed(2))}</span>
               <span className="contract-panel__value">{tnd(payment.montantCnss)}</span>
             </div>
             <div className="contract-panel__item">
-              <span className="contract-panel__label">IRPP ({irppRateLabel})</span>
+              <span className="contract-panel__label">{t.payroll.irpp(irppRateLabel)}</span>
               <span className="contract-panel__value">{tnd(payment.montantIrpp)}</span>
             </div>
             <div className="contract-panel__item">
-              <span className="contract-panel__label">Net pay</span>
+              <span className="contract-panel__label">{t.payroll.netPay}</span>
               <span className="contract-panel__value">{tnd(payment.payed)}</span>
             </div>
             <div className="contract-panel__item">
-              <span className="contract-panel__label">Status</span>
+              <span className="contract-panel__label">{t.payroll.status}</span>
               <span className="contract-panel__value">
-                <StatusBadge status={payment.status} />
+                <StatusBadge status={payment.status} t={t} />
               </span>
             </div>
           </div>
@@ -227,10 +231,10 @@ function PayslipDetailModal({
         <div className="modal__actions">
           <button type="button" className="btn btn--ghost" onClick={() => paymentsApi.downloadPayslipPdf(payment.id)}>
             <Receipt size={16} aria-hidden="true" />
-            Download PDF
+            {t.payroll.downloadPdf}
           </button>
           <button type="button" className="btn btn--primary" onClick={onClose}>
-            Close
+            {t.payroll.close}
           </button>
         </div>
       </div>
@@ -248,6 +252,7 @@ export function PayrollPage() {
 // EMPLOYE: self-service — view own payslips, download PDF.
 // ============================================================================
 function MyPayslips() {
+  const { t } = useLanguage();
   const { data: payments, isLoading, isError } = useQuery({
     queryKey: ['payments', 'me'],
     queryFn: paymentsApi.getMine,
@@ -259,19 +264,16 @@ function MyPayslips() {
   return (
     <div>
       <div className="page__header">
-        <h1>My payslips</h1>
-        <p className="page__subtitle">
-          Browse your payment history and download any payslip as a PDF. Each one details
-          your gross salary, absence deductions, CNSS and IRPP contributions, and net pay.
-        </p>
+        <h1>{t.payroll.my.title}</h1>
+        <p className="page__subtitle">{t.payroll.my.subtitle}</p>
       </div>
 
       {isLoading && <TableSkeleton columns={5} />}
-      {isError && <p className="jobs__status">Unable to load your payslips.</p>}
+      {isError && <p className="jobs__status">{t.payroll.my.errorLoad}</p>}
       {!isLoading && !isError && (payments?.length ?? 0) === 0 && (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
-          <p>No payslips yet.</p>
+          <span className="placeholder-box__badge">{t.common.noRecords}</span>
+          <p>{t.payroll.my.noneYet}</p>
         </div>
       )}
 
@@ -280,29 +282,29 @@ function MyPayslips() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Period</th>
-                <th>Payment date</th>
-                <th>Net pay</th>
-                <th>Status</th>
+                <th>{t.payroll.my.columnPeriod}</th>
+                <th>{t.payroll.my.columnPaymentDate}</th>
+                <th>{t.payroll.my.columnNetPay}</th>
+                <th>{t.payroll.my.columnStatus}</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {pageItems.map((p) => (
                 <tr key={p.id}>
-                  <td data-label="Period">{p.month} {p.year}</td>
-                  <td data-label="Payment date">{p.paymentDate || '—'}</td>
-                  <td data-label="Net pay">{p.payed != null ? `${p.payed.toFixed(3)} TND` : '—'}</td>
-                  <td data-label="Status"><StatusBadge status={p.status} /></td>
+                  <td data-label={t.payroll.my.columnPeriod}>{p.month ? t.months[p.month] : ''} {p.year}</td>
+                  <td data-label={t.payroll.my.columnPaymentDate}>{p.paymentDate || '—'}</td>
+                  <td data-label={t.payroll.my.columnNetPay}>{p.payed != null ? `${p.payed.toFixed(3)} TND` : '—'}</td>
+                  <td data-label={t.payroll.my.columnStatus}><StatusBadge status={p.status} t={t} /></td>
                   <td className="data-table__actions" data-label="">
                     <IconButton
                       icon={<Eye size={15} aria-hidden="true" />}
-                      label="View payslip details"
+                      label={t.payroll.my.viewDetails}
                       onClick={() => setViewing(p)}
                     />
                     <IconButton
                       icon={<Receipt size={15} aria-hidden="true" />}
-                      label="Download PDF"
+                      label={t.payroll.my.downloadPdf}
                       onClick={() => paymentsApi.downloadPayslipPdf(p.id)}
                     />
                   </td>
@@ -324,6 +326,7 @@ function MyPayslips() {
 // ADMIN / COMPANY: manage payroll.
 // ============================================================================
 function ManagePayroll() {
+  const { t } = useLanguage();
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const queryClient = useQueryClient();
@@ -367,9 +370,9 @@ function ManagePayroll() {
       setShowAddModal(false);
       setForm(EMPTY_FORM);
       setFormError(null);
-      toast.showSuccess('Payment created.');
+      toast.showSuccess(t.payroll.manage.createdSuccess);
     },
-    onError: (err) => setFormError(getErrorMessage(err, 'Unable to create the payment')),
+    onError: (err) => setFormError(getErrorMessage(err, t.payroll.manage.errorCreate)),
   });
 
   const updateMutation = useMutation({
@@ -379,27 +382,27 @@ function ManagePayroll() {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       setEditing(null);
       setFormError(null);
-      toast.showSuccess('Payment updated.');
+      toast.showSuccess(t.payroll.manage.updatedSuccess);
     },
-    onError: (err) => setFormError(getErrorMessage(err, 'Unable to update the payment')),
+    onError: (err) => setFormError(getErrorMessage(err, t.payroll.manage.errorUpdate)),
   });
 
   const validateMutation = useMutation({
     mutationFn: paymentsApi.validate,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
-      toast.showSuccess('Payment validated.');
+      toast.showSuccess(t.payroll.manage.validatedSuccess);
     },
-    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to validate this payment')),
+    onError: (err) => toast.showError(getErrorMessage(err, t.payroll.manage.errorValidate)),
   });
 
   const deleteMutation = useMutation({
     mutationFn: paymentsApi.remove,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
-      toast.showSuccess('Payment deleted.');
+      toast.showSuccess(t.payroll.manage.deletedSuccess);
     },
-    onError: (err) => toast.showError(getErrorMessage(err, 'Unable to delete this payment')),
+    onError: (err) => toast.showError(getErrorMessage(err, t.payroll.manage.errorDelete)),
   });
 
   const generateMutation = useMutation({
@@ -409,7 +412,7 @@ function ManagePayroll() {
       setGenerateResult(summary);
       setGenerateError(null);
     },
-    onError: (err) => setGenerateError(getErrorMessage(err, 'Unable to generate payroll')),
+    onError: (err) => setGenerateError(getErrorMessage(err, t.payroll.manage.errorGenerate)),
   });
 
   function buildPayload(f: typeof EMPTY_FORM) {
@@ -474,7 +477,7 @@ function ManagePayroll() {
     e.preventDefault();
     setGenerateError(null);
     if (isAdmin && !generateCompanyId) {
-      setGenerateError('Please select a company');
+      setGenerateError(t.payroll.manage.errorSelectCompany);
       return;
     }
     generateMutation.mutate();
@@ -525,7 +528,7 @@ function ManagePayroll() {
     e.preventDefault();
     setFormError(null);
     if (!form.personnelId) {
-      setFormError('Please select an employee');
+      setFormError(t.payroll.manage.errorSelectEmployee);
       return;
     }
     // Payment.company is never auto-attached server-side (unlike JobPosting) and
@@ -550,9 +553,9 @@ function ManagePayroll() {
 
   const handleDelete = (p: Payment) => {
     requestConfirm({
-      title: 'Delete payment',
-      message: `Delete this payment for ${personnelName(p.personnel)}? This cannot be undone.`,
-      confirmLabel: 'Delete',
+      title: t.payroll.manage.deleteTitle,
+      message: t.payroll.manage.deleteMessage(personnelName(p.personnel)),
+      confirmLabel: t.payroll.manage.delete,
       variant: 'danger',
       onConfirm: () => deleteMutation.mutate(p.id),
     });
@@ -562,26 +565,21 @@ function ManagePayroll() {
     <div>
       <div className="page__header page__header--row">
         <div>
-          <h1>Payroll</h1>
-          <p className="page__subtitle">
-            Generate, review, and validate monthly payroll for your staff. Amounts are
-            computed automatically from each contract and that month's absences — including
-            CNSS contributions and the progressive IRPP tax bracket — and stay fully editable
-            until validated.
-          </p>
+          <h1>{t.payroll.manage.title}</h1>
+          <p className="page__subtitle">{t.payroll.manage.subtitle}</p>
         </div>
         <div className="page__header-actions">
           <button className="btn btn--ghost" onClick={() => paymentsApi.exportCsv()}>
             <Download size={16} aria-hidden="true" />
-            Export CSV
+            {t.payroll.manage.exportCsv}
           </button>
           <button className="btn btn--ghost" onClick={openGenerateModal}>
             <Calculator size={16} aria-hidden="true" />
-            Generate payroll
+            {t.payroll.manage.generatePayroll}
           </button>
           <button className="btn btn--primary" onClick={openAddModal}>
             <Plus size={16} aria-hidden="true" />
-            Add payment
+            {t.payroll.manage.addPayment}
           </button>
         </div>
       </div>
@@ -590,18 +588,18 @@ function ManagePayroll() {
         <input
           className="toolbar__search"
           type="search"
-          placeholder="Search by employee, period…"
+          placeholder={t.payroll.manage.searchPlaceholder}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
       {isLoading && <TableSkeleton columns={6} />}
-      {isError && <p className="jobs__status">Unable to load payments.</p>}
+      {isError && <p className="jobs__status">{t.payroll.manage.errorLoad}</p>}
       {!isLoading && !isError && filtered.length === 0 && (
         <div className="placeholder-box">
-          <span className="placeholder-box__badge">No records</span>
-          <p>{search ? 'No payments match your search.' : 'No payments recorded yet.'}</p>
+          <span className="placeholder-box__badge">{t.common.noRecords}</span>
+          <p>{search ? t.payroll.manage.noneMatchSearch : t.payroll.manage.noneYet}</p>
         </div>
       )}
 
@@ -611,52 +609,52 @@ function ManagePayroll() {
             <thead>
               <tr>
                 <SortableTh
-                  label="Employee"
+                  label={t.payroll.manage.columnEmployee}
                   sortKey="employee"
                   activeKey={sortKey}
                   direction={direction}
                   onSort={toggleSort}
                 />
-                <SortableTh label="Period" sortKey="period" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.payroll.my.columnPeriod} sortKey="period" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <SortableTh
-                  label="Payment date"
+                  label={t.payroll.my.columnPaymentDate}
                   sortKey="paymentDate"
                   activeKey={sortKey}
                   direction={direction}
                   onSort={toggleSort}
                 />
-                <SortableTh label="Net pay" sortKey="netPay" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label="Status" sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.payroll.my.columnNetPay} sortKey="netPay" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.payroll.my.columnStatus} sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {pageItems.map((p) => (
                 <tr key={p.id}>
-                  <td data-label="Employee">{personnelName(p.personnel)}</td>
-                  <td data-label="Period">{p.month} {p.year}</td>
-                  <td data-label="Payment date">{p.paymentDate || '—'}</td>
-                  <td data-label="Net pay">{p.payed != null ? `${p.payed.toFixed(3)} TND` : '—'}</td>
-                  <td data-label="Status"><StatusBadge status={p.status} /></td>
+                  <td data-label={t.payroll.manage.columnEmployee}>{personnelName(p.personnel)}</td>
+                  <td data-label={t.payroll.my.columnPeriod}>{p.month ? t.months[p.month] : ''} {p.year}</td>
+                  <td data-label={t.payroll.my.columnPaymentDate}>{p.paymentDate || '—'}</td>
+                  <td data-label={t.payroll.my.columnNetPay}>{p.payed != null ? `${p.payed.toFixed(3)} TND` : '—'}</td>
+                  <td data-label={t.payroll.my.columnStatus}><StatusBadge status={p.status} t={t} /></td>
                   <td className="data-table__actions" data-label="">
                     <IconButton
                       icon={<Eye size={15} aria-hidden="true" />}
-                      label="View payslip details"
+                      label={t.payroll.my.viewDetails}
                       onClick={() => setViewing(p)}
                     />
                     <IconButton
                       icon={<Receipt size={15} aria-hidden="true" />}
-                      label="Download payslip PDF"
+                      label={t.payroll.manage.downloadPayslipPdf}
                       onClick={() => paymentsApi.downloadPayslipPdf(p.id)}
                     />
                     <RowActionsMenu
                       ariaLabel={`Actions for the payment of ${personnelName(p.personnel)}`}
                       items={[
-                        { label: 'Edit', icon: <Pencil size={15} aria-hidden="true" />, onClick: () => openEditModal(p) },
+                        { label: t.payroll.manage.edit, icon: <Pencil size={15} aria-hidden="true" />, onClick: () => openEditModal(p) },
                         ...(p.status !== 'VALIDATED'
                           ? [
                               {
-                                label: 'Validate',
+                                label: t.payroll.manage.validate,
                                 icon: <CheckCircle2 size={15} aria-hidden="true" />,
                                 disabled: validateMutation.isPending,
                                 onClick: () => validateMutation.mutate(p.id),
@@ -669,7 +667,7 @@ function ManagePayroll() {
                         ...(p.status !== 'VALIDATED'
                           ? [
                               {
-                                label: 'Delete',
+                                label: t.payroll.manage.delete,
                                 icon: <Trash2 size={15} aria-hidden="true" />,
                                 danger: true,
                                 disabled: deleteMutation.isPending,
@@ -692,18 +690,18 @@ function ManagePayroll() {
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Add payment</h2>
+            <h2>{t.payroll.manage.addModalTitle}</h2>
             <form onSubmit={handleCreateSubmit}>
               {formError && <div className="alert alert--error">{formError}</div>}
               <div className="fieldset">
                 <label className="field">
-                  <span>Employee</span>
+                  <span>{t.payroll.manage.employee}</span>
                   <select
                     value={form.personnelId}
                     onChange={(e) => setForm((f) => ({ ...f, personnelId: Number(e.target.value) || '' }))}
                     required
                   >
-                    <option value="">Select an employee…</option>
+                    <option value="">{t.payroll.manage.selectEmployee}</option>
                     {(personnelList ?? []).map((p) => (
                       <option key={p.idPersonnel} value={p.idPersonnel}>
                         {personnelName(p)}
@@ -713,15 +711,15 @@ function ManagePayroll() {
                 </label>
                 <div className="field-row">
                   <label className="field">
-                    <span>Month</span>
+                    <span>{t.payroll.manage.month}</span>
                     <select value={form.month} onChange={(e) => setForm((f) => ({ ...f, month: e.target.value as Month }))}>
                       {MONTHS.map((m) => (
-                        <option key={m} value={m}>{m}</option>
+                        <option key={m} value={m}>{t.months[m]}</option>
                       ))}
                     </select>
                   </label>
                   <label className="field">
-                    <span>Year</span>
+                    <span>{t.payroll.manage.year}</span>
                     <input
                       type="number"
                       value={form.year}
@@ -731,7 +729,7 @@ function ManagePayroll() {
                   </label>
                 </div>
                 <label className="field">
-                  <span>Payment date (optional)</span>
+                  <span>{t.payroll.manage.paymentDateOptional}</span>
                   <input
                     type="date"
                     value={form.paymentDate}
@@ -747,14 +745,14 @@ function ManagePayroll() {
                     className="btn btn--ghost btn--sm"
                     onClick={applySuggestion}
                     disabled={!selectedPersonnel}
-                    title={selectedPersonnel ? undefined : 'Select an employee first'}
+                    title={selectedPersonnel ? undefined : t.payroll.manage.selectEmployeeFirst}
                   >
-                    Suggest amounts from contract
+                    {t.payroll.manage.suggestAmounts}
                   </button>
                 </div>
                 <div className="field-row">
                   <label className="field">
-                    <span>CNSS (9.18%)</span>
+                    <span>{t.payroll.manage.cnssRate}</span>
                     <input
                       type="number"
                       step="0.001"
@@ -763,7 +761,7 @@ function ManagePayroll() {
                     />
                   </label>
                   <label className="field">
-                    <span>IRPP</span>
+                    <span>{t.payroll.manage.irppLabel}</span>
                     <input
                       type="number"
                       step="0.001"
@@ -774,7 +772,7 @@ function ManagePayroll() {
                 </div>
                 <div className="field-row">
                   <label className="field">
-                    <span>Justified absence days</span>
+                    <span>{t.payroll.manage.justifiedAbsenceDays}</span>
                     <input
                       type="number"
                       step="1"
@@ -786,7 +784,7 @@ function ManagePayroll() {
                     />
                   </label>
                   <label className="field">
-                    <span>Unjustified absence days</span>
+                    <span>{t.payroll.manage.unjustifiedAbsenceDays}</span>
                     <input
                       type="number"
                       step="1"
@@ -800,7 +798,7 @@ function ManagePayroll() {
                 </div>
                 <div className="field-row">
                   <label className="field">
-                    <span>Absence deduction</span>
+                    <span>{t.payroll.manage.absenceDeduction}</span>
                     <input
                       type="number"
                       step="0.001"
@@ -811,7 +809,7 @@ function ManagePayroll() {
                     />
                   </label>
                   <label className="field">
-                    <span>IRPP rate (%)</span>
+                    <span>{t.payroll.manage.irppRatePercent}</span>
                     <input
                       type="number"
                       step="0.01"
@@ -821,7 +819,7 @@ function ManagePayroll() {
                   </label>
                 </div>
                 <label className="field">
-                  <span>Net pay</span>
+                  <span>{t.payroll.manage.netPay}</span>
                   <input
                     type="number"
                     step="0.001"
@@ -829,19 +827,15 @@ function ManagePayroll() {
                     onChange={(e) => setForm((f) => ({ ...f, payed: e.target.value ? Number(e.target.value) : '' }))}
                   />
                 </label>
-                <p className="field-hint">
-                  Amounts are never auto-computed by the server — the suggestion above is an
-                  estimate from the employee's contract and absences that month (justified days,
-                  unjustified days, deduction, IRPP rate), always editable before saving.
-                </p>
+                <p className="field-hint">{t.payroll.manage.manualAmountsHint}</p>
               </div>
 
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setShowAddModal(false)}>
-                  Cancel
+                  {t.payroll.manage.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? 'Creating…' : 'Create payment'}
+                  {createMutation.isPending ? t.payroll.manage.creating : t.payroll.manage.createPayment}
                 </button>
               </div>
             </form>
@@ -852,21 +846,21 @@ function ManagePayroll() {
       {editing && (
         <div className="modal-overlay" onClick={() => setEditing(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Edit payment — {personnelName(editing.personnel)}</h2>
+            <h2>{t.payroll.manage.editModalTitle(personnelName(editing.personnel))}</h2>
             <form onSubmit={handleEditSubmit}>
               {formError && <div className="alert alert--error">{formError}</div>}
               <div className="fieldset">
                 <div className="field-row">
                   <label className="field">
-                    <span>Month</span>
+                    <span>{t.payroll.manage.month}</span>
                     <select value={form.month} onChange={(e) => setForm((f) => ({ ...f, month: e.target.value as Month }))}>
                       {MONTHS.map((m) => (
-                        <option key={m} value={m}>{m}</option>
+                        <option key={m} value={m}>{t.months[m]}</option>
                       ))}
                     </select>
                   </label>
                   <label className="field">
-                    <span>Year</span>
+                    <span>{t.payroll.manage.year}</span>
                     <input
                       type="number"
                       value={form.year}
@@ -876,7 +870,7 @@ function ManagePayroll() {
                   </label>
                 </div>
                 <label className="field">
-                  <span>Payment date (optional)</span>
+                  <span>{t.payroll.manage.paymentDateOptional}</span>
                   <input
                     type="date"
                     value={form.paymentDate}
@@ -885,7 +879,7 @@ function ManagePayroll() {
                 </label>
                 <div className="field-row">
                   <label className="field">
-                    <span>CNSS</span>
+                    <span>{t.payroll.manage.cnssRate}</span>
                     <input
                       type="number"
                       step="0.001"
@@ -894,7 +888,7 @@ function ManagePayroll() {
                     />
                   </label>
                   <label className="field">
-                    <span>IRPP</span>
+                    <span>{t.payroll.manage.irppLabel}</span>
                     <input
                       type="number"
                       step="0.001"
@@ -905,7 +899,7 @@ function ManagePayroll() {
                 </div>
                 <div className="field-row">
                   <label className="field">
-                    <span>Justified absence days</span>
+                    <span>{t.payroll.manage.justifiedAbsenceDays}</span>
                     <input
                       type="number"
                       step="1"
@@ -917,7 +911,7 @@ function ManagePayroll() {
                     />
                   </label>
                   <label className="field">
-                    <span>Unjustified absence days</span>
+                    <span>{t.payroll.manage.unjustifiedAbsenceDays}</span>
                     <input
                       type="number"
                       step="1"
@@ -931,7 +925,7 @@ function ManagePayroll() {
                 </div>
                 <div className="field-row">
                   <label className="field">
-                    <span>Absence deduction</span>
+                    <span>{t.payroll.manage.absenceDeduction}</span>
                     <input
                       type="number"
                       step="0.001"
@@ -942,7 +936,7 @@ function ManagePayroll() {
                     />
                   </label>
                   <label className="field">
-                    <span>IRPP rate (%)</span>
+                    <span>{t.payroll.manage.irppRatePercent}</span>
                     <input
                       type="number"
                       step="0.01"
@@ -952,7 +946,7 @@ function ManagePayroll() {
                   </label>
                 </div>
                 <label className="field">
-                  <span>Net pay</span>
+                  <span>{t.payroll.manage.netPay}</span>
                   <input
                     type="number"
                     step="0.001"
@@ -963,10 +957,10 @@ function ManagePayroll() {
               </div>
               <div className="modal__actions">
                 <button type="button" className="btn btn--ghost" onClick={() => setEditing(null)}>
-                  Cancel
+                  {t.payroll.manage.cancel}
                 </button>
                 <button className="btn btn--primary" type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending ? 'Saving…' : 'Save changes'}
+                  {updateMutation.isPending ? t.payroll.manage.saving : t.payroll.manage.saveChanges}
                 </button>
               </div>
             </form>
@@ -977,29 +971,23 @@ function ManagePayroll() {
       {showGenerateModal && (
         <div className="modal-overlay" onClick={closeGenerateModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Generate payroll</h2>
+            <h2>{t.payroll.manage.generateModalTitle}</h2>
             {!generateResult ? (
               <form onSubmit={handleGenerateSubmit}>
                 {generateError && <div className="alert alert--error">{generateError}</div>}
-                <p className="field-hint">
-                  Creates a DRAFT payment for every employee with an active contract that month.
-                  CNSS (9.18%), IRPP (with its bracket rate) and net pay are computed
-                  automatically from each contract, including a detailed breakdown of that
-                  month's justified/unjustified absence days and the resulting deduction;
-                  employees who already have a payment for this period are skipped.
-                </p>
+                <p className="field-hint">{t.payroll.manage.generateHint}</p>
                 <div className="fieldset">
                   <div className="field-row">
                     <label className="field">
-                      <span>Month</span>
+                      <span>{t.payroll.manage.month}</span>
                       <select value={generateMonth} onChange={(e) => setGenerateMonth(e.target.value as Month)}>
                         {MONTHS.map((m) => (
-                          <option key={m} value={m}>{m}</option>
+                          <option key={m} value={m}>{t.months[m]}</option>
                         ))}
                       </select>
                     </label>
                     <label className="field">
-                      <span>Year</span>
+                      <span>{t.payroll.manage.year}</span>
                       <input
                         type="number"
                         value={generateYear}
@@ -1010,13 +998,13 @@ function ManagePayroll() {
                   </div>
                   {isAdmin && (
                     <label className="field">
-                      <span>Company</span>
+                      <span>{t.payroll.manage.company}</span>
                       <select
                         value={generateCompanyId}
                         onChange={(e) => setGenerateCompanyId(Number(e.target.value) || '')}
                         required
                       >
-                        <option value="">Select a company…</option>
+                        <option value="">{t.payroll.manage.selectCompany}</option>
                         {(companies ?? []).map((c) => (
                           <option key={c.idCompany} value={c.idCompany}>{c.companyName}</option>
                         ))}
@@ -1026,34 +1014,31 @@ function ManagePayroll() {
                 </div>
                 <div className="modal__actions">
                   <button type="button" className="btn btn--ghost" onClick={closeGenerateModal}>
-                    Cancel
+                    {t.payroll.manage.cancel}
                   </button>
                   <button className="btn btn--primary" type="submit" disabled={generateMutation.isPending}>
-                    {generateMutation.isPending ? 'Generating…' : 'Generate'}
+                    {generateMutation.isPending ? t.payroll.manage.generating : t.payroll.manage.generate}
                   </button>
                 </div>
               </form>
             ) : (
               <div>
                 <div className="alert alert--success">
-                  {generateResult.created.length} payslip{generateResult.created.length === 1 ? '' : 's'} generated
-                  for {generateMonth} {generateYear}.
+                  {t.payroll.manage.generatedSummary(generateResult.created.length, t.months[generateMonth], generateYear)}
                 </div>
                 {generateResult.alreadyGenerated > 0 && (
                   <p className="field-hint">
-                    {generateResult.alreadyGenerated} employee{generateResult.alreadyGenerated === 1 ? '' : 's'} already
-                    had a payment for this period and {generateResult.alreadyGenerated === 1 ? 'was' : 'were'} skipped.
+                    {t.payroll.manage.alreadyGeneratedSummary(generateResult.alreadyGenerated)}
                   </p>
                 )}
                 {generateResult.skippedNoActiveContract > 0 && (
                   <p className="field-hint">
-                    {generateResult.skippedNoActiveContract} employee{generateResult.skippedNoActiveContract === 1 ? '' : 's'} had
-                    no active contract that month and {generateResult.skippedNoActiveContract === 1 ? 'was' : 'were'} skipped.
+                    {t.payroll.manage.skippedNoContractSummary(generateResult.skippedNoActiveContract)}
                   </p>
                 )}
                 <div className="modal__actions">
                   <button className="btn btn--primary" onClick={closeGenerateModal}>
-                    Done
+                    {t.payroll.manage.done}
                   </button>
                 </div>
               </div>

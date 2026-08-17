@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
+import { useLanguage } from '@/i18n/useLanguage';
 import { authApi } from '@/api/auth';
 import { AuthLayout } from '@/components/AuthLayout';
 import { PlanPicker } from '@/components/PlanPicker';
@@ -31,6 +32,7 @@ const EMPTY: RegisterRequest = {
 
 export function RegisterCompanyPage() {
   const { register, isAuthenticated } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   const [form, setForm] = useState<RegisterRequest>(EMPTY);
@@ -54,7 +56,7 @@ export function RegisterCompanyPage() {
     e.preventDefault();
     setError(null);
     if (!form.subscriptionPlan) {
-      setError('Please select a subscription plan');
+      setError(t.registerCompany.errorSelectPlan);
       return;
     }
     setLoading(true);
@@ -62,7 +64,7 @@ export function RegisterCompanyPage() {
       await register(form, { logo: logo ?? undefined, signature: signature ?? undefined });
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      setError(getErrorMessage(err, 'Unable to create the account'));
+      setError(getErrorMessage(err, t.registerCompany.errorCreate));
     } finally {
       setLoading(false);
     }
@@ -71,27 +73,27 @@ export function RegisterCompanyPage() {
   return (
     <AuthLayout wide>
       <form onSubmit={handleSubmit}>
-        <h1>Create your company account</h1>
+        <h1>{t.registerCompany.title}</h1>
         <p className="auth-shell__subtitle">
-          Not a company?{' '}
-          <Link to="/register/candidate">Register as a candidate instead</Link>.
+          {t.registerCompany.notCompany}{' '}
+          <Link to="/register/candidate">{t.registerCompany.registerCandidateInstead}</Link>.
         </p>
 
         {error && <div className="alert alert--error">{error}</div>}
 
         <div className="field-row">
           <label className="field">
-            <span>First name</span>
+            <span>{t.registerCompany.firstName}</span>
             <input value={form.firstname} onChange={(e) => update({ firstname: e.target.value })} required />
           </label>
           <label className="field">
-            <span>Last name</span>
+            <span>{t.registerCompany.lastName}</span>
             <input value={form.lastname} onChange={(e) => update({ lastname: e.target.value })} required />
           </label>
         </div>
 
         <label className="field">
-          <span>Email</span>
+          <span>{t.registerCompany.email}</span>
           <input
             type="email"
             value={form.email}
@@ -101,7 +103,7 @@ export function RegisterCompanyPage() {
         </label>
 
         <label className="field">
-          <span>Password</span>
+          <span>{t.registerCompany.password}</span>
           <input
             type="password"
             value={form.password}
@@ -111,9 +113,9 @@ export function RegisterCompanyPage() {
         </label>
 
         <fieldset className="fieldset">
-          <legend>Company information</legend>
+          <legend>{t.registerCompany.companyInformation}</legend>
           <label className="field">
-            <span>Company name</span>
+            <span>{t.registerCompany.companyName}</span>
             <input
               value={form.companyName}
               onChange={(e) => update({ companyName: e.target.value })}
@@ -122,7 +124,7 @@ export function RegisterCompanyPage() {
           </label>
           <div className="field-row">
             <label className="field">
-              <span>Fiscal number</span>
+              <span>{t.registerCompany.fiscalNumber}</span>
               <input
                 value={form.fiscalNumber}
                 onChange={(e) => update({ fiscalNumber: e.target.value })}
@@ -130,7 +132,7 @@ export function RegisterCompanyPage() {
               />
             </label>
             <label className="field">
-              <span>CNSS number</span>
+              <span>{t.registerCompany.cnssNumber}</span>
               <input
                 value={form.cnssNumber}
                 onChange={(e) => update({ cnssNumber: e.target.value })}
@@ -139,21 +141,21 @@ export function RegisterCompanyPage() {
             </label>
           </div>
           <label className="field">
-            <span>Bank account number (RIB)</span>
+            <span>{t.registerCompany.rib}</span>
             <input value={form.rib} onChange={(e) => update({ rib: e.target.value })} required />
           </label>
           <div className="field-row">
             <label className="field">
-              <span>Phone</span>
+              <span>{t.registerCompany.phone}</span>
               <input value={form.phone} onChange={(e) => update({ phone: e.target.value })} />
             </label>
             <label className="field">
-              <span>City</span>
+              <span>{t.registerCompany.city}</span>
               <input value={form.city} onChange={(e) => update({ city: e.target.value })} />
             </label>
           </div>
           <label className="field">
-            <span>Company logo (optional)</span>
+            <span>{t.registerCompany.companyLogo}</span>
             <input
               type="file"
               accept="image/png,image/jpeg,image/gif,image/svg+xml"
@@ -161,7 +163,7 @@ export function RegisterCompanyPage() {
             />
           </label>
           <label className="field">
-            <span>Signature (optional)</span>
+            <span>{t.registerCompany.signature}</span>
             <input
               type="file"
               accept="image/png,image/jpeg,image/gif,image/svg+xml"
@@ -171,7 +173,7 @@ export function RegisterCompanyPage() {
         </fieldset>
 
         <fieldset className="fieldset">
-          <legend>Subscription & payment</legend>
+          <legend>{t.registerCompany.subscriptionAndPayment}</legend>
 
           <PlanPicker plans={plans} selected={form.subscriptionPlan ?? ''} onSelect={(code) => update({ subscriptionPlan: code })} />
 
@@ -187,11 +189,11 @@ export function RegisterCompanyPage() {
         </fieldset>
 
         <button className="btn btn--primary btn--block" type="submit" disabled={loading}>
-          {loading ? 'Creating account…' : 'Create account'}
+          {loading ? t.registerCompany.creating : t.registerCompany.createAccount}
         </button>
 
         <p className="auth-shell__footer">
-          Already have an account? <Link to="/login">Sign in</Link>
+          {t.registerCompany.alreadyHaveAccount} <Link to="/login">{t.registerCompany.signIn}</Link>
         </p>
       </form>
     </AuthLayout>

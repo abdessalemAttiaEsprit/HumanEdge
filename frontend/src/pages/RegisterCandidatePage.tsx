@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
+import { useLanguage } from '@/i18n/useLanguage';
 import { AuthLayout } from '@/components/AuthLayout';
 import { getErrorMessage } from '@/lib/errors';
 import type { RegisterRequest } from '@/types';
@@ -15,6 +16,7 @@ const EMPTY: RegisterRequest = {
 
 export function RegisterCandidatePage() {
   const { register, isAuthenticated } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   const [form, setForm] = useState<RegisterRequest>(EMPTY);
@@ -35,7 +37,7 @@ export function RegisterCandidatePage() {
       await register(form);
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      setError(getErrorMessage(err, 'Unable to create the account'));
+      setError(getErrorMessage(err, t.registerCandidate.errorCreate));
     } finally {
       setLoading(false);
     }
@@ -44,26 +46,27 @@ export function RegisterCandidatePage() {
   return (
     <AuthLayout>
       <form onSubmit={handleSubmit}>
-        <h1>Create your candidate account</h1>
+        <h1>{t.registerCandidate.title}</h1>
         <p className="auth-shell__subtitle">
-          Not a candidate? <Link to="/register/company">Register your company instead</Link>.
+          {t.registerCandidate.notCandidate}{' '}
+          <Link to="/register/company">{t.registerCandidate.registerCompanyInstead}</Link>.
         </p>
 
         {error && <div className="alert alert--error">{error}</div>}
 
         <div className="field-row">
           <label className="field">
-            <span>First name</span>
+            <span>{t.registerCandidate.firstName}</span>
             <input value={form.firstname} onChange={(e) => update({ firstname: e.target.value })} required />
           </label>
           <label className="field">
-            <span>Last name</span>
+            <span>{t.registerCandidate.lastName}</span>
             <input value={form.lastname} onChange={(e) => update({ lastname: e.target.value })} required />
           </label>
         </div>
 
         <label className="field">
-          <span>Email</span>
+          <span>{t.registerCandidate.email}</span>
           <input
             type="email"
             value={form.email}
@@ -73,7 +76,7 @@ export function RegisterCandidatePage() {
         </label>
 
         <label className="field">
-          <span>Password</span>
+          <span>{t.registerCandidate.password}</span>
           <input
             type="password"
             value={form.password}
@@ -83,11 +86,11 @@ export function RegisterCandidatePage() {
         </label>
 
         <button className="btn btn--primary btn--block" type="submit" disabled={loading}>
-          {loading ? 'Creating account…' : 'Create account'}
+          {loading ? t.registerCandidate.creating : t.registerCandidate.createAccount}
         </button>
 
         <p className="auth-shell__footer">
-          Already have an account? <Link to="/login">Sign in</Link>
+          {t.registerCandidate.alreadyHaveAccount} <Link to="/login">{t.registerCandidate.signIn}</Link>
         </p>
       </form>
     </AuthLayout>

@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useLanguage } from '@/i18n/useLanguage';
 import type { Interview } from '@/types';
 
 interface InterviewCalendarProps {
   interviews: Interview[];
 }
 
-const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MAX_VISIBLE_PER_DAY = 3;
 
 function candidateName(iv: Interview): string {
@@ -31,6 +31,7 @@ function startOfMonth(d: Date): Date {
 
 /** Month calendar showing scheduled interviews as chips on their day — read-only overview, meant to sit below the interviews table. */
 export function InterviewCalendar({ interviews }: InterviewCalendarProps) {
+  const { t } = useLanguage();
   const [viewDate, setViewDate] = useState(() => startOfMonth(new Date()));
 
   const byDate = useMemo(() => {
@@ -62,7 +63,7 @@ export function InterviewCalendar({ interviews }: InterviewCalendarProps) {
     });
   }, [viewDate]);
 
-  const monthLabel = viewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const monthLabel = viewDate.toLocaleDateString(t.interviewCalendar.locale, { month: 'long', year: 'numeric' });
   const todayKey = toDateKey(new Date());
   const currentMonth = viewDate.getMonth();
 
@@ -75,20 +76,20 @@ export function InterviewCalendar({ interviews }: InterviewCalendarProps) {
             type="button"
             className="icon-btn"
             onClick={() => setViewDate((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
-            aria-label="Previous month"
-            title="Previous month"
+            aria-label={t.interviewCalendar.previousMonth}
+            title={t.interviewCalendar.previousMonth}
           >
             <ChevronLeft size={16} aria-hidden="true" />
           </button>
           <button type="button" className="btn btn--ghost btn--sm" onClick={() => setViewDate(startOfMonth(new Date()))}>
-            Today
+            {t.interviewCalendar.today}
           </button>
           <button
             type="button"
             className="icon-btn"
             onClick={() => setViewDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
-            aria-label="Next month"
-            title="Next month"
+            aria-label={t.interviewCalendar.nextMonth}
+            title={t.interviewCalendar.nextMonth}
           >
             <ChevronRight size={16} aria-hidden="true" />
           </button>
@@ -96,7 +97,7 @@ export function InterviewCalendar({ interviews }: InterviewCalendarProps) {
       </div>
 
       <div className="calendar__weekdays">
-        {WEEKDAY_LABELS.map((d) => (
+        {t.interviewCalendar.weekdays.map((d) => (
           <div key={d} className="calendar__weekday">
             {d}
           </div>
@@ -121,13 +122,13 @@ export function InterviewCalendar({ interviews }: InterviewCalendarProps) {
                     <span
                       key={iv.id}
                       className={`interview-chip ${statusChipClass(iv.status)}`}
-                      title={`${candidateName(iv)} — ${iv.job?.title ?? 'No job'} — ${iv.interviewLocation ?? 'No location'}`}
+                      title={`${candidateName(iv)} — ${iv.job?.title ?? t.interviewCalendar.noJob} — ${iv.interviewLocation ?? t.interviewCalendar.noLocation}`}
                     >
                       {iv.interviewDate?.slice(11, 16)} {candidateName(iv)}
                     </span>
                   ))}
                   {dayInterviews.length > MAX_VISIBLE_PER_DAY && (
-                    <span className="calendar__more">+{dayInterviews.length - MAX_VISIBLE_PER_DAY} more</span>
+                    <span className="calendar__more">{t.interviewCalendar.more(dayInterviews.length - MAX_VISIBLE_PER_DAY)}</span>
                   )}
                 </div>
               )}

@@ -1,3 +1,5 @@
+import { useLanguage } from '@/i18n/useLanguage';
+
 export interface CardDetails {
   cardHolder: string;
   cardNumber: string;
@@ -26,20 +28,20 @@ export function CardPaymentFields({
   value: CardDetails;
   onChange: (patch: Partial<CardDetails>) => void;
 }) {
+  const { t } = useLanguage();
   return (
     <>
       <div className="alert alert--info">
-        Test mode — this is a payment simulator, no real charge occurs. Use a card number like{' '}
-        <strong>4242 4242 4242 4242</strong> for a successful payment, or one ending in{' '}
-        <strong>0002</strong> / <strong>9995</strong> to see how a decline is handled.
+        {t.cardPayment.testModePrefix} <strong>4242 4242 4242 4242</strong> {t.cardPayment.testModeMiddle}{' '}
+        <strong>0002</strong> {t.cardPayment.testModeOr} <strong>9995</strong> {t.cardPayment.testModeSuffix}
       </div>
 
       <label className="field">
-        <span>Cardholder name</span>
+        <span>{t.cardPayment.cardholderName}</span>
         <input value={value.cardHolder} onChange={(e) => onChange({ cardHolder: e.target.value })} required />
       </label>
       <label className="field">
-        <span>Card number</span>
+        <span>{t.cardPayment.cardNumber}</span>
         <input
           value={value.cardNumber}
           onChange={(e) => onChange({ cardNumber: formatCardNumber(e.target.value) })}
@@ -50,7 +52,7 @@ export function CardPaymentFields({
       </label>
       <div className="field-row">
         <label className="field">
-          <span>Expiry (MM/YY)</span>
+          <span>{t.cardPayment.expiry}</span>
           <input
             value={value.cardExpiry}
             onChange={(e) => onChange({ cardExpiry: formatExpiry(e.target.value) })}
@@ -60,7 +62,7 @@ export function CardPaymentFields({
           />
         </label>
         <label className="field">
-          <span>CVV</span>
+          <span>{t.cardPayment.cvv}</span>
           <input
             value={value.cardCvv}
             onChange={(e) => onChange({ cardCvv: e.target.value.replace(/\D/g, '').slice(0, 4) })}

@@ -1,21 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notificationsApi } from '@/api/notifications';
+import { useLanguage } from '@/i18n/useLanguage';
+import type { Messages } from '@/i18n/en';
 
 const PAGE_SIZE = 20;
 
-function timeAgo(iso: string): string {
+function timeAgo(iso: string, t: Messages): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return t.notificationBell.justNow;
+  if (minutes < 60) return t.notificationBell.minutesAgo(minutes);
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+  if (hours < 24) return t.notificationBell.hoursAgo(hours);
+  return t.notificationBell.daysAgo(Math.floor(hours / 24));
 }
 
 /** Cloche de notifications in-app (voir NotificationController/NotificationService côté backend). */
 export function NotificationBell() {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -82,8 +85,8 @@ export function NotificationBell() {
         type="button"
         className="icon-btn notification-bell__trigger"
         onClick={handleToggle}
-        aria-label="Notifications"
-        title="Notifications"
+        aria-label={t.notificationBell.notifications}
+        title={t.notificationBell.notifications}
       >
         <img src="/assets/icons/notifications.png" alt="" aria-hidden="true" />
         {!!unreadCount && unreadCount > 0 && (
@@ -94,17 +97,17 @@ export function NotificationBell() {
       {open && (
         <div className="notification-bell__panel">
           <div className="notification-bell__header">
-            <strong>Notifications</strong>
+            <strong>{t.notificationBell.notifications}</strong>
             {!!unreadCount && unreadCount > 0 && (
               <button type="button" className="notification-bell__mark-all" onClick={handleMarkAllRead}>
-                Mark all as read
+                {t.notificationBell.markAllAsRead}
               </button>
             )}
           </div>
           <div className="notification-bell__list">
-            {notifications == null && <p className="jobs__status">Loading…</p>}
+            {notifications == null && <p className="jobs__status">{t.notificationBell.loading}</p>}
             {notifications != null && notifications.length === 0 && (
-              <p className="jobs__status">No notifications yet.</p>
+              <p className="jobs__status">{t.notificationBell.noneYet}</p>
             )}
             {notifications?.map((n) => (
               <div
@@ -121,13 +124,13 @@ export function NotificationBell() {
                 }}
               >
                 <span className="notification-bell__message">{n.message}</span>
-                <span className="notification-bell__time">{timeAgo(n.createdAt)}</span>
+                <span className="notification-bell__time">{timeAgo(n.createdAt, t)}</span>
                 <button
                   type="button"
                   className="notification-bell__delete"
                   onClick={(e) => handleDelete(e, n.id)}
-                  title="Delete this notification"
-                  aria-label="Delete this notification"
+                  title={t.notificationBell.deleteNotification}
+                  aria-label={t.notificationBell.deleteNotification}
                 >
                   ✕
                 </button>
@@ -140,7 +143,7 @@ export function NotificationBell() {
                 onClick={() => fetchNextPage()}
                 disabled={isFetchingNextPage}
               >
-                {isFetchingNextPage ? 'Loading…' : 'Load more'}
+                {isFetchingNextPage ? t.notificationBell.loading : t.notificationBell.loadMore}
               </button>
             )}
           </div>

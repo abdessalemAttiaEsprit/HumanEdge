@@ -14,6 +14,14 @@ export const absencesApi = {
     return api.put<Absence>(`/api/absences/${id}`, payload).then((r) => r.data);
   },
 
+  approve(id: number): Promise<Absence> {
+    return api.put<Absence>(`/api/absences/${id}/approve`).then((r) => r.data);
+  },
+
+  reject(id: number): Promise<Absence> {
+    return api.put<Absence>(`/api/absences/${id}/reject`).then((r) => r.data);
+  },
+
   remove(id: number): Promise<void> {
     return api.delete(`/api/absences/${id}`).then(() => undefined);
   },
