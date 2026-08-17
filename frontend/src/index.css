@@ -750,7 +750,7 @@ h3 {
 }
 .lang-switch__label--fr {
   left: 8px;
-  color: #fff;
+  color: var(--text-muted);
   opacity: 0;
 }
 .lang-switch--fr .lang-switch__label--en {
