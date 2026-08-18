@@ -520,8 +520,9 @@ export interface EmployeeMessage {
   id: number;
   content: string;
   createdAt: string;
-  /** Only populated by GET /api/messages/received (company inbox) — absent on the employee's own /me list. */
   sender?: User;
+  /** Set only on a company reply (see messagesApi.reply) — null/absent for an employee-initiated message. */
+  recipient?: User;
 }
 
 // POST /api/messages

@@ -12,7 +12,7 @@ import tn.esprit.backend.services.MessageService;
 
 import java.util.List;
 
-/** Espace de messagerie du dashboard EMPLOYE - un employé écrit à son entreprise. */
+/** Messagerie EMPLOYE &lt;-&gt; entreprise : l'employé écrit à son entreprise, l'entreprise peut répondre. */
 @RestController
 @RequestMapping("/api/messages")
 @RequiredArgsConstructor
@@ -27,10 +27,18 @@ public class MessageController {
         return ResponseEntity.status(HttpStatus.CREATED).body(sent);
     }
 
+    /** Répond à un employé précis. */
+    @PostMapping("/employee/{employeeUserId}")
+    @PreAuthorize("hasRole('COMPANY')")
+    public ResponseEntity<Message> replyToEmployee(@PathVariable Long employeeUserId, @Valid @RequestBody MessageCreateRequest request) {
+        Message sent = messageService.replyToEmployee(employeeUserId, request.getContent());
+        return ResponseEntity.status(HttpStatus.CREATED).body(sent);
+    }
+
     @GetMapping("/me")
     @PreAuthorize("hasRole('EMPLOYE')")
-    public ResponseEntity<List<Message>> getMySentMessages() {
-        return ResponseEntity.ok(messageService.getMySentMessages());
+    public ResponseEntity<List<Message>> getMyConversation() {
+        return ResponseEntity.ok(messageService.getMyConversation());
     }
 
     @GetMapping("/received")

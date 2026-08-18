@@ -13,4 +13,8 @@ export const messagesApi = {
   listReceived(): Promise<EmployeeMessage[]> {
     return api.get<EmployeeMessage[]>('/api/messages/received').then((r) => r.data);
   },
+
+  reply(employeeUserId: number, payload: MessageCreateRequest): Promise<EmployeeMessage> {
+    return api.post<EmployeeMessage>(`/api/messages/employee/${employeeUserId}`, payload).then((r) => r.data);
+  },
 };

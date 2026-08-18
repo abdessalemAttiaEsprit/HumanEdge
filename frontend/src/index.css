@@ -2089,6 +2089,24 @@ td:nth-child(3n + 2) .skeleton-bar {
 .message-list__item:last-child {
   border-bottom: none;
 }
+/* Message envoyé par le camp "entreprise" du fil (employé sur DashboardPage, l'entreprise
+   elle-même sur ReceivedMessagesPage) — même teinte primaire des deux côtés pour marquer
+   visuellement "l'autre camp" plutôt que d'utiliser des couleurs différentes par page. */
+.message-list__item--reply {
+  background: var(--primary-soft);
+  border-radius: 8px;
+  padding-left: 10px;
+  padding-right: 10px;
+  margin: 2px -4px;
+  border-bottom: none;
+}
+.message-list__from {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--primary-dark);
+  margin-bottom: 2px;
+}
 .message-list__content {
   margin: 0 0 4px;
   line-height: 1.4;
@@ -2098,6 +2116,81 @@ td:nth-child(3n + 2) .skeleton-bar {
 .message-list__time {
   color: var(--text-muted);
   font-size: 0.78rem;
+}
+.message-reply {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.message-reply input {
+  flex: 1;
+}
+
+/* Work Breakdown Structure — TasksPage manager view: one numbered branch per employee, their
+   tasks numbered underneath (1, 1.1, 1.2, 2, …). Purely a display grouping, see TasksPage.tsx. */
+.wbs {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.wbs__branch {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  box-shadow: var(--shadow);
+}
+.wbs__branch-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.wbs__branch-name {
+  flex: 1;
+  font-weight: 700;
+}
+.wbs__index {
+  font-variant-numeric: tabular-nums;
+  color: var(--primary);
+  font-weight: 700;
+  min-width: 22px;
+}
+.wbs__index--sub {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+  min-width: 40px;
+}
+.wbs__tasks {
+  display: flex;
+  flex-direction: column;
+}
+.wbs__task {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 0 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.wbs__task:last-child {
+  border-bottom: none;
+}
+.wbs__task-main {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+}
+.wbs__task-title {
+  font-weight: 600;
+}
+.wbs__task-dates {
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
 /* Ranked horizontal bar list (e.g. personnel by contract type) */

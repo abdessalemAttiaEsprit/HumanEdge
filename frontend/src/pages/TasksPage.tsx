@@ -9,18 +9,13 @@ import type { Messages } from '@/i18n/en';
 import { getErrorMessage } from '@/lib/errors';
 import { usePagination } from '@/lib/usePagination';
 import { useConfirm } from '@/lib/useConfirm';
-import { useSort } from '@/lib/useSort';
 import { Pagination } from '@/components/Pagination';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { TableSkeleton } from '@/components/TableSkeleton';
-import { SortableTh } from '@/components/SortableTh';
 import { RowActionsMenu } from '@/components/RowActionsMenu';
 import { useToast } from '@/components/ToastProvider';
 import type { Personnel, Task, TaskStatus } from '@/types';
 
 const EMPTY_FORM = { title: '', description: '', startDate: '', endDate: '' };
-
-const STATUS_SORT_RANK: Record<TaskStatus, number> = { TODO: 0, IN_PROGRESS: 1, DONE: 2 };
 
 function personnelName(p?: Personnel): string {
   if (!p?.user) return '—';
@@ -132,9 +127,34 @@ function MyTasks() {
 }
 
 // ============================================================================
-// ADMIN / COMPANY: assign tasks across personnel.
+// ADMIN / COMPANY: assign tasks across personnel, displayed as a Work Breakdown Structure
+// (WBS) — one numbered branch per employee, their tasks numbered underneath (1, 1.1, 1.2, 2, …).
+// Purely a display grouping: tasks stay flat/individually-assigned server-side, nothing here
+// introduces a parent/subtask relationship.
 // ============================================================================
-type TaskSortKey = 'employee' | 'title' | 'date' | 'status';
+interface EmployeeTaskGroup {
+  index: number;
+  personnel?: Personnel;
+  tasks: Task[];
+}
+
+function buildWbsGroups(tasks: Task[], personnelByTaskId: Map<number, Personnel>): EmployeeTaskGroup[] {
+  const byPersonnel = new Map<string, { personnel?: Personnel; tasks: Task[] }>();
+  tasks.forEach((task) => {
+    const personnel = personnelByTaskId.get(task.idTask);
+    const key = personnel ? String(personnel.idPersonnel) : 'unassigned';
+    let group = byPersonnel.get(key);
+    if (!group) {
+      group = { personnel, tasks: [] };
+      byPersonnel.set(key, group);
+    }
+    group.tasks.push(task);
+  });
+  const groups = [...byPersonnel.values()];
+  groups.forEach((g) => g.tasks.sort((a, b) => a.startDate.localeCompare(b.startDate)));
+  groups.sort((a, b) => personnelName(a.personnel).localeCompare(personnelName(b.personnel)));
+  return groups.map((g, i) => ({ index: i + 1, personnel: g.personnel, tasks: g.tasks }));
+}
 
 function ManagerTasks() {
   const { t } = useLanguage();
@@ -244,21 +264,8 @@ function ManagerTasks() {
     });
   }, [tasks, search, personnelByTaskId]);
 
-  const getTaskSortValue = (task: Task, key: TaskSortKey): string | number => {
-    switch (key) {
-      case 'employee':
-        return personnelName(personnelByTaskId.get(task.idTask));
-      case 'title':
-        return task.title;
-      case 'date':
-        return task.startDate;
-      case 'status':
-        return STATUS_SORT_RANK[task.status];
-    }
-  };
-
-  const { sorted, sortKey, direction, toggleSort } = useSort<Task, TaskSortKey>(filtered, getTaskSortValue);
-  const { page, setPage, pageCount, pageItems } = usePagination(sorted, 10);
+  const groups = useMemo(() => buildWbsGroups(filtered, personnelByTaskId), [filtered, personnelByTaskId]);
+  const { page, setPage, pageCount, pageItems: pageGroups } = usePagination(groups, 8);
 
   const openAddModal = () => {
     setForm(EMPTY_FORM);
@@ -329,7 +336,7 @@ function ManagerTasks() {
         />
       </div>
 
-      {isLoading && <TableSkeleton columns={4} />}
+      {isLoading && <p className="jobs__status">{t.tasks.manager.loading}</p>}
       {isError && <p className="jobs__status">{t.tasks.manager.errorLoad}</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
@@ -340,53 +347,46 @@ function ManagerTasks() {
       )}
 
       {!isLoading && filtered.length > 0 && (
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <SortableTh label={t.tasks.manager.columnEmployee} sortKey="employee" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label={t.tasks.manager.columnTitle} sortKey="title" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label={t.tasks.manager.columnDates} sortKey="date" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <SortableTh label={t.tasks.manager.columnStatus} sortKey="status" activeKey={sortKey} direction={direction} onSort={toggleSort} />
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageItems.map((task) => {
-                const employee = personnelByTaskId.get(task.idTask);
-                return (
-                  <tr key={task.idTask}>
-                    <td data-label={t.tasks.manager.columnEmployee}>{personnelName(employee)}</td>
-                    <td data-label={t.tasks.manager.columnTitle}>{task.title}</td>
-                    <td data-label={t.tasks.manager.columnDates}>{task.startDate} → {task.endDate}</td>
-                    <td data-label={t.tasks.manager.columnStatus}>
-                      <StatusSelect
-                        status={task.status}
-                        disabled={statusMutation.isPending}
-                        onChange={(status) => statusMutation.mutate({ id: task.idTask, status })}
-                        t={t}
-                      />
-                    </td>
-                    <td className="data-table__actions" data-label="">
-                      <RowActionsMenu
-                        ariaLabel={`Actions for the task of ${personnelName(employee)}`}
-                        items={[
-                          { label: t.tasks.manager.edit, icon: <Pencil size={15} aria-hidden="true" />, onClick: () => openEditModal(task) },
-                          {
-                            label: t.tasks.manager.delete,
-                            icon: <Trash2 size={15} aria-hidden="true" />,
-                            danger: true,
-                            disabled: deleteMutation.isPending,
-                            onClick: () => handleDelete(task),
-                          },
-                        ]}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="wbs">
+          {pageGroups.map((group) => (
+            <div className="wbs__branch" key={group.personnel?.idPersonnel ?? 'unassigned'}>
+              <div className="wbs__branch-header">
+                <span className="wbs__index">{group.index}</span>
+                <span className="wbs__branch-name">{personnelName(group.personnel)}</span>
+                {group.personnel?.department && <span className="badge badge--muted">{group.personnel.department}</span>}
+              </div>
+              <div className="wbs__tasks">
+                {group.tasks.map((task, taskIndex) => (
+                  <div className="wbs__task" key={task.idTask}>
+                    <span className="wbs__index wbs__index--sub">{group.index}.{taskIndex + 1}</span>
+                    <div className="wbs__task-main">
+                      <span className="wbs__task-title">{task.title}</span>
+                      <span className="wbs__task-dates">{task.startDate} → {task.endDate}</span>
+                    </div>
+                    <StatusSelect
+                      status={task.status}
+                      disabled={statusMutation.isPending}
+                      onChange={(status) => statusMutation.mutate({ id: task.idTask, status })}
+                      t={t}
+                    />
+                    <RowActionsMenu
+                      ariaLabel={`Actions for the task of ${personnelName(group.personnel)}`}
+                      items={[
+                        { label: t.tasks.manager.edit, icon: <Pencil size={15} aria-hidden="true" />, onClick: () => openEditModal(task) },
+                        {
+                          label: t.tasks.manager.delete,
+                          icon: <Trash2 size={15} aria-hidden="true" />,
+                          danger: true,
+                          disabled: deleteMutation.isPending,
+                          onClick: () => handleDelete(task),
+                        },
+                      ]}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

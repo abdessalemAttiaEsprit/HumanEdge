@@ -20,7 +20,7 @@ import { BarChart, StackedBarChart, type StackedDatum } from '@/components/chart
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { timeAgo } from '@/components/NotificationBell';
 import { useToast } from '@/components/ToastProvider';
-import type { Absence, Interview, Month, Personnel } from '@/types';
+import type { Absence, EmployeeMessage, Interview, Month, Personnel } from '@/types';
 
 const CNSS_RATE = 0.0918; // fixed employee CNSS rate — see PayrollPage.suggestAmounts
 
@@ -239,8 +239,15 @@ function CompanyDashboard({ firstname }: { firstname: string }) {
 // pour tous les comptes COMPANY de l'entreprise (cloche du header), c'est le seul
 // canal de retour : pas de fil de discussion bidirectionnel ici.
 // ============================================================================
+function messageSenderLabel(sender: EmployeeMessage['sender']): string {
+  if (!sender) return '';
+  if (sender.role === 'COMPANY' && sender.company?.companyName) return sender.company.companyName;
+  return `${sender.firstname} ${sender.lastname}`.trim();
+}
+
 function EmployeeDashboard({ firstname }: { firstname: string }) {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const toast = useToast();
   const [content, setContent] = useState('');
@@ -302,12 +309,16 @@ function EmployeeDashboard({ firstname }: { firstname: string }) {
           )}
           {!isLoading && !isError && (messages ?? []).length > 0 && (
             <ul className="message-list">
-              {(messages ?? []).map((m) => (
-                <li key={m.id} className="message-list__item">
-                  <p className="message-list__content">{m.content}</p>
-                  <span className="message-list__time">{timeAgo(m.createdAt, t)}</span>
-                </li>
-              ))}
+              {(messages ?? []).map((m) => {
+                const isMine = m.sender?.idUser === user?.idUser;
+                return (
+                  <li key={m.id} className={`message-list__item${isMine ? '' : ' message-list__item--reply'}`}>
+                    {!isMine && <span className="message-list__from">{messageSenderLabel(m.sender)}</span>}
+                    <p className="message-list__content">{m.content}</p>
+                    <span className="message-list__time">{timeAgo(m.createdAt, t)}</span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
