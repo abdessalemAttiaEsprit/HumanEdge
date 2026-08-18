@@ -32,6 +32,10 @@ public class Personnel{
 
     private String image;
 
+    // Libre (pas d'enum) : varie trop d'une entreprise à l'autre pour une liste fermée. Sert de
+    // clé au dépistage de chevauchement de congés (voir AbsenceService#attachDepartmentOverlaps).
+    private String department;
+
     @OneToOne
     @JoinColumn(name = "user_id")
     private User user;
@@ -45,5 +49,9 @@ public class Personnel{
     @OneToMany(mappedBy = "personnel", cascade = CascadeType.ALL)
     @JsonManagedReference // Personnel affichera sa liste d'absences
     private List<Absence> absences = new ArrayList<>();
+
+    @OneToMany(mappedBy = "personnel", cascade = CascadeType.ALL)
+    @JsonManagedReference // Personnel affichera sa liste de tâches (voir Task.personnel)
+    private List<Task> tasks = new ArrayList<>();
 }
 

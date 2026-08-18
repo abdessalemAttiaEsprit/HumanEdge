@@ -60,6 +60,109 @@ class AbsenceServiceTest {
         return Personnel.builder().idPersonnel(1L).user(user).build();
     }
 
+    private Personnel personnelWithDepartment(long personnelId, String firstname, String lastname, String department) {
+        Company company = Company.builder().idCompany(10L).build();
+        User user = User.builder().idUser(personnelId).firstname(firstname).lastname(lastname).company(company).build();
+        return Personnel.builder().idPersonnel(personnelId).user(user).department(department).build();
+    }
+
+    // ---- getAllAbsences : détection de chevauchement au sein d'un même département ----
+
+    @Test
+    void getAllAbsencesFlagsOverlappingLeaveInTheSameDepartment() {
+        when(ownershipGuard.isAdmin()).thenReturn(false);
+        when(ownershipGuard.currentCompanyId()).thenReturn(10L);
+
+        Personnel alice = personnelWithDepartment(1L, "Alice", "A", "Sales");
+        Personnel bob = personnelWithDepartment(2L, "Bob", "B", "Sales");
+        Absence aliceLeave = Absence.builder().idAbsence(100L).personnel(alice)
+                .startDate(LocalDate.of(2026, 3, 10)).endDate(LocalDate.of(2026, 3, 15)).build();
+        Absence bobLeave = Absence.builder().idAbsence(101L).personnel(bob)
+                .startDate(LocalDate.of(2026, 3, 12)).endDate(LocalDate.of(2026, 3, 20)).build();
+        when(absenceRepository.findByPersonnel_User_Company_IdCompany(10L)).thenReturn(List.of(aliceLeave, bobLeave));
+
+        List<Absence> result = absenceService.getAllAbsences();
+
+        assertThat(find(result, 100L).getDepartmentOverlapNames()).containsExactly("Bob B");
+        assertThat(find(result, 101L).getDepartmentOverlapNames()).containsExactly("Alice A");
+    }
+
+    @Test
+    void getAllAbsencesDoesNotFlagNonOverlappingDatesInTheSameDepartment() {
+        when(ownershipGuard.isAdmin()).thenReturn(false);
+        when(ownershipGuard.currentCompanyId()).thenReturn(10L);
+
+        Personnel alice = personnelWithDepartment(1L, "Alice", "A", "Sales");
+        Personnel bob = personnelWithDepartment(2L, "Bob", "B", "Sales");
+        Absence aliceLeave = Absence.builder().idAbsence(100L).personnel(alice)
+                .startDate(LocalDate.of(2026, 3, 1)).endDate(LocalDate.of(2026, 3, 5)).build();
+        Absence bobLeave = Absence.builder().idAbsence(101L).personnel(bob)
+                .startDate(LocalDate.of(2026, 3, 10)).endDate(LocalDate.of(2026, 3, 15)).build();
+        when(absenceRepository.findByPersonnel_User_Company_IdCompany(10L)).thenReturn(List.of(aliceLeave, bobLeave));
+
+        List<Absence> result = absenceService.getAllAbsences();
+
+        result.forEach(a -> assertThat(a.getDepartmentOverlapNames()).isEmpty());
+    }
+
+    @Test
+    void getAllAbsencesDoesNotFlagOverlapAcrossDifferentDepartments() {
+        when(ownershipGuard.isAdmin()).thenReturn(false);
+        when(ownershipGuard.currentCompanyId()).thenReturn(10L);
+
+        Personnel alice = personnelWithDepartment(1L, "Alice", "A", "Sales");
+        Personnel bob = personnelWithDepartment(2L, "Bob", "B", "Engineering");
+        Absence aliceLeave = Absence.builder().idAbsence(100L).personnel(alice)
+                .startDate(LocalDate.of(2026, 3, 10)).endDate(LocalDate.of(2026, 3, 15)).build();
+        Absence bobLeave = Absence.builder().idAbsence(101L).personnel(bob)
+                .startDate(LocalDate.of(2026, 3, 12)).endDate(LocalDate.of(2026, 3, 20)).build();
+        when(absenceRepository.findByPersonnel_User_Company_IdCompany(10L)).thenReturn(List.of(aliceLeave, bobLeave));
+
+        List<Absence> result = absenceService.getAllAbsences();
+
+        result.forEach(a -> assertThat(a.getDepartmentOverlapNames()).isEmpty());
+    }
+
+    @Test
+    void getAllAbsencesIgnoresRejectedLeaveWhenComputingOverlap() {
+        when(ownershipGuard.isAdmin()).thenReturn(false);
+        when(ownershipGuard.currentCompanyId()).thenReturn(10L);
+
+        Personnel alice = personnelWithDepartment(1L, "Alice", "A", "Sales");
+        Personnel bob = personnelWithDepartment(2L, "Bob", "B", "Sales");
+        Absence aliceLeave = Absence.builder().idAbsence(100L).personnel(alice)
+                .startDate(LocalDate.of(2026, 3, 10)).endDate(LocalDate.of(2026, 3, 15)).build();
+        Absence bobRejectedLeave = Absence.builder().idAbsence(101L).personnel(bob).status(AbsenceStatus.REJECTED)
+                .startDate(LocalDate.of(2026, 3, 12)).endDate(LocalDate.of(2026, 3, 20)).build();
+        when(absenceRepository.findByPersonnel_User_Company_IdCompany(10L)).thenReturn(List.of(aliceLeave, bobRejectedLeave));
+
+        List<Absence> result = absenceService.getAllAbsences();
+
+        result.forEach(a -> assertThat(a.getDepartmentOverlapNames()).isEmpty());
+    }
+
+    @Test
+    void attachDepartmentOverlapsWithCompanyIdComparesAgainstTheFullCompanyNotJustThePassedList() {
+        // Reproduit PersonnelService#getMyPersonnel : seule l'absence d'Alice est passée à
+        // annoter (comme Personnel.absences), mais la comparaison doit quand même porter sur
+        // toute l'entreprise (bobLeave y compris).
+        Personnel alice = personnelWithDepartment(1L, "Alice", "A", "Sales");
+        Personnel bob = personnelWithDepartment(2L, "Bob", "B", "Sales");
+        Absence aliceLeave = Absence.builder().idAbsence(100L).personnel(alice)
+                .startDate(LocalDate.of(2026, 3, 10)).endDate(LocalDate.of(2026, 3, 15)).build();
+        Absence bobLeave = Absence.builder().idAbsence(101L).personnel(bob)
+                .startDate(LocalDate.of(2026, 3, 12)).endDate(LocalDate.of(2026, 3, 20)).build();
+        when(absenceRepository.findByPersonnel_User_Company_IdCompany(10L)).thenReturn(List.of(aliceLeave, bobLeave));
+
+        absenceService.attachDepartmentOverlaps(List.of(aliceLeave), 10L);
+
+        assertThat(aliceLeave.getDepartmentOverlapNames()).containsExactly("Bob B");
+    }
+
+    private static Absence find(List<Absence> absences, long id) {
+        return absences.stream().filter(a -> a.getIdAbsence().equals(id)).findFirst().orElseThrow();
+    }
+
     // ---- createAbsence : qui démarre PENDING vs APPROVED ----
 
     @Test

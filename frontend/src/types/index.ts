@@ -251,6 +251,8 @@ export interface Personnel {
   user?: User;
   contract?: Contract;
   absences?: Absence[];
+  tasks?: Task[];
+  department?: string;
 }
 
 // POST /api/personnel/employee — creates the EMPLOYE user account and the
@@ -261,6 +263,7 @@ export interface PersonnelCreateRequest {
   email: string;
   password: string;
   telephone?: string;
+  department?: string;
   cin: string;
   cnssNumber: string;
   rib: string;
@@ -273,6 +276,7 @@ export interface PersonnelCreateRequest {
 // (see ContractService.assignMatriculeIfMissing) and stays stable afterwards.
 export interface PersonnelUpdateRequest {
   telephone?: string;
+  department?: string;
   cin: string;
   cnssNumber: string;
   rib: string;
@@ -307,6 +311,8 @@ export interface Absence {
   status?: AbsenceStatus;
   personnel?: Personnel;
   payment?: Payment;
+  /** Computed server-side (never persisted) — names of same-department colleagues whose leave overlaps this one. Empty/absent = no conflict. */
+  departmentOverlapNames?: string[];
 }
 
 // POST /api/absences — either a single dateAbsence, or a startDate/endDate range.
@@ -514,11 +520,50 @@ export interface EmployeeMessage {
   id: number;
   content: string;
   createdAt: string;
+  /** Only populated by GET /api/messages/received (company inbox) — absent on the employee's own /me list. */
+  sender?: User;
 }
 
 // POST /api/messages
 export interface MessageCreateRequest {
   content: string;
+}
+
+/**
+ * TODO at creation (never accepted from the client, see TaskService#createTask) ; IN_PROGRESS/DONE
+ * are only ever set via taskApi.updateStatus, never through the general task-details update.
+ */
+export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE';
+
+export interface Task {
+  idTask: number;
+  title: string;
+  description?: string;
+  startDate: string;
+  endDate: string;
+  status: TaskStatus;
+  // Never populated on read (Task.personnel is a JsonBackReference, same as Absence/Contract) —
+  // the assigned employee is looked up from the Personnel list instead (personnel.tasks *is*
+  // serialized there).
+  personnel?: Personnel;
+}
+
+// POST /api/tasks
+export interface TaskCreateRequest {
+  title: string;
+  description?: string;
+  startDate: string;
+  endDate: string;
+  personnel: { idPersonnel: number };
+}
+
+// PUT /api/tasks/{id} — status isn't editable this way, see taskApi.updateStatus.
+export interface TaskUpdateRequest {
+  title: string;
+  description?: string;
+  startDate: string;
+  endDate: string;
+  personnel?: { idPersonnel: number };
 }
 
 // GET /api/absences/quota/{personnelId} — AbsenceQuotaCalculator.QuotaSnapshot.

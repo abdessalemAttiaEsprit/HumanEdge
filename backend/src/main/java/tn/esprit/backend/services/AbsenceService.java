@@ -21,7 +21,10 @@ import tn.esprit.backend.security.OwnershipGuard;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -40,10 +43,11 @@ public class AbsenceService {
      */
     @Transactional(readOnly = true)
     public List<Absence> getAllAbsences() {
-        if (ownershipGuard.isAdmin()) {
-            return absenceRepository.findAll();
-        }
-        return absenceRepository.findByPersonnel_User_Company_IdCompany(ownershipGuard.currentCompanyId());
+        List<Absence> absences = ownershipGuard.isAdmin()
+                ? absenceRepository.findAll()
+                : absenceRepository.findByPersonnel_User_Company_IdCompany(ownershipGuard.currentCompanyId());
+        attachDepartmentOverlaps(absences);
+        return absences;
     }
 
     /**
@@ -205,5 +209,107 @@ public class AbsenceService {
             return PERIOD_DATE_FORMAT.format(absence.getDateAbsence());
         }
         return "unspecified date";
+    }
+
+    // ==================== Chevauchement de congés au sein d'un même département ====================
+    // Calculé à la volée (jamais persisté, voir Absence.departmentOverlapNames) : sert d'alerte
+    // visuelle côté frontend ("un autre employé de ce département est déjà absent sur ces dates"),
+    // jamais utilisé pour bloquer une demande.
+
+    /**
+     * Annote chaque absence de la liste avec les collègues du même département (et de la même
+     * entreprise) dont le congé chevauche. La liste passée doit déjà couvrir tous les employés à
+     * comparer entre eux (ex: AbsenceService#getAllAbsences) - pour une liste ne couvrant qu'un
+     * seul employé (ex: Personnel.absences), utiliser la variante avec companyId à la place.
+     */
+    private void attachDepartmentOverlaps(List<Absence> absences) {
+        Map<Long, List<Absence>> byCompany = absences.stream()
+                .filter(a -> companyIdOf(a) != null)
+                .collect(Collectors.groupingBy(AbsenceService::companyIdOf));
+        for (Absence absence : absences) {
+            absence.setDepartmentOverlapNames(computeOverlapNames(absence, byCompany.getOrDefault(companyIdOf(absence), List.of())));
+        }
+    }
+
+    /**
+     * Variante pour une liste déjà scopée à un seul employé (ex: Personnel.absences côté
+     * PersonnelService#getMyPersonnel) : ces absences-là n'incluent jamais celles des collègues,
+     * donc on recharge tout le reste de l'entreprise pour pouvoir comparer.
+     */
+    @Transactional(readOnly = true)
+    public void attachDepartmentOverlaps(List<Absence> absencesToAnnotate, Long companyId) {
+        if (companyId == null) {
+            return;
+        }
+        List<Absence> companyWide = absenceRepository.findByPersonnel_User_Company_IdCompany(companyId);
+        for (Absence absence : absencesToAnnotate) {
+            absence.setDepartmentOverlapNames(computeOverlapNames(absence, companyWide));
+        }
+    }
+
+    private static Long companyIdOf(Absence absence) {
+        Personnel personnel = absence.getPersonnel();
+        if (personnel == null || personnel.getUser() == null || personnel.getUser().getCompany() == null) {
+            return null;
+        }
+        return personnel.getUser().getCompany().getIdCompany();
+    }
+
+    private static boolean isRejected(Absence absence) {
+        return absence.getStatus() == AbsenceStatus.REJECTED;
+    }
+
+    private static LocalDate[] effectiveRange(Absence absence) {
+        if (absence.getDateAbsence() != null) {
+            return new LocalDate[]{absence.getDateAbsence(), absence.getDateAbsence()};
+        }
+        return new LocalDate[]{absence.getStartDate(), absence.getEndDate()};
+    }
+
+    private static boolean rangesOverlap(LocalDate start1, LocalDate end1, LocalDate start2, LocalDate end2) {
+        if (start1 == null || end1 == null || start2 == null || end2 == null) {
+            return false;
+        }
+        return !end1.isBefore(start2) && !end2.isBefore(start1);
+    }
+
+    private static List<String> computeOverlapNames(Absence absence, List<Absence> candidatePool) {
+        Personnel personnel = absence.getPersonnel();
+        if (isRejected(absence) || personnel == null || personnel.getDepartment() == null || personnel.getDepartment().isBlank()) {
+            return List.of();
+        }
+        LocalDate[] range = effectiveRange(absence);
+        if (range[0] == null || range[1] == null) {
+            return List.of();
+        }
+
+        List<String> names = new ArrayList<>();
+        for (Absence other : candidatePool) {
+            if (other.getIdAbsence() != null && other.getIdAbsence().equals(absence.getIdAbsence())) {
+                continue;
+            }
+            if (isRejected(other)) {
+                continue;
+            }
+            Personnel otherPersonnel = other.getPersonnel();
+            if (otherPersonnel == null || otherPersonnel.getIdPersonnel() == null
+                    || otherPersonnel.getIdPersonnel().equals(personnel.getIdPersonnel())) {
+                continue;
+            }
+            if (otherPersonnel.getDepartment() == null || !personnel.getDepartment().equalsIgnoreCase(otherPersonnel.getDepartment())) {
+                continue;
+            }
+            LocalDate[] otherRange = effectiveRange(other);
+            if (!rangesOverlap(range[0], range[1], otherRange[0], otherRange[1])) {
+                continue;
+            }
+            if (otherPersonnel.getUser() != null) {
+                String name = (otherPersonnel.getUser().getFirstname() + " " + otherPersonnel.getUser().getLastname()).trim();
+                if (!name.isEmpty() && !names.contains(name)) {
+                    names.add(name);
+                }
+            }
+        }
+        return names;
     }
 }

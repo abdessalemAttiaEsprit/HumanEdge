@@ -7,6 +7,7 @@ import lombok.*;
 import tn.esprit.backend.entities.Enum.AbsenceStatus;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Getter
 @Setter
@@ -47,4 +48,11 @@ public class Absence {
     @JoinColumn(name = "payment_id")
     @JsonBackReference(value = "payment-absences") // Nommer la référence pour ne pas la confondre avec celle du Personnel
     private Payment payment;
+
+    // Calculé à la volée par AbsenceService#attachDepartmentOverlaps, jamais persisté : noms des
+    // collègues du même département dont le congé chevauche celui-ci (liste vide/absente si
+    // aucun chevauchement). @Transient = ignoré par Hibernate, mais Jackson le sérialise quand
+    // même normalement (@Transient est une annotation JPA, pas une annotation Jackson).
+    @Transient
+    private List<String> departmentOverlapNames;
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent, type ReactElement } from 'react';
+import { Fragment, useMemo, useState, type FormEvent, type ReactElement } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BarChart3, Check, Download, Paperclip, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { absencesApi } from '@/api/absences';
@@ -16,7 +16,9 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { SortableTh } from '@/components/SortableTh';
 import { RowActionsMenu } from '@/components/RowActionsMenu';
+import { AbsenceCalendar } from '@/components/AbsenceCalendar';
 import { useToast } from '@/components/ToastProvider';
+import { absenceCoveringDate } from './AttendancePage';
 import type { Absence, AbsenceCreateRequest, AbsenceStatus, Personnel, QuotaSnapshot } from '@/types';
 
 type DateMode = 'single' | 'range';
@@ -52,6 +54,19 @@ function formatDates(a: Absence, fromDate: (date: string) => string): string {
 function personnelName(p?: Personnel): string {
   if (!p?.user) return '—';
   return `${p.user.firstname} ${p.user.lastname}`;
+}
+
+/** Red alert row shown right below an absence's row when a same-department colleague's leave overlaps it (see Absence.departmentOverlapNames). */
+function OverlapAlertRow({ absence, colSpan, t }: { absence: Absence; colSpan: number; t: Messages }) {
+  const names = absence.departmentOverlapNames;
+  if (!names || names.length === 0) return null;
+  return (
+    <tr className="data-table__expanded-row">
+      <td colSpan={colSpan}>
+        <div className="alert alert--error">{t.absences.departmentOverlapWarning(names.join(', '))}</div>
+      </td>
+    </tr>
+  );
 }
 
 type AbsenceSortKey = 'employee' | 'date' | 'reason' | 'status';
@@ -241,24 +256,27 @@ function MyAbsences() {
             </thead>
             <tbody>
               {absences.map((a) => (
-                <tr key={a.idAbsence}>
-                  <td data-label={t.absences.my.columnDates}>{formatDates(a, t.absences.fromDate)}</td>
-                  <td data-label={t.absences.my.columnReason}>{a.reason || '—'}</td>
-                  <td data-label={t.absences.my.columnJustification}>
-                    {a.justification ? (
-                      <IconButton
-                        icon={<Paperclip size={15} aria-hidden="true" />}
-                        label={t.absences.my.downloadJustification}
-                        onClick={() => absencesApi.downloadJustification(a.idAbsence, a.justification)}
-                      />
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td data-label={t.absences.my.columnStatus}>
-                    <StatusBadge status={effectiveStatus(a)} t={t} />
-                  </td>
-                </tr>
+                <Fragment key={a.idAbsence}>
+                  <tr>
+                    <td data-label={t.absences.my.columnDates}>{formatDates(a, t.absences.fromDate)}</td>
+                    <td data-label={t.absences.my.columnReason}>{a.reason || '—'}</td>
+                    <td data-label={t.absences.my.columnJustification}>
+                      {a.justification ? (
+                        <IconButton
+                          icon={<Paperclip size={15} aria-hidden="true" />}
+                          label={t.absences.my.downloadJustification}
+                          onClick={() => absencesApi.downloadJustification(a.idAbsence, a.justification)}
+                        />
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td data-label={t.absences.my.columnStatus}>
+                      <StatusBadge status={effectiveStatus(a)} t={t} />
+                    </td>
+                  </tr>
+                  <OverlapAlertRow absence={a} colSpan={4} t={t} />
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -322,7 +340,7 @@ function ManagerAbsences() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const { confirmOptions, requestConfirm, closeConfirm, handleConfirm } = useConfirm();
-  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState({ name: '', matricule: '', department: '', date: '' });
   const [showAddModal, setShowAddModal] = useState(false);
   const [editing, setEditing] = useState<Absence | null>(null);
   const [quotaFor, setQuotaFor] = useState<Personnel | null>(null);
@@ -357,6 +375,14 @@ function ManagerAbsences() {
       (p.absences ?? []).forEach((a) => map.set(a.idAbsence, p));
     });
     return map;
+  }, [personnelList]);
+
+  const departments = useMemo(() => {
+    const set = new Set<string>();
+    (personnelList ?? []).forEach((p) => {
+      if (p.department?.trim()) set.add(p.department.trim());
+    });
+    return [...set].sort((a, b) => a.localeCompare(b));
   }, [personnelList]);
 
   const createMutation = useMutation({
@@ -463,14 +489,17 @@ function ManagerAbsences() {
 
   const filtered = useMemo(() => {
     if (!absences) return [];
-    const q = search.trim().toLowerCase();
-    if (!q) return absences;
+    const name = filters.name.trim().toLowerCase();
+    const matricule = filters.matricule.trim().toLowerCase();
     return absences.filter((a) => {
-      const employee = personnelName(personnelByAbsenceId.get(a.idAbsence));
-      const haystack = [employee, a.reason].filter(Boolean).join(' ').toLowerCase();
-      return haystack.includes(q);
+      const employee = personnelByAbsenceId.get(a.idAbsence);
+      if (name && !personnelName(employee).toLowerCase().includes(name)) return false;
+      if (matricule && !(employee?.matricule ?? '').toLowerCase().includes(matricule)) return false;
+      if (filters.department && (employee?.department ?? '') !== filters.department) return false;
+      if (filters.date && !absenceCoveringDate([a], filters.date)) return false;
+      return true;
     });
-  }, [absences, search, personnelByAbsenceId]);
+  }, [absences, filters, personnelByAbsenceId]);
 
   const getAbsenceSortValue = (a: Absence, key: AbsenceSortKey): string | number => {
     switch (key) {
@@ -578,10 +607,41 @@ function ManagerAbsences() {
         <input
           className="toolbar__search"
           type="search"
-          placeholder={t.absences.manager.searchPlaceholder}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t.absences.manager.filterName}
+          value={filters.name}
+          onChange={(e) => setFilters((f) => ({ ...f, name: e.target.value }))}
         />
+        <input
+          className="toolbar__search"
+          type="search"
+          placeholder={t.absences.manager.filterMatricule}
+          value={filters.matricule}
+          onChange={(e) => setFilters((f) => ({ ...f, matricule: e.target.value }))}
+        />
+        <select value={filters.department} onChange={(e) => setFilters((f) => ({ ...f, department: e.target.value }))}>
+          <option value="">{t.absences.manager.filterAllDepartments}</option>
+          {departments.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
+        <input
+          type="date"
+          value={filters.date}
+          onChange={(e) => setFilters((f) => ({ ...f, date: e.target.value }))}
+          aria-label={t.absences.manager.filterDate}
+          title={t.absences.manager.filterDate}
+        />
+        {(filters.name || filters.matricule || filters.department || filters.date) && (
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => setFilters({ name: '', matricule: '', department: '', date: '' })}
+          >
+            {t.absences.manager.clearFilters}
+          </button>
+        )}
       </div>
 
       {isLoading && <TableSkeleton columns={5} />}
@@ -590,7 +650,11 @@ function ManagerAbsences() {
       {!isLoading && !isError && filtered.length === 0 && (
         <div className="placeholder-box">
           <span className="placeholder-box__badge">{t.common.noRecords}</span>
-          <p>{search ? t.absences.manager.noneMatchSearch : t.absences.manager.noneYet}</p>
+          <p>
+            {filters.name || filters.matricule || filters.department || filters.date
+              ? t.absences.manager.noneMatchSearch
+              : t.absences.manager.noneYet}
+          </p>
         </div>
       )}
 
@@ -616,7 +680,8 @@ function ManagerAbsences() {
               {pageItems.map((a) => {
                 const employee = personnelByAbsenceId.get(a.idAbsence);
                 return (
-                  <tr key={a.idAbsence}>
+                  <Fragment key={a.idAbsence}>
+                  <tr>
                     <td data-label={t.absences.manager.columnEmployee}>{personnelName(employee)}</td>
                     <td data-label={t.absences.my.columnDates}>{formatDates(a, t.absences.fromDate)}</td>
                     <td data-label={t.absences.reason}>{a.reason || '—'}</td>
@@ -669,6 +734,8 @@ function ManagerAbsences() {
                       />
                     </td>
                   </tr>
+                  <OverlapAlertRow absence={a} colSpan={5} t={t} />
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -677,6 +744,13 @@ function ManagerAbsences() {
       )}
 
       <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />
+
+      {!isLoading && !isError && (
+        <div className="chart-card" style={{ marginTop: 24 }}>
+          <h2 className="chart-card__title">{t.absences.manager.calendarTitle}</h2>
+          <AbsenceCalendar absences={filtered} personnelByAbsenceId={personnelByAbsenceId} />
+        </div>
+      )}
 
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>

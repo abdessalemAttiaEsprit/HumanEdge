@@ -34,6 +34,7 @@ public class PersonnelService {
     private final OwnershipGuard ownershipGuard;
     private final FileStorageService fileStorageService;
     private final PaymentRepo paymentRepo;
+    private final AbsenceService absenceService;
 
     public List<Personnel> getAllPersonnel() {
         if (ownershipGuard.isAdmin()) {
@@ -49,10 +50,18 @@ public class PersonnelService {
     }
 
     /** Returns the calling user's own Personnel record (self-service, mainly for EMPLOYE). */
+    @Transactional(readOnly = true)
     public Personnel getMyPersonnel() {
         Long userId = ownershipGuard.currentUser().getIdUser();
-        return personnelRepository.findByUser_IdUser(userId)
+        Personnel personnel = personnelRepository.findByUser_IdUser(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("No personnel record found for your account"));
+        // Personnel.absences ne contient jamais les congés des collègues : recharger le reste de
+        // l'entreprise pour pouvoir détecter un chevauchement de département (voir
+        // AbsenceService#attachDepartmentOverlaps).
+        if (personnel.getUser() != null && personnel.getUser().getCompany() != null) {
+            absenceService.attachDepartmentOverlaps(personnel.getAbsences(), personnel.getUser().getCompany().getIdCompany());
+        }
+        return personnel;
     }
 
     public Personnel getPersonnelById(Long id) {
@@ -116,6 +125,7 @@ public class PersonnelService {
 
         Personnel personnel = new Personnel();
         personnel.setTelephone(request.getTelephone());
+        personnel.setDepartment(request.getDepartment());
         personnel.setCin(request.getCin());
         // matricule n'est jamais saisi ici : il est auto-généré au premier contrat du salarié
         // (voir ContractService.assignMatriculeIfMissing).
@@ -130,6 +140,7 @@ public class PersonnelService {
         Personnel personnel = getPersonnelById(id); // vérifie déjà la propriété
 
         personnel.setTelephone(personnelDetails.getTelephone());
+        personnel.setDepartment(personnelDetails.getDepartment());
         personnel.setCin(personnelDetails.getCin());
         // matricule n'est jamais accepté depuis le client : auto-généré au premier contrat
         // (voir ContractService.assignMatriculeIfMissing), au même titre que salaireBase.

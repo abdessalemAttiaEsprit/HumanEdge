@@ -20,6 +20,8 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { SortableTh } from '@/components/SortableTh';
 import { useToast } from '@/components/ToastProvider';
+import { BarChart } from '@/components/charts';
+import { formatInt } from '@/lib/format';
 import type { Company, Contract, Personnel, PersonnelCreateRequest } from '@/types';
 
 const EMPTY_CREATE: PersonnelCreateRequest = {
@@ -28,6 +30,7 @@ const EMPTY_CREATE: PersonnelCreateRequest = {
   email: '',
   password: '',
   telephone: '',
+  department: '',
   cin: '',
   cnssNumber: '',
   rib: '',
@@ -35,6 +38,7 @@ const EMPTY_CREATE: PersonnelCreateRequest = {
 
 interface EditState {
   telephone: string;
+  department: string;
   cin: string;
   cnssNumber: string;
   rib: string;
@@ -81,7 +85,7 @@ function generateTempPassword(): string {
   return Array.from(bytes, (b) => PASSWORD_CHARS[b % PASSWORD_CHARS.length]).join('');
 }
 
-type PersonnelSortKey = 'name' | 'email' | 'phone' | 'company' | 'contract';
+type PersonnelSortKey = 'name' | 'email' | 'phone' | 'department' | 'company' | 'contract';
 
 function getPersonnelSortValue(p: Personnel, key: PersonnelSortKey): string | number {
   switch (key) {
@@ -91,6 +95,8 @@ function getPersonnelSortValue(p: Personnel, key: PersonnelSortKey): string | nu
       return p.user?.email ?? '';
     case 'phone':
       return p.telephone ?? '';
+    case 'department':
+      return p.department ?? '';
     case 'company':
       return p.user?.company?.companyName ?? '';
     case 'contract':
@@ -209,13 +215,26 @@ export function PersonnelPage() {
     const q = search.trim().toLowerCase();
     if (!q) return personnelList;
     return personnelList.filter((p) => {
-      const haystack = [fullName(p), p.user?.email, p.cin, p.matricule, p.telephone]
+      const haystack = [fullName(p), p.user?.email, p.cin, p.matricule, p.telephone, p.department]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
       return haystack.includes(q);
     });
   }, [personnelList, search]);
+
+  // Répartition des employés par département (ceux sans département renseigné sont regroupés
+  // à part) — mirroring the contract-type breakdown pattern already used on the dashboard.
+  const departmentBreakdown = useMemo(() => {
+    const counts = new Map<string, number>();
+    (personnelList ?? []).forEach((p) => {
+      const label = p.department?.trim() || t.personnel.noDepartment;
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    });
+    return [...counts.entries()]
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [personnelList, t]);
 
   const openAddModal = () => {
     setCreateForm({ ...EMPTY_CREATE, companyId: isAdmin ? undefined : undefined });
@@ -230,6 +249,7 @@ export function PersonnelPage() {
     setEditing(p);
     setEditForm({
       telephone: p.telephone ?? '',
+      department: p.department ?? '',
       cin: p.cin,
       cnssNumber: p.cnssNumber,
       rib: p.rib,
@@ -306,6 +326,13 @@ export function PersonnelPage() {
         </div>
       </div>
 
+      {!isLoading && !isError && (personnelList ?? []).length > 0 && (
+        <div className="chart-card" style={{ maxWidth: 480, marginBottom: 24 }}>
+          <h2 className="chart-card__title">{t.personnel.byDepartment}</h2>
+          <BarChart data={departmentBreakdown} formatValue={formatInt} />
+        </div>
+      )}
+
       <div className="toolbar">
         <input
           className="toolbar__search"
@@ -318,7 +345,7 @@ export function PersonnelPage() {
 
       {deleteError && <div className="alert alert--error">{deleteError}</div>}
 
-      {isLoading && <TableSkeleton columns={isAdmin ? 7 : 6} />}
+      {isLoading && <TableSkeleton columns={isAdmin ? 8 : 7} />}
       {isError && <p className="jobs__status">{t.personnel.errorLoad}</p>}
 
       {!isLoading && !isError && filtered.length === 0 && (
@@ -337,6 +364,7 @@ export function PersonnelPage() {
                 <SortableTh label={t.personnel.columnEmployee} sortKey="name" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <SortableTh label={t.personnel.columnEmail} sortKey="email" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 <SortableTh label={t.personnel.columnPhone} sortKey="phone" activeKey={sortKey} direction={direction} onSort={toggleSort} />
+                <SortableTh label={t.personnel.columnDepartment} sortKey="department" activeKey={sortKey} direction={direction} onSort={toggleSort} />
                 {isAdmin && (
                   <SortableTh
                     label={t.personnel.columnCompany}
@@ -359,7 +387,7 @@ export function PersonnelPage() {
             <tbody>
               {pageItems.map((p) => {
                 const expanded = expandedId === p.idPersonnel;
-                const columnCount = isAdmin ? 7 : 6;
+                const columnCount = isAdmin ? 8 : 7;
                 return (
                   <Fragment key={p.idPersonnel}>
                     <tr className={expanded ? 'data-table__row--expanded' : ''}>
@@ -392,6 +420,7 @@ export function PersonnelPage() {
                           {p.telephone || '—'}
                         </span>
                       </td>
+                      <td data-label={t.personnel.columnDepartment}>{p.department || '—'}</td>
                       {isAdmin && <td data-label={t.personnel.columnCompany}>{p.user?.company?.companyName ?? '—'}</td>}
                       <td data-label={t.personnel.columnContract}>
                         {p.contract ? (
@@ -595,6 +624,14 @@ export function PersonnelPage() {
                   </label>
                 </div>
                 <label className="field">
+                  <span>{t.personnel.department}</span>
+                  <input
+                    value={createForm.department}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, department: e.target.value }))}
+                    placeholder={t.personnel.departmentPlaceholder}
+                  />
+                </label>
+                <label className="field">
                   <span>{t.personnel.cnssNumber}</span>
                   <input
                     value={createForm.cnssNumber}
@@ -663,6 +700,14 @@ export function PersonnelPage() {
                     />
                   </label>
                 </div>
+                <label className="field">
+                  <span>{t.personnel.department}</span>
+                  <input
+                    value={editForm.department}
+                    onChange={(e) => setEditForm((f) => f && { ...f, department: e.target.value })}
+                    placeholder={t.personnel.departmentPlaceholder}
+                  />
+                </label>
                 <label className="field">
                   <span>{t.personnel.cnssNumber}</span>
                   <input

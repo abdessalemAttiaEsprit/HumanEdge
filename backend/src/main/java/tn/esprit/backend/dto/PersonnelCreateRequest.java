@@ -36,6 +36,8 @@ public class PersonnelCreateRequest {
 
     private String telephone;
 
+    private String department;
+
     @NotBlank
     private String cin;
 
