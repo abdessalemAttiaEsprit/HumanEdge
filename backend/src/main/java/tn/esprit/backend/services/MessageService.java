@@ -58,6 +58,12 @@ public class MessageService {
         return messageRepo.findBySender_IdUserOrderByCreatedAtDesc(userId);
     }
 
+    /** Messages reçus par l'entreprise courante (tous ses employés confondus), plus récents d'abord. */
+    @Transactional(readOnly = true)
+    public List<Message> getReceivedMessages() {
+        return messageRepo.findBySender_Company_IdCompanyOrderByCreatedAtDesc(ownershipGuard.currentCompanyId());
+    }
+
     private static String preview(String content) {
         return content.length() > NOTIFICATION_PREVIEW_LENGTH
                 ? content.substring(0, NOTIFICATION_PREVIEW_LENGTH - 1) + "…"

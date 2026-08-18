@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface MessageRepo extends JpaRepository<Message, Long> {
     List<Message> findBySender_IdUserOrderByCreatedAtDesc(Long userId);
+
+    List<Message> findBySender_Company_IdCompanyOrderByCreatedAtDesc(Long companyId);
 }

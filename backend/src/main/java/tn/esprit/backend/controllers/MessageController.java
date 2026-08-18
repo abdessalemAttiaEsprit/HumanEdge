@@ -32,4 +32,10 @@ public class MessageController {
     public ResponseEntity<List<Message>> getMySentMessages() {
         return ResponseEntity.ok(messageService.getMySentMessages());
     }
+
+    @GetMapping("/received")
+    @PreAuthorize("hasRole('COMPANY')")
+    public ResponseEntity<List<Message>> getReceivedMessages() {
+        return ResponseEntity.ok(messageService.getReceivedMessages());
+    }
 }
