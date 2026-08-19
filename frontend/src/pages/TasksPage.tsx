@@ -6,6 +6,7 @@ import { personnelApi } from '@/api/personnel';
 import { useAuth } from '@/auth/useAuth';
 import { useLanguage } from '@/i18n/useLanguage';
 import { getErrorMessage } from '@/lib/errors';
+import { translateSkillLabel } from '@/lib/skillCatalog';
 import { useConfirm } from '@/lib/useConfirm';
 import { IconButton } from '@/components/IconButton';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -216,22 +217,25 @@ function ManagerTasks() {
     [t],
   );
 
-  // Approved skill labels across the whole company — the pool the typeahead suggests from.
-  const allSkillLabels = useMemo(() => {
-    const map = new Map<string, string>();
+  // Approved skill labels across the whole company — the pool the typeahead suggests from. Each
+  // entry is the raw stored value (a SkillCatalog key like "TEAMWORK", or free-typed custom
+  // text) — matching/storage always uses this raw value, only the on-screen text is translated.
+  const allSkillKeys = useMemo(() => {
+    const set = new Set<string>();
     (personnelList ?? []).forEach((p) => {
-      (p.skills ?? []).filter((s) => s.status === 'APPROVED').forEach((s) => map.set(s.label.toLowerCase(), s.label));
+      (p.skills ?? []).filter((s) => s.status === 'APPROVED').forEach((s) => set.add(s.label));
     });
-    return [...map.values()].sort((a, b) => a.localeCompare(b));
+    return [...set];
   }, [personnelList]);
 
   const skillSuggestions = useMemo(() => {
     const q = skillQuery.trim().toLowerCase();
     if (q.length < 3) return [];
-    return allSkillLabels
-      .filter((label) => label.toLowerCase().includes(q) && !requiredSkills.some((r) => r.toLowerCase() === label.toLowerCase()))
+    return allSkillKeys
+      .filter((key) => translateSkillLabel(key, t.skillCatalog).toLowerCase().includes(q) && !requiredSkills.some((r) => r.toLowerCase() === key.toLowerCase()))
+      .sort((a, b) => translateSkillLabel(a, t.skillCatalog).localeCompare(translateSkillLabel(b, t.skillCatalog)))
       .slice(0, 8);
-  }, [skillQuery, allSkillLabels, requiredSkills]);
+  }, [skillQuery, allSkillKeys, requiredSkills, t]);
 
   const candidates = useMemo(() => {
     if (!showAssignModal || !personnelList) return [];
@@ -546,9 +550,9 @@ function ManagerTasks() {
               </label>
               {skillSuggestions.length > 0 && (
                 <div className="autocomplete-list">
-                  {skillSuggestions.map((label) => (
-                    <button key={label} type="button" className="autocomplete-list__item" onClick={() => handleAddSkill(label)}>
-                      {label}
+                  {skillSuggestions.map((key) => (
+                    <button key={key} type="button" className="autocomplete-list__item" onClick={() => handleAddSkill(key)}>
+                      {translateSkillLabel(key, t.skillCatalog)}
                     </button>
                   ))}
                 </div>
@@ -557,7 +561,7 @@ function ManagerTasks() {
                 <div className="tag-list" style={{ marginBottom: 10 }}>
                   {requiredSkills.map((s) => (
                     <span key={s} className="skill-chip">
-                      <span className="badge badge--soft">{s}</span>
+                      <span className="badge badge--soft">{translateSkillLabel(s, t.skillCatalog)}</span>
                       <IconButton
                         icon={<X size={12} aria-hidden="true" />}
                         label={t.tasks.manager.cancel}

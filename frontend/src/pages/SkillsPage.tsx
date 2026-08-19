@@ -6,6 +6,7 @@ import { diplomasApi } from '@/api/diplomas';
 import { fileUrl } from '@/api/axios';
 import { useLanguage } from '@/i18n/useLanguage';
 import { getErrorMessage } from '@/lib/errors';
+import { translateSkillLabel } from '@/lib/skillCatalog';
 import { useConfirm } from '@/lib/useConfirm';
 import { useToast } from '@/components/ToastProvider';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -108,7 +109,7 @@ export function SkillsPage() {
   const handleDeleteSkill = (skill: Skill) => {
     requestConfirm({
       title: t.skills.employee.deleteTitle,
-      message: t.skills.employee.deleteMessage(skill.label),
+      message: t.skills.employee.deleteMessage(translateSkillLabel(skill.label, t.skillCatalog)),
       confirmLabel: t.skills.employee.delete,
       variant: 'danger',
       onConfirm: () => deleteMutation.mutate(skill.idSkill),
@@ -147,7 +148,7 @@ export function SkillsPage() {
             {(skills ?? []).length === 0 && <span className="field-hint">{t.skills.employee.noneYet}</span>}
             {(skills ?? []).map((skill) => (
               <span key={skill.idSkill} className="skill-chip">
-                <span className={statusBadgeClass(skill.status)}>{skill.label}</span>
+                <span className={statusBadgeClass(skill.status)}>{translateSkillLabel(skill.label, t.skillCatalog)}</span>
                 <span className="skill-chip__status-label">{t.skillStatus[skill.status]}</span>
                 {skill.status !== 'APPROVED' && (
                   <IconButton
@@ -178,7 +179,7 @@ export function SkillsPage() {
                       disabled={addMutation.isPending}
                       onClick={() => handleAddSuggestion(label, 'GENERAL')}
                     >
-                      + {label}
+                      + {translateSkillLabel(label, t.skillCatalog)}
                     </button>
                   ))}
               </div>
@@ -196,7 +197,7 @@ export function SkillsPage() {
                       disabled={addMutation.isPending}
                       onClick={() => handleAddSuggestion(label, 'SPECIFIC')}
                     >
-                      + {label}
+                      + {translateSkillLabel(label, t.skillCatalog)}
                     </button>
                   ))}
               </div>

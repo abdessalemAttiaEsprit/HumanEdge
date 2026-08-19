@@ -8,6 +8,7 @@ import { fileUrl } from '@/api/axios';
 import { useLanguage } from '@/i18n/useLanguage';
 import type { Messages } from '@/i18n/en';
 import { getErrorMessage } from '@/lib/errors';
+import { translateSkillLabel } from '@/lib/skillCatalog';
 import { usePagination } from '@/lib/usePagination';
 import { useToast } from '@/components/ToastProvider';
 import { IconButton } from '@/components/IconButton';
@@ -86,7 +87,7 @@ function PersonnelSkillCard({ personnel, t, mutations }: { personnel: Personnel;
         {skills.length === 0 && <span className="field-hint">{t.skills.validation.noneYet}</span>}
         {skills.map((skill) => (
           <span key={skill.idSkill} className="skill-chip">
-            <span className={statusBadgeClass(skill.status)}>{skill.label}</span>
+            <span className={statusBadgeClass(skill.status)}>{translateSkillLabel(skill.label, t.skillCatalog)}</span>
             {skill.status === 'PENDING' && (
               <span className="skill-chip__actions">
                 <IconButton
@@ -123,7 +124,7 @@ function PersonnelSkillCard({ personnel, t, mutations }: { personnel: Personnel;
                     disabled={mutations.addSkillPending}
                     onClick={() => mutations.addSkill(personnel.idPersonnel, label, 'GENERAL')}
                   >
-                    + {label}
+                    + {translateSkillLabel(label, t.skillCatalog)}
                   </button>
                 ))}
             </div>
@@ -141,7 +142,7 @@ function PersonnelSkillCard({ personnel, t, mutations }: { personnel: Personnel;
                     disabled={mutations.addSkillPending}
                     onClick={() => mutations.addSkill(personnel.idPersonnel, label, 'SPECIFIC')}
                   >
-                    + {label}
+                    + {translateSkillLabel(label, t.skillCatalog)}
                   </button>
                 ))}
             </div>

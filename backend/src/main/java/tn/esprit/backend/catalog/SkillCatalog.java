@@ -13,6 +13,11 @@ import java.util.regex.Pattern;
  * réservée à Ollama). Les tags "spécifiques" sont choisis en cherchant, dans le poste
  * (Contract.Work) puis le département (Personnel.department) de l'employé, le premier mot-clé du
  * catalogue qu'ils contiennent ; à défaut, une liste générique de secours est utilisée.
+ *
+ * <p>Renvoie des clés stables (jamais de texte affichable) : le frontend les traduit via
+ * {@code t.skillCatalog} (en.ts/fr.ts), comme TaskStatus/TaskPriority. Une compétence tapée
+ * librement par l'employé (hors catalogue) reste un texte brut, jamais traduite - seules les
+ * suggestions du catalogue bénéficient du bilinguisme.
  */
 public final class SkillCatalog {
 
@@ -20,35 +25,37 @@ public final class SkillCatalog {
     }
 
     public static final List<String> GENERAL_TAGS = List.of(
-            "Travail d'équipe", "Communication", "Gestion du temps", "Résolution de problèmes",
-            "Adaptabilité", "Organisation", "Esprit critique", "Leadership"
+            "TEAMWORK", "COMMUNICATION", "TIME_MANAGEMENT", "PROBLEM_SOLVING",
+            "ADAPTABILITY", "ORGANIZATION", "CRITICAL_THINKING", "LEADERSHIP"
     );
 
     private static final List<String> FALLBACK_SPECIFIC_TAGS = List.of(
-            "Bureautique", "Rédaction professionnelle", "Gestion de projet", "Veille métier"
+            "OFFICE_TOOLS", "PROFESSIONAL_WRITING", "PROJECT_MANAGEMENT", "INDUSTRY_WATCH"
     );
 
     // LinkedHashMap : l'ordre d'insertion fixe la priorité de correspondance en cas de mots-clés
-    // ambigus (ex: "informatique" testé avant un mot-clé plus générique).
+    // ambigus (ex: "informatique" testé avant un mot-clé plus générique). Les clés de cette map
+    // (mots-clés département/poste) restent en français - elles ne sont jamais affichées, voir
+    // normalize()/suggest() ; seules les VALEURS (clés de compétences) sont traduites côté client.
     private static final Map<String, List<String>> SPECIFIC_BY_KEYWORD = new LinkedHashMap<>();
 
     static {
-        SPECIFIC_BY_KEYWORD.put("informatique", List.of("Java", "Spring Boot", "React", "SQL", "Docker", "Git"));
-        SPECIFIC_BY_KEYWORD.put("developpement", List.of("Java", "Spring Boot", "React", "SQL", "Docker", "Git"));
-        SPECIFIC_BY_KEYWORD.put("it", List.of("Java", "Spring Boot", "React", "SQL", "Docker", "Git"));
-        SPECIFIC_BY_KEYWORD.put("reseau", List.of("Administration système", "Cybersécurité", "Cloud (Azure/AWS)", "Virtualisation"));
-        SPECIFIC_BY_KEYWORD.put("ressources humaines", List.of("Recrutement", "SIRH", "Droit du travail", "Gestion de la paie"));
-        SPECIFIC_BY_KEYWORD.put("rh", List.of("Recrutement", "SIRH", "Droit du travail", "Gestion de la paie"));
-        SPECIFIC_BY_KEYWORD.put("finance", List.of("Comptabilité générale", "Fiscalité", "Excel avancé", "SAP"));
-        SPECIFIC_BY_KEYWORD.put("comptabilite", List.of("Comptabilité générale", "Fiscalité", "Excel avancé", "SAP"));
-        SPECIFIC_BY_KEYWORD.put("marketing", List.of("SEO", "Réseaux sociaux", "Analytics", "Copywriting"));
-        SPECIFIC_BY_KEYWORD.put("communication", List.of("SEO", "Réseaux sociaux", "Analytics", "Copywriting"));
-        SPECIFIC_BY_KEYWORD.put("commercial", List.of("Négociation", "CRM", "Prospection", "Relation client"));
-        SPECIFIC_BY_KEYWORD.put("vente", List.of("Négociation", "CRM", "Prospection", "Relation client"));
-        SPECIFIC_BY_KEYWORD.put("logistique", List.of("Gestion de stock", "Supply chain", "SAP", "Optimisation des flux"));
-        SPECIFIC_BY_KEYWORD.put("production", List.of("Lean management", "Contrôle qualité", "Maintenance industrielle", "Sécurité au travail"));
-        SPECIFIC_BY_KEYWORD.put("juridique", List.of("Droit des affaires", "Rédaction contractuelle", "Contentieux", "Veille réglementaire"));
-        SPECIFIC_BY_KEYWORD.put("design", List.of("UI/UX", "Figma", "Adobe Creative Suite", "Prototypage"));
+        SPECIFIC_BY_KEYWORD.put("informatique", List.of("JAVA", "SPRING_BOOT", "REACT", "SQL", "DOCKER", "GIT"));
+        SPECIFIC_BY_KEYWORD.put("developpement", List.of("JAVA", "SPRING_BOOT", "REACT", "SQL", "DOCKER", "GIT"));
+        SPECIFIC_BY_KEYWORD.put("it", List.of("JAVA", "SPRING_BOOT", "REACT", "SQL", "DOCKER", "GIT"));
+        SPECIFIC_BY_KEYWORD.put("reseau", List.of("SYS_ADMIN", "CYBERSECURITY", "CLOUD", "VIRTUALIZATION"));
+        SPECIFIC_BY_KEYWORD.put("ressources humaines", List.of("RECRUITMENT", "HRIS", "LABOR_LAW", "PAYROLL_MGMT"));
+        SPECIFIC_BY_KEYWORD.put("rh", List.of("RECRUITMENT", "HRIS", "LABOR_LAW", "PAYROLL_MGMT"));
+        SPECIFIC_BY_KEYWORD.put("finance", List.of("ACCOUNTING", "TAXATION", "EXCEL_ADVANCED", "SAP"));
+        SPECIFIC_BY_KEYWORD.put("comptabilite", List.of("ACCOUNTING", "TAXATION", "EXCEL_ADVANCED", "SAP"));
+        SPECIFIC_BY_KEYWORD.put("marketing", List.of("SEO", "SOCIAL_MEDIA", "ANALYTICS", "COPYWRITING"));
+        SPECIFIC_BY_KEYWORD.put("communication", List.of("SEO", "SOCIAL_MEDIA", "ANALYTICS", "COPYWRITING"));
+        SPECIFIC_BY_KEYWORD.put("commercial", List.of("NEGOTIATION", "CRM", "PROSPECTING", "CLIENT_RELATIONS"));
+        SPECIFIC_BY_KEYWORD.put("vente", List.of("NEGOTIATION", "CRM", "PROSPECTING", "CLIENT_RELATIONS"));
+        SPECIFIC_BY_KEYWORD.put("logistique", List.of("INVENTORY_MGMT", "SUPPLY_CHAIN", "SAP", "FLOW_OPTIMIZATION"));
+        SPECIFIC_BY_KEYWORD.put("production", List.of("LEAN_MGMT", "QUALITY_CONTROL", "INDUSTRIAL_MAINTENANCE", "WORKPLACE_SAFETY"));
+        SPECIFIC_BY_KEYWORD.put("juridique", List.of("BUSINESS_LAW", "CONTRACT_DRAFTING", "LITIGATION", "REGULATORY_WATCH"));
+        SPECIFIC_BY_KEYWORD.put("design", List.of("UI_UX", "FIGMA", "ADOBE_SUITE", "PROTOTYPING"));
     }
 
     public static SkillSuggestions suggest(String department, String work) {
