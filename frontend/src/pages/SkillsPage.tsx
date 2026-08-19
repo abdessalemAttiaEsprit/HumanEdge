@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { GraduationCap, Trash2, Upload } from 'lucide-react';
+import { Trash2, Upload } from 'lucide-react';
 import { skillsApi } from '@/api/skills';
 import { diplomasApi } from '@/api/diplomas';
 import { fileUrl } from '@/api/axios';
@@ -262,7 +262,7 @@ export function SkillsPage() {
             </label>
             <label className="field-with-preview">
               {diplomaFile ? (
-                <GraduationCap size={22} aria-hidden="true" />
+                <img src="/assets/nav-icons/diplome.svg" alt="" width={22} height={22} aria-hidden="true" />
               ) : (
                 <Upload size={18} aria-hidden="true" />
               )}

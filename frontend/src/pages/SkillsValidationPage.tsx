@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, GraduationCap, Upload, X } from 'lucide-react';
+import { Check, Upload, X } from 'lucide-react';
 import { personnelApi } from '@/api/personnel';
 import { skillsApi } from '@/api/skills';
 import { diplomasApi } from '@/api/diplomas';
@@ -177,7 +177,7 @@ function PersonnelSkillCard({ personnel, t, mutations }: { personnel: Personnel;
             </div>
           ))}
           <label className="diploma-upload" title={t.skills.validation.addDiploma}>
-            <GraduationCap size={16} aria-hidden="true" />
+            <img src="/assets/nav-icons/diplome.svg" alt="" width={16} height={16} aria-hidden="true" />
             <input
               type="text"
               placeholder={t.skills.validation.diplomaNamePlaceholder}

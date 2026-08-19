@@ -3291,3 +3291,26 @@ td:nth-child(3n + 2) .skeleton-bar {
   opacity: 0.5;
   cursor: not-allowed;
 }
+.autocomplete-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  max-height: 160px;
+  overflow-y: auto;
+  margin: -6px 0 10px;
+}
+.autocomplete-list__item {
+  text-align: left;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.autocomplete-list__item:hover {
+  background: var(--bg);
+}

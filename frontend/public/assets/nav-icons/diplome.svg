@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Diplôme">
+  <rect x="28" y="28" width="456" height="456" rx="36" fill="none" stroke="#0f172a" stroke-width="28"/>
+  <rect x="108" y="92" width="296" height="228" rx="16" fill="#ffffff" stroke="#0f172a" stroke-width="22"/>
+  <rect x="176" y="158" width="160" height="24" rx="12" fill="#2dd4bf"/>
+  <rect x="176" y="198" width="112" height="24" rx="12" fill="#0f172a"/>
+  <polygon points="176,326 146,440 190,424 214,458 244,336" fill="#2dd4bf" stroke="#0f172a" stroke-width="14" stroke-linejoin="round"/>
+  <polygon points="244,326 274,440 230,424 206,458 176,336" fill="#2dd4bf" stroke="#0f172a" stroke-width="14" stroke-linejoin="round"/>
+  <circle cx="210" cy="330" r="78" fill="#2dd4bf" stroke="#0f172a" stroke-width="22"/>
+  <circle cx="210" cy="330" r="40" fill="#ffffff" stroke="#0f172a" stroke-width="14"/>
+</svg>
