@@ -10,6 +10,7 @@ import org.springframework.web.server.ResponseStatusException;
 import tn.esprit.backend.entities.Absence;
 import tn.esprit.backend.entities.Enum.AbsenceStatus;
 import tn.esprit.backend.entities.Enum.Role;
+import tn.esprit.backend.entities.Enum.SyncSourceType;
 import tn.esprit.backend.entities.Personnel;
 import tn.esprit.backend.entities.User;
 import tn.esprit.backend.exceptions.BadRequestException;
@@ -37,6 +38,7 @@ public class AbsenceService {
     private final AbsenceQuotaCalculator absenceQuotaCalculator;
     private final FileStorageService fileStorageService;
     private final NotificationService notificationService;
+    private final GoogleCalendarSyncService googleCalendarSyncService;
 
     /**
      * Récupère toutes les absences enregistrées.
@@ -81,6 +83,8 @@ public class AbsenceService {
         Absence saved = absenceRepository.save(absence);
         if (selfRequest) {
             notifyCompanyOfNewRequest(saved);
+        } else {
+            syncAbsenceToGoogleCalendar(saved);
         }
         return saved;
     }
@@ -108,7 +112,11 @@ public class AbsenceService {
             existingAbsence.setPersonnel(resolveAndCheckTargetPersonnel(absenceDetails.getPersonnel()));
         }
 
-        return absenceRepository.save(existingAbsence);
+        Absence saved = absenceRepository.save(existingAbsence);
+        if (AbsenceQuotaCalculator.isApproved(saved)) {
+            syncAbsenceToGoogleCalendar(saved);
+        }
+        return saved;
     }
 
     /** Approuve une demande d'absence PENDING : consomme le quota et notifie l'employé. */
@@ -135,6 +143,11 @@ public class AbsenceService {
             notificationService.notify(absence.getPersonnel().getUser(),
                     "Your leave request (" + describePeriod(absence) + ") has been " + verbForNotification + ".");
         }
+        if (decision == AbsenceStatus.APPROVED) {
+            syncAbsenceToGoogleCalendar(saved);
+        } else {
+            googleCalendarSyncService.deleteEventForAllUsers(SyncSourceType.ABSENCE, saved.getIdAbsence());
+        }
         return saved;
     }
 
@@ -156,6 +169,7 @@ public class AbsenceService {
     public void deleteAbsence(Long id) {
         Absence absence = getAbsenceById(id); // vérifie déjà la propriété
         absenceRepository.delete(absence);
+        googleCalendarSyncService.deleteEventForAllUsers(SyncSourceType.ABSENCE, id);
     }
 
     /**
@@ -197,6 +211,27 @@ public class AbsenceService {
                 .filter(u -> u.getRole() == Role.COMPANY)
                 .forEach(u -> notificationService.notify(u,
                         employeeName + " requested a leave (" + describePeriod(absence) + ")."));
+    }
+
+    /**
+     * Synchronise une absence APPROVED vers Google Calendar : sur le calendrier de l'employé
+     * concerné et de chaque compte COMPANY de son entreprise (voir GoogleCalendarSyncService,
+     * no-op silencieux si l'un ou l'autre n'est pas connecté).
+     */
+    private void syncAbsenceToGoogleCalendar(Absence absence) {
+        Personnel personnel = absence.getPersonnel();
+        if (personnel == null || personnel.getUser() == null) {
+            return;
+        }
+        LocalDate[] range = effectiveRange(absence);
+        User owner = personnel.getUser();
+        String title = "Leave: " + (owner.getFirstname() + " " + owner.getLastname()).trim();
+        googleCalendarSyncService.syncAllDayEvent(owner, SyncSourceType.ABSENCE, absence.getIdAbsence(), title, absence.getReason(), range[0], range[1], null);
+        if (owner.getCompany() != null) {
+            userRepository.findByCompany_IdCompany(owner.getCompany().getIdCompany()).stream()
+                    .filter(u -> u.getRole() == Role.COMPANY)
+                    .forEach(u -> googleCalendarSyncService.syncAllDayEvent(u, SyncSourceType.ABSENCE, absence.getIdAbsence(), title, absence.getReason(), range[0], range[1], null));
+        }
     }
 
     private static final DateTimeFormatter PERIOD_DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;

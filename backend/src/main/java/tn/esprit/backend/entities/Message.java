@@ -2,6 +2,7 @@ package tn.esprit.backend.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import tn.esprit.backend.entities.Enum.MessageCategory;
 
 import java.time.LocalDateTime;
 
@@ -38,6 +39,16 @@ public class Message {
 
     @Column(nullable = false, length = 1000)
     private String content;
+
+    // Renseignée uniquement sur un message initié par l'employé (jamais sur une réponse
+    // d'entreprise) - aide l'entreprise à trier/filtrer sa boîte de réception.
+    @Enumerated(EnumType.STRING)
+    private MessageCategory category;
+
+    // Nom de fichier stocké (voir FileStorageService), jamais l'URL/chemin brut - null si aucune
+    // pièce jointe. Téléchargeable via GET /api/messages/{id}/attachment (jamais via /uploads/**
+    // directement : un PDF/Word y est explicitement bloqué, voir SecurityConfig).
+    private String attachment;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;

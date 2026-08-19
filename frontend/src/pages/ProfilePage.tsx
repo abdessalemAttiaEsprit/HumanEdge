@@ -18,6 +18,7 @@ import { useLanguage } from '@/i18n/useLanguage';
 import { accountApi } from '@/api/account';
 import { authApi } from '@/api/auth';
 import { companiesApi } from '@/api/companies';
+import { googleCalendarApi } from '@/api/googleCalendar';
 import { personnelApi } from '@/api/personnel';
 import { fileUrl } from '@/api/axios';
 import { getErrorMessage } from '@/lib/errors';
@@ -260,6 +261,90 @@ function AccountCard({ user }: { user: AuthResponse }) {
         <span>{t.profile.account.email}</span>
         <input value={user.email} disabled />
       </label>
+
+      {(user.role === 'COMPANY' || user.role === 'EMPLOYE') && <GoogleCalendarCard />}
+    </div>
+  );
+}
+
+// ============================================================================
+// Google Calendar: connect/disconnect (COMPANY and EMPLOYE only — the two roles
+// that actually get absences/tasks/interviews/payroll dates synced, see
+// GoogleCalendarSyncService on the backend). The OAuth flow leaves the SPA
+// entirely (browser redirect to Google and back), so status is re-checked from
+// the ?google=connected|error query param left by GoogleCalendarController#callback.
+// ============================================================================
+function GoogleCalendarCard() {
+  const { t } = useLanguage();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
+  const { data: connected, isLoading } = useQuery({
+    queryKey: ['google-calendar-status'],
+    queryFn: googleCalendarApi.status,
+  });
+
+  const connectMutation = useMutation({
+    mutationFn: googleCalendarApi.getAuthorizationUrl,
+    onSuccess: (url) => {
+      window.location.href = url;
+    },
+    onError: (err) => toast.showError(getErrorMessage(err, t.profile.googleCalendar.errorConnect)),
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: googleCalendarApi.disconnect,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['google-calendar-status'] });
+      toast.showSuccess(t.profile.googleCalendar.disconnectedSuccess);
+    },
+    onError: (err) => toast.showError(getErrorMessage(err, t.profile.googleCalendar.errorDisconnect)),
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('google');
+    if (result === 'connected') {
+      toast.showSuccess(t.profile.googleCalendar.connectedSuccess);
+      queryClient.invalidateQueries({ queryKey: ['google-calendar-status'] });
+    } else if (result === 'error') {
+      toast.showError(t.profile.googleCalendar.errorConnect);
+    }
+    if (result) {
+      // Nettoie l'URL pour ne pas redéclencher ce toast à chaque rafraîchissement de la page.
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div>
+      <h3 className="profile-panel__title" style={{ marginTop: 20 }}>{t.profile.googleCalendar.title}</h3>
+      <p className="field-hint">{t.profile.googleCalendar.description}</p>
+      {isLoading ? (
+        <p className="jobs__status">{t.profile.googleCalendar.loading}</p>
+      ) : connected ? (
+        <div className="chart-card__actions">
+          <span className="badge badge--success">{t.profile.googleCalendar.connected}</span>
+          <button
+            className="btn btn--ghost"
+            type="button"
+            onClick={() => disconnectMutation.mutate()}
+            disabled={disconnectMutation.isPending}
+          >
+            {t.profile.googleCalendar.disconnect}
+          </button>
+        </div>
+      ) : (
+        <button
+          className="btn btn--primary"
+          type="button"
+          onClick={() => connectMutation.mutate()}
+          disabled={connectMutation.isPending}
+        >
+          {t.profile.googleCalendar.connect}
+        </button>
+      )}
     </div>
   );
 }
@@ -326,6 +411,22 @@ function CompanyCard({ companyId }: { companyId: number }) {
     e.target.value = '';
   };
 
+  const signatureMutation = useMutation({
+    mutationFn: (file: File) => companiesApi.uploadSignature(companyId, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company', companyId] });
+      setError(null);
+    },
+    onError: (err) => setError(getErrorMessage(err, t.profile.company.errorUploadSignature)),
+  });
+
+  const handleSignatureChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    signatureMutation.mutate(file);
+    e.target.value = '';
+  };
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!form) return;
@@ -361,6 +462,21 @@ function CompanyCard({ companyId }: { companyId: number }) {
             accept="image/png,image/jpeg,image/gif"
             onChange={handleLogoChange}
             disabled={logoMutation.isPending}
+          />
+        </label>
+      </div>
+
+      <div className="field-with-preview">
+        {company?.signatureFileName && (
+          <img className="signature-preview" src={fileUrl(company.signatureFileName)} alt={t.profile.company.signature} />
+        )}
+        <label className="field">
+          <span>{t.profile.company.signature}</span>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/gif"
+            onChange={handleSignatureChange}
+            disabled={signatureMutation.isPending}
           />
         </label>
       </div>

@@ -1,11 +1,14 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Paperclip } from 'lucide-react';
 import { messagesApi } from '@/api/messages';
 import { useLanguage } from '@/i18n/useLanguage';
 import { getErrorMessage } from '@/lib/errors';
 import { timeAgo } from '@/components/NotificationBell';
 import { useToast } from '@/components/ToastProvider';
-import type { EmployeeMessage } from '@/types';
+import type { EmployeeMessage, MessageCategory } from '@/types';
+
+const MESSAGE_CATEGORIES: MessageCategory[] = ['DOCUMENT_REQUEST', 'WORK_ORGANIZATION', 'CAREER_DEVELOPMENT', 'OTHER'];
 
 interface Thread {
   employeeUserId: number;
@@ -43,20 +46,51 @@ export function ReceivedMessagesPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [drafts, setDrafts] = useState<Record<number, string>>({});
+  const [files, setFiles] = useState<Record<number, File | null>>({});
+  const [fileInputKey, setFileInputKey] = useState<Record<number, number>>({});
+  const [categoryFilter, setCategoryFilter] = useState<MessageCategory | 'ALL'>('ALL');
 
   const { data: messages, isLoading, isError } = useQuery({
     queryKey: ['messages', 'received'],
     queryFn: messagesApi.listReceived,
   });
 
-  const threads = useMemo(() => buildThreads(messages ?? []), [messages]);
+  const allThreads = useMemo(() => buildThreads(messages ?? []), [messages]);
+  const threads = useMemo(
+    () =>
+      categoryFilter === 'ALL'
+        ? allThreads
+        : allThreads.filter((th) => th.messages.some((m) => m.category === categoryFilter)),
+    [allThreads, categoryFilter],
+  );
+
+  // Stats calculées sur l'ensemble non filtré (les messages initiés par un employé uniquement —
+  // les réponses de l'entreprise n'ont pas de catégorie, voir Message.category côté backend).
+  const stats = useMemo(() => {
+    const counts: Record<MessageCategory, number> = {
+      DOCUMENT_REQUEST: 0,
+      WORK_ORGANIZATION: 0,
+      CAREER_DEVELOPMENT: 0,
+      OTHER: 0,
+    };
+    let total = 0;
+    (messages ?? []).forEach((m) => {
+      if (m.sender?.role === 'EMPLOYE') {
+        total += 1;
+        if (m.category) counts[m.category] += 1;
+      }
+    });
+    return { total, counts };
+  }, [messages]);
 
   const replyMutation = useMutation({
-    mutationFn: ({ employeeUserId, content }: { employeeUserId: number; content: string }) =>
-      messagesApi.reply(employeeUserId, { content }),
+    mutationFn: ({ employeeUserId, content, file }: { employeeUserId: number; content: string; file: File | null }) =>
+      messagesApi.reply(employeeUserId, content, file),
     onSuccess: (_sent, variables) => {
       queryClient.invalidateQueries({ queryKey: ['messages', 'received'] });
       setDrafts((d) => ({ ...d, [variables.employeeUserId]: '' }));
+      setFiles((f) => ({ ...f, [variables.employeeUserId]: null }));
+      setFileInputKey((k) => ({ ...k, [variables.employeeUserId]: (k[variables.employeeUserId] ?? 0) + 1 }));
       toast.showSuccess(t.receivedMessages.replySuccess);
     },
     onError: (err) => toast.showError(getErrorMessage(err, t.receivedMessages.errorReply)),
@@ -66,7 +100,7 @@ export function ReceivedMessagesPage() {
     e.preventDefault();
     const content = (drafts[employeeUserId] ?? '').trim();
     if (!content) return;
-    replyMutation.mutate({ employeeUserId, content });
+    replyMutation.mutate({ employeeUserId, content, file: files[employeeUserId] ?? null });
   };
 
   return (
@@ -75,6 +109,34 @@ export function ReceivedMessagesPage() {
         <h1>{t.receivedMessages.title}</h1>
         <p className="page__subtitle">{t.receivedMessages.subtitle}</p>
       </div>
+
+      {!isLoading && !isError && (messages ?? []).length > 0 && (
+        <div className="stat-grid">
+          <div className="stat-tile">
+            <span className="stat-tile__label">{t.receivedMessages.statTotal}</span>
+            <span className="stat-tile__value">{stats.total}</span>
+          </div>
+          {MESSAGE_CATEGORIES.map((c) => (
+            <div className="stat-tile" key={c}>
+              <span className="stat-tile__label">{t.messageCategory[c]}</span>
+              <span className="stat-tile__value">{stats.counts[c]}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!isLoading && !isError && (messages ?? []).length > 0 && (
+        <div className="toolbar">
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as MessageCategory | 'ALL')}>
+            <option value="ALL">{t.receivedMessages.allCategories}</option>
+            {MESSAGE_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {t.messageCategory[c]}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {isLoading && <p className="jobs__status">{t.receivedMessages.loading}</p>}
       {isError && <p className="jobs__status">{t.receivedMessages.errorLoad}</p>}
@@ -97,7 +159,18 @@ export function ReceivedMessagesPage() {
                   return (
                     <li key={m.id} className={`message-list__item${fromUs ? ' message-list__item--reply' : ''}`}>
                       {fromUs && <span className="message-list__from">{t.receivedMessages.youLabel}</span>}
+                      {!fromUs && m.category && <span className="badge badge--muted">{t.messageCategory[m.category]}</span>}
                       <p className="message-list__content">{m.content}</p>
+                      {m.attachment && (
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => messagesApi.downloadAttachment(m.id, m.attachment)}
+                        >
+                          <Paperclip size={14} aria-hidden="true" />
+                          {t.receivedMessages.downloadAttachment}
+                        </button>
+                      )}
                       <span className="message-list__time">{timeAgo(m.createdAt, t)}</span>
                     </li>
                   );
@@ -105,10 +178,17 @@ export function ReceivedMessagesPage() {
               </ul>
               <form className="message-reply" onSubmit={(e) => handleReplySubmit(e, th.employeeUserId)}>
                 <input
+                  type="text"
                   value={drafts[th.employeeUserId] ?? ''}
                   onChange={(e) => setDrafts((d) => ({ ...d, [th.employeeUserId]: e.target.value }))}
                   placeholder={t.receivedMessages.replyPlaceholder}
                   maxLength={1000}
+                />
+                <input
+                  key={fileInputKey[th.employeeUserId] ?? 0}
+                  type="file"
+                  className="message-reply__file"
+                  onChange={(e) => setFiles((f) => ({ ...f, [th.employeeUserId]: e.target.files?.[0] ?? null }))}
                 />
                 <button
                   type="submit"

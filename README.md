@@ -26,6 +26,9 @@ Scénario de présentation avec captures d'écran : [docs/demo.md](docs/demo.md)
   planification d'entretiens.
 - **Rôles** : `ADMIN` (vue plateforme), `COMPANY` (gestion de son entreprise), `GUEST`
   (candidat - postule aux offres, suit ses candidatures).
+- **Google Calendar** (optionnel) : connexion OAuth par utilisateur (COMPANY et EMPLOYE) pour
+  synchroniser en temps réel absences, tâches, entretiens et dates de paie vers un calendrier
+  Google dédié "HumanEdge".
 
 ## Stack technique
 
@@ -53,6 +56,8 @@ cp .env.example .env
 #   - nécessaire pour les emails MFA/reset
 # - JWT_SECRET/MYSQL_ROOT_PASSWORD : n'importe quelle valeur aléatoire locale, ex.
 #   `openssl rand -base64 48` - jamais de valeur déjà commitée dans l'historique git
+# - GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET (optionnel) : uniquement pour la sync Google Calendar,
+#   voir la procédure Google Cloud Console dans .env.example - l'app tourne normalement sans
 
 docker compose up --build
 ```

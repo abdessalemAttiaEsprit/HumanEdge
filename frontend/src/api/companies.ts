@@ -35,6 +35,15 @@ export const companiesApi = {
       .then((r) => r.data);
   },
 
+  /** Signature embedded by the backend (PdfService) in generated documents (contract, attestation, payslip). */
+  uploadSignature(id: number, file: File): Promise<Company> {
+    const form = new FormData();
+    form.append('file', file);
+    return api
+      .post<Company>(`/api/companies/${id}/signature`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+      .then((r) => r.data);
+  },
+
   /** ADMIN: marks the company's fiscal/CNSS documents as verified. */
   verify(id: number): Promise<Company> {
     return api.put<Company>(`/api/companies/${id}/verify`).then((r) => r.data);

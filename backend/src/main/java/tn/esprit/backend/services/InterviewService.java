@@ -5,10 +5,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tn.esprit.backend.entities.Application;
+import tn.esprit.backend.entities.Enum.Role;
+import tn.esprit.backend.entities.Enum.SyncSourceType;
 import tn.esprit.backend.entities.Interview;
 import tn.esprit.backend.entities.JobPosting;
 import tn.esprit.backend.exceptions.ResourceNotFoundException;
 import tn.esprit.backend.repositories.InterviewRepo;
+import tn.esprit.backend.repositories.UserRepository;
 import tn.esprit.backend.security.OwnershipGuard;
 
 import java.time.LocalDateTime;
@@ -22,9 +25,11 @@ public class InterviewService {
     private final ApplicationService applicationService;
     private final JobPostingService jobPostingService;
     private final CandidateServiceImpl candidateService;
+    private final UserRepository userRepository;
     private final OwnershipGuard ownershipGuard;
     private final InterviewEmailNotificationService interviewEmailNotificationService;
     private final NotificationService notificationService;
+    private final GoogleCalendarSyncService googleCalendarSyncService;
 
     @Transactional // Garantit que l'entretien ET la candidature sont mis à jour ensemble
     public Interview scheduleInterview(Long applicationId, LocalDateTime date, String location) {
@@ -53,6 +58,7 @@ public class InterviewService {
             notificationService.notify(app.getCandidate().getUser(),
                     "Interview scheduled for \"" + app.getJobPosting().getTitle() + "\" on " + date + ".");
         }
+        syncInterviewToGoogleCalendar(saved);
         return saved;
     }
 
@@ -68,7 +74,9 @@ public class InterviewService {
             interviewEmailNotificationService.notifyInterviewCompleted(interview.getCandidate(), interview.getJob(), interview);
         }
 
-        return interviewRepository.save(interview);
+        Interview saved = interviewRepository.save(interview);
+        syncInterviewToGoogleCalendar(saved); // rafraîchit la description (statut) de l'événement existant
+        return saved;
     }
 
     public Interview createInterview(Interview interview) {
@@ -79,7 +87,9 @@ public class InterviewService {
         if (interview.getCreatedAt() == null) {
             interview.setCreatedAt(LocalDateTime.now());
         }
-        return interviewRepository.save(interview);
+        Interview saved = interviewRepository.save(interview);
+        syncInterviewToGoogleCalendar(saved);
+        return saved;
     }
 
     public Interview getInterviewById(Long id) {
@@ -127,12 +137,39 @@ public class InterviewService {
         interview.setInterviewDate(interviewDetails.getInterviewDate());
         interview.setInterviewLocation(interviewDetails.getInterviewLocation());
         interview.setStatus(interviewDetails.getStatus());
-        return interviewRepository.save(interview);
+        Interview saved = interviewRepository.save(interview);
+        syncInterviewToGoogleCalendar(saved);
+        return saved;
     }
 
     public void deleteInterview(Long id) {
         Interview interview = getInterviewById(id); // vérifie déjà la propriété
         interviewRepository.delete(interview);
+        googleCalendarSyncService.deleteEventForAllUsers(SyncSourceType.INTERVIEW, id);
+    }
+
+    /**
+     * Synchronise un entretien vers Google Calendar, sur le calendrier de chaque compte COMPANY
+     * de l'entreprise propriétaire de l'offre (pas l'employé : les entretiens ne concernent que
+     * l'entreprise et le candidat, voir la page Interviews). Durée par défaut d'1h (l'entité
+     * Interview ne porte pas de date de fin).
+     */
+    private void syncInterviewToGoogleCalendar(Interview interview) {
+        JobPosting job = interview.getJob();
+        if (job == null || job.getCreatedByCompany() == null || interview.getInterviewDate() == null) {
+            return;
+        }
+        String candidateName = interview.getCandidate() != null
+                ? (interview.getCandidate().getFirstName() + " " + interview.getCandidate().getLastName()).trim()
+                : "Candidate";
+        String title = "Interview: " + candidateName + " — " + job.getTitle();
+        String description = "Status: " + interview.getStatus();
+        LocalDateTime start = interview.getInterviewDate();
+        LocalDateTime end = start.plusHours(1);
+        userRepository.findByCompany_IdCompany(job.getCreatedByCompany().getIdCompany()).stream()
+                .filter(u -> u.getRole() == Role.COMPANY)
+                .forEach(u -> googleCalendarSyncService.syncTimedEvent(
+                        u, SyncSourceType.INTERVIEW, interview.getId(), title, description, start, end, interview.getInterviewLocation()));
     }
 
     private void checkCompanyOwnsJob(JobPosting job) {

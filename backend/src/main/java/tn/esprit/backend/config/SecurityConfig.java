@@ -68,6 +68,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
+                        // Point de retour de Google après consentement : traversé par une redirection
+                        // navigateur, donc jamais de header Authorization à ce stade - la sécurité
+                        // vient du state signé (voir GoogleOAuthStateService), pas d'un JWT.
+                        .requestMatchers(HttpMethod.GET, "/api/google/oauth/callback").permitAll()
                         // Uniquement les images (avatars/logos, affichés via <img src> qui ne peut pas
                         // porter d'en-tête Authorization) : les PDF/CV/justificatifs stockés dans le même
                         // dossier passent tous par des endpoints authentifiés + vérifiés par OwnershipGuard

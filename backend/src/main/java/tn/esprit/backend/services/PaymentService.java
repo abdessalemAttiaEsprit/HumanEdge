@@ -8,6 +8,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import tn.esprit.backend.entities.Absence;
 import tn.esprit.backend.entities.Contract;
+import tn.esprit.backend.entities.Enum.Role;
+import tn.esprit.backend.entities.Enum.SyncSourceType;
 import tn.esprit.backend.entities.Payment;
 import tn.esprit.backend.entities.Personnel;
 import tn.esprit.backend.exceptions.BadRequestException;
@@ -15,6 +17,7 @@ import tn.esprit.backend.exceptions.ResourceNotFoundException;
 import tn.esprit.backend.repositories.ContractRepo;
 import tn.esprit.backend.repositories.PaymentRepo;
 import tn.esprit.backend.repositories.PersonnelRepo;
+import tn.esprit.backend.repositories.UserRepository;
 import tn.esprit.backend.security.OwnershipGuard;
 
 import java.time.LocalDate;
@@ -30,10 +33,12 @@ public class PaymentService {
     private final PaymentRepo paymentRepository;
     private final PersonnelRepo personnelRepository;
     private final ContractRepo contractRepository;
+    private final UserRepository userRepository;
     private final OwnershipGuard ownershipGuard;
     private final PaymentEmailNotificationService paymentEmailNotificationService;
     private final PaymentSuggestionService paymentSuggestionService;
     private final SalaryCalculationService salaryCalculationService;
+    private final GoogleCalendarSyncService googleCalendarSyncService;
 
     @Transactional(readOnly = true)
     public List<Payment> getAllPayments() {
@@ -55,7 +60,9 @@ public class PaymentService {
     @Transactional
     public Payment createPayment(Payment payment) {
         checkTargetAccess(payment);
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+        syncPaymentToGoogleCalendar(saved, saved.getPaymentDate());
+        return saved;
     }
 
     /**
@@ -109,7 +116,9 @@ public class PaymentService {
             existingPayment.setCompany(paymentDetails.getCompany());
         }
 
-        return paymentRepository.save(existingPayment);
+        Payment saved = paymentRepository.save(existingPayment);
+        syncPaymentToGoogleCalendar(saved, saved.getPaymentDate());
+        return saved;
     }
 
     /**
@@ -121,6 +130,10 @@ public class PaymentService {
         payment.setStatus("VALIDATED");
         Payment saved = paymentRepository.save(payment);
         paymentEmailNotificationService.notifyPaymentValidated(saved.getPersonnel(), saved);
+        // La validation est le moment où la paie devient définitive : si aucune date de paiement
+        // n'a été renseignée (ex: généré par generateMonthlyPayroll, qui n'en fixe pas), on
+        // utilise la date de validation elle-même plutôt que de ne rien synchroniser du tout.
+        syncPaymentToGoogleCalendar(saved, saved.getPaymentDate() != null ? saved.getPaymentDate() : LocalDate.now());
         return saved;
     }
 
@@ -223,6 +236,42 @@ public class PaymentService {
 
     private static double nz(Double value) {
         return value == null ? 0.0 : value;
+    }
+
+    /**
+     * Synchronise une échéance de paie vers Google Calendar - uniquement sur le calendrier des
+     * comptes COMPANY de l'entreprise ("pour l'employeur", jamais l'employé lui-même). Pas
+     * d'effet si eventDate est null (ex: bulletin généré en masse par generateMonthlyPayroll,
+     * qui ne fixe pas de date de paiement).
+     */
+    private void syncPaymentToGoogleCalendar(Payment payment, LocalDate eventDate) {
+        if (eventDate == null) {
+            return;
+        }
+        Long companyId = resolveCompanyId(payment);
+        if (companyId == null) {
+            return;
+        }
+        String employeeName = payment.getPersonnel() != null && payment.getPersonnel().getUser() != null
+                ? (payment.getPersonnel().getUser().getFirstname() + " " + payment.getPersonnel().getUser().getLastname()).trim()
+                : "Employee";
+        String title = "Payroll: " + employeeName + " (" + payment.getMonth() + " " + payment.getYear() + ")";
+        String description = "Status: " + payment.getStatus() + (payment.getPayed() != null ? " — " + payment.getPayed() + " TND" : "");
+        userRepository.findByCompany_IdCompany(companyId).stream()
+                .filter(u -> u.getRole() == Role.COMPANY)
+                .forEach(u -> googleCalendarSyncService.syncAllDayEvent(
+                        u, SyncSourceType.PAYMENT, payment.getId(), title, description, eventDate, eventDate, null));
+    }
+
+    private static Long resolveCompanyId(Payment payment) {
+        if (payment.getCompany() != null && payment.getCompany().getIdCompany() != null) {
+            return payment.getCompany().getIdCompany();
+        }
+        if (payment.getPersonnel() != null && payment.getPersonnel().getUser() != null
+                && payment.getPersonnel().getUser().getCompany() != null) {
+            return payment.getPersonnel().getUser().getCompany().getIdCompany();
+        }
+        return null;
     }
 
     /**

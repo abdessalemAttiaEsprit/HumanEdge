@@ -85,6 +85,13 @@ public class CompanyController {
         return companyService.uploadLogo(id, file);
     }
 
+    /** Uploads/replaces the company signature, embedded by PdfService in generated documents. */
+    @PostMapping("/{id}/signature")
+    @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY')")
+    public Company uploadSignature(@PathVariable Long id, @RequestParam("file") MultipartFile file) {
+        return companyService.uploadSignature(id, file);
+    }
+
     /** Abonnement plateforme souscrit à l'inscription (voir Subscription/PaymentSimulatorService). */
     @GetMapping("/{id}/subscription")
     @PreAuthorize("hasAnyRole('ADMIN', 'COMPANY')")

@@ -53,5 +53,13 @@ public class Personnel{
     @OneToMany(mappedBy = "personnel", cascade = CascadeType.ALL)
     @JsonManagedReference // Personnel affichera sa liste de tâches (voir Task.personnel)
     private List<Task> tasks = new ArrayList<>();
+
+    @OneToMany(mappedBy = "personnel", cascade = CascadeType.ALL)
+    @JsonManagedReference // Personnel affichera sa liste de compétences (voir Skill.personnel)
+    private List<Skill> skills = new ArrayList<>();
+
+    @OneToMany(mappedBy = "personnel", cascade = CascadeType.ALL)
+    @JsonManagedReference // Personnel affichera sa liste de diplômes (voir Diploma.personnel)
+    private List<Diploma> diplomas = new ArrayList<>();
 }
 

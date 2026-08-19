@@ -30,6 +30,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Absences', key: 'absences', path: '/absences', roles: ['COMPANY', 'EMPLOYE'], icon: '🗓️', iconSrc: '/assets/nav-icons/absences.png' },
   { label: 'Payroll', key: 'payroll', path: '/payments', roles: ['COMPANY', 'EMPLOYE'], icon: '💰', iconSrc: '/assets/nav-icons/payroll.png' },
   { label: 'Tasks', key: 'tasks', path: '/tasks', roles: ['COMPANY', 'EMPLOYE'], icon: '✅', iconSrc: '/assets/nav-icons/tasks.png' },
+  { label: 'Skills', key: 'skills', path: '/skills', roles: ['EMPLOYE'], icon: '🎓', iconSrc: '/assets/nav-icons/diplome.png' },
+  { label: 'Skills Validation', key: 'skillsValidation', path: '/skills/validation', roles: ['COMPANY'], icon: '🏅', iconSrc: '/assets/nav-icons/diplome.png' },
   { label: 'Messages', key: 'messages', path: '/messages', roles: ['COMPANY'], icon: '✉️', iconSrc: '/assets/nav-icons/messages.png' },
   { label: 'Job Postings', key: 'jobPostings', path: '/jobs', roles: ['COMPANY', 'EMPLOYE', 'GUEST'], icon: '📢', iconSrc: '/assets/nav-icons/job-postings.png' },
   { label: 'Candidates', key: 'candidates', path: '/candidates', roles: ['GUEST'], icon: '🧑‍💼', iconSrc: '/assets/nav-icons/candidates.png' },

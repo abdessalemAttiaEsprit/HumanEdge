@@ -272,9 +272,11 @@ public class AuthService {
                 companyUpdated = true;
             }
 
-            // Stockage de la signature numérique
+            // Stockage de la signature numérique - restreint à une image (comme le logo) : elle
+            // est embarquée telle quelle dans les PDF générés par PdfService, qui ne sait pas
+            // lire un PDF/Word comme image.
             if (signature != null && !signature.isEmpty()) {
-                String signatureFilename = fileStorageService.store(signature, companyPrefix + "_signature", false);
+                String signatureFilename = fileStorageService.store(signature, companyPrefix + "_signature", true);
                 company.setSignatureFileName(signatureFilename);
                 companyUpdated = true;
             }

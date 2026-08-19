@@ -5,14 +5,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import tn.esprit.backend.entities.Enum.Role;
+import tn.esprit.backend.entities.Enum.SyncSourceType;
+import tn.esprit.backend.entities.Enum.TaskPriority;
 import tn.esprit.backend.entities.Enum.TaskStatus;
 import tn.esprit.backend.entities.Personnel;
 import tn.esprit.backend.entities.Task;
+import tn.esprit.backend.entities.User;
 import tn.esprit.backend.exceptions.BadRequestException;
 import tn.esprit.backend.exceptions.ResourceNotFoundException;
 import tn.esprit.backend.repositories.PersonnelRepo;
 import tn.esprit.backend.repositories.TaskRepo;
+import tn.esprit.backend.repositories.UserRepository;
 import tn.esprit.backend.security.OwnershipGuard;
 
 import java.time.LocalDateTime;
@@ -30,8 +36,11 @@ public class TaskService {
 
     private final TaskRepo taskRepository;
     private final PersonnelRepo personnelRepository;
+    private final UserRepository userRepository;
     private final OwnershipGuard ownershipGuard;
     private final NotificationService notificationService;
+    private final FileStorageService fileStorageService;
+    private final GoogleCalendarSyncService googleCalendarSyncService;
 
     @Transactional
     public Task createTask(Task task) {
@@ -40,6 +49,9 @@ public class TaskService {
 
         task.setPersonnel(realPersonnel);
         task.setStatus(TaskStatus.TODO);
+        if (task.getPriority() == null) {
+            task.setPriority(TaskPriority.MEDIUM);
+        }
         task.setCreatedAt(LocalDateTime.now());
 
         Task saved = taskRepository.save(task);
@@ -48,6 +60,7 @@ public class TaskService {
             notificationService.notify(realPersonnel.getUser(),
                     "New task assigned: " + saved.getTitle() + " (due " + saved.getEndDate() + ").");
         }
+        syncTaskToGoogleCalendar(saved);
         return saved;
     }
 
@@ -68,9 +81,14 @@ public class TaskService {
         existingTask.setDescription(taskDetails.getDescription());
         existingTask.setStartDate(taskDetails.getStartDate());
         existingTask.setEndDate(taskDetails.getEndDate());
+        if (taskDetails.getPriority() != null) {
+            existingTask.setPriority(taskDetails.getPriority());
+        }
         validatePeriod(existingTask);
 
-        return taskRepository.save(existingTask);
+        Task saved = taskRepository.save(existingTask);
+        syncTaskToGoogleCalendar(saved);
+        return saved;
     }
 
     /**
@@ -81,7 +99,9 @@ public class TaskService {
     public Task updateStatus(Long id, TaskStatus status) {
         Task task = getTaskById(id); // vérifie déjà la propriété
         task.setStatus(status);
-        return taskRepository.save(task);
+        Task saved = taskRepository.save(task);
+        syncTaskToGoogleCalendar(saved); // rafraîchit la description (statut) de l'événement existant
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -112,6 +132,38 @@ public class TaskService {
     public void deleteTask(Long id) {
         Task task = getTaskById(id); // vérifie déjà la propriété
         taskRepository.delete(task);
+        googleCalendarSyncService.deleteEventForAllUsers(SyncSourceType.TASK, id);
+    }
+
+    /** Dépose la pièce jointe (fichier) d'une tâche — remplace toute pièce jointe précédente. */
+    @Transactional
+    public Task uploadAttachment(Long id, MultipartFile file) {
+        Task task = getTaskById(id); // vérifie déjà la propriété
+        String storedFilename = fileStorageService.store(file, "task_" + id, false);
+        task.setAttachment(storedFilename);
+        return taskRepository.save(task);
+    }
+
+    /**
+     * Synchronise une tâche vers Google Calendar : sur le calendrier de l'employé assigné et de
+     * chaque compte COMPANY de son entreprise (voir GoogleCalendarSyncService, no-op silencieux
+     * si l'un ou l'autre n'est pas connecté). Le statut est inclus dans la description pour que
+     * l'événement reste à jour à chaque changement (voir updateStatus).
+     */
+    private void syncTaskToGoogleCalendar(Task task) {
+        Personnel personnel = task.getPersonnel();
+        if (personnel == null || personnel.getUser() == null) {
+            return;
+        }
+        User owner = personnel.getUser();
+        String title = "Task: " + task.getTitle();
+        String description = (task.getDescription() != null ? task.getDescription() + "\n\n" : "") + "Status: " + task.getStatus();
+        googleCalendarSyncService.syncAllDayEvent(owner, SyncSourceType.TASK, task.getIdTask(), title, description, task.getStartDate(), task.getEndDate(), null);
+        if (owner.getCompany() != null) {
+            userRepository.findByCompany_IdCompany(owner.getCompany().getIdCompany()).stream()
+                    .filter(u -> u.getRole() == Role.COMPANY)
+                    .forEach(u -> googleCalendarSyncService.syncAllDayEvent(u, SyncSourceType.TASK, task.getIdTask(), title, description, task.getStartDate(), task.getEndDate(), null));
+        }
     }
 
     private void validatePeriod(Task task) {

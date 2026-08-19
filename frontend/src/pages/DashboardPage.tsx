@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Users, CalendarX2, Briefcase } from 'lucide-react';
+import { Users, CalendarX2, Briefcase, Paperclip } from 'lucide-react';
 import { useAuth } from '@/auth/useAuth';
 import { useLanguage } from '@/i18n/useLanguage';
 import { navItemsForRole } from '@/config/navigation';
@@ -20,7 +20,7 @@ import { BarChart, StackedBarChart, type StackedDatum } from '@/components/chart
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { timeAgo } from '@/components/NotificationBell';
 import { useToast } from '@/components/ToastProvider';
-import type { Absence, EmployeeMessage, Interview, Month, Personnel } from '@/types';
+import type { Absence, EmployeeMessage, Interview, MessageCategory, Month, Personnel } from '@/types';
 
 const CNSS_RATE = 0.0918; // fixed employee CNSS rate — see PayrollPage.suggestAmounts
 
@@ -245,12 +245,15 @@ function messageSenderLabel(sender: EmployeeMessage['sender']): string {
   return `${sender.firstname} ${sender.lastname}`.trim();
 }
 
+const MESSAGE_CATEGORIES: MessageCategory[] = ['DOCUMENT_REQUEST', 'WORK_ORGANIZATION', 'CAREER_DEVELOPMENT', 'OTHER'];
+
 function EmployeeDashboard({ firstname }: { firstname: string }) {
   const { t } = useLanguage();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const toast = useToast();
   const [content, setContent] = useState('');
+  const [category, setCategory] = useState<MessageCategory>('OTHER');
 
   const { data: messages, isLoading, isError } = useQuery({
     queryKey: ['messages', 'mine'],
@@ -271,7 +274,7 @@ function EmployeeDashboard({ firstname }: { firstname: string }) {
     e.preventDefault();
     const trimmed = content.trim();
     if (!trimmed) return;
-    sendMutation.mutate({ content: trimmed });
+    sendMutation.mutate({ content: trimmed, category });
   };
 
   return (
@@ -284,6 +287,16 @@ function EmployeeDashboard({ firstname }: { firstname: string }) {
       <div className="message-space">
         <form className="chart-card" onSubmit={handleSubmit}>
           <h2 className="chart-card__title">{t.dashboard.employee.composerTitle}</h2>
+          <label className="field">
+            <span>{t.dashboard.employee.categoryLabel}</span>
+            <select value={category} onChange={(e) => setCategory(e.target.value as MessageCategory)}>
+              {MESSAGE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {t.messageCategory[c]}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="field">
             <textarea
               rows={3}
@@ -314,7 +327,18 @@ function EmployeeDashboard({ firstname }: { firstname: string }) {
                 return (
                   <li key={m.id} className={`message-list__item${isMine ? '' : ' message-list__item--reply'}`}>
                     {!isMine && <span className="message-list__from">{messageSenderLabel(m.sender)}</span>}
+                    {isMine && m.category && <span className="badge badge--muted">{t.messageCategory[m.category]}</span>}
                     <p className="message-list__content">{m.content}</p>
+                    {m.attachment && (
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--sm"
+                        onClick={() => messagesApi.downloadAttachment(m.id, m.attachment)}
+                      >
+                        <Paperclip size={14} aria-hidden="true" />
+                        {t.dashboard.employee.downloadAttachment}
+                      </button>
+                    )}
                     <span className="message-list__time">{timeAgo(m.createdAt, t)}</span>
                   </li>
                 );

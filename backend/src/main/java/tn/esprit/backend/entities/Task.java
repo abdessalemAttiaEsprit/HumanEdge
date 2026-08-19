@@ -3,6 +3,7 @@ package tn.esprit.backend.entities;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
+import tn.esprit.backend.entities.Enum.TaskPriority;
 import tn.esprit.backend.entities.Enum.TaskStatus;
 
 import java.time.LocalDate;
@@ -38,6 +39,11 @@ public class Task {
     @Builder.Default
     private TaskStatus status = TaskStatus.TODO;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private TaskPriority priority = TaskPriority.MEDIUM;
+
     // Même pattern que Absence.personnel / Contract.personnel : jamais sérialisé en lecture
     // directe (JsonBackReference), l'employé d'une tâche se retrouve via Personnel.tasks côté
     // frontend (voir personnelByTaskId sur TasksPage.tsx).
@@ -48,4 +54,9 @@ public class Task {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    // Nom de fichier stocké (voir FileStorageService), jamais l'URL/chemin brut - null si aucune
+    // pièce jointe. Téléchargeable via GET /api/tasks/{id}/attachment (jamais via /uploads/**
+    // directement : un PDF/Word y est explicitement bloqué, voir SecurityConfig).
+    private String attachment;
 }

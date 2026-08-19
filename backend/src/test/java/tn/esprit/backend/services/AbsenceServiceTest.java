@@ -45,13 +45,14 @@ class AbsenceServiceTest {
     @Mock private OwnershipGuard ownershipGuard;
     @Mock private NotificationService notificationService;
     @Mock private FileStorageService fileStorageService;
+    @Mock private GoogleCalendarSyncService googleCalendarSyncService;
 
     private AbsenceService absenceService;
 
     @BeforeEach
     void setUp() {
         absenceService = new AbsenceService(absenceRepository, personnelRepository, userRepository,
-                ownershipGuard, new AbsenceQuotaCalculator(), fileStorageService, notificationService);
+                ownershipGuard, new AbsenceQuotaCalculator(), fileStorageService, notificationService, googleCalendarSyncService);
     }
 
     private Personnel personnelInCompany(long companyId) {

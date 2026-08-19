@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.access.AccessDeniedException;
 import tn.esprit.backend.entities.Company;
 import tn.esprit.backend.entities.Enum.TaskStatus;
@@ -14,17 +15,21 @@ import tn.esprit.backend.entities.User;
 import tn.esprit.backend.exceptions.BadRequestException;
 import tn.esprit.backend.repositories.PersonnelRepo;
 import tn.esprit.backend.repositories.TaskRepo;
+import tn.esprit.backend.repositories.UserRepository;
 import tn.esprit.backend.security.OwnershipGuard;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,14 +45,21 @@ class TaskServiceTest {
 
     @Mock private TaskRepo taskRepository;
     @Mock private PersonnelRepo personnelRepository;
+    @Mock private UserRepository userRepository;
     @Mock private OwnershipGuard ownershipGuard;
     @Mock private NotificationService notificationService;
+    @Mock private FileStorageService fileStorageService;
+    @Mock private GoogleCalendarSyncService googleCalendarSyncService;
 
     private TaskService taskService;
 
     @BeforeEach
     void setUp() {
-        taskService = new TaskService(taskRepository, personnelRepository, ownershipGuard, notificationService);
+        taskService = new TaskService(taskRepository, personnelRepository, userRepository,
+                ownershipGuard, notificationService, fileStorageService, googleCalendarSyncService);
+        // Atteint par syncTaskToGoogleCalendar (appelé après chaque save réussi) mais pas par les
+        // tests qui échouent avant - lenient() pour ne pas déclencher UnnecessaryStubbingException.
+        lenient().when(userRepository.findByCompany_IdCompany(anyLong())).thenReturn(List.of());
     }
 
     private Personnel personnelInCompany(long companyId) {
@@ -182,5 +194,32 @@ class TaskServiceTest {
 
         assertThatThrownBy(() -> taskService.deleteTask(1L)).isInstanceOf(AccessDeniedException.class);
         verify(taskRepository, never()).delete(any());
+    }
+
+    // ---- uploadAttachment ----
+
+    @Test
+    void uploadAttachmentChecksOwnershipBeforeStoring() {
+        Task taskInAnotherCompany = Task.builder().idTask(1L).personnel(personnelInCompany(99L)).build();
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(taskInAnotherCompany));
+        doThrow(new AccessDeniedException("no")).when(ownershipGuard).checkPersonnelAccess(taskInAnotherCompany.getPersonnel());
+
+        MockMultipartFile file = new MockMultipartFile("file", "instructions.pdf", "application/pdf", new byte[]{1});
+        assertThatThrownBy(() -> taskService.uploadAttachment(1L, file)).isInstanceOf(AccessDeniedException.class);
+        verify(fileStorageService, never()).store(any(), any(), eq(false));
+    }
+
+    @Test
+    void uploadAttachmentSavesTheStoredFilename() {
+        Personnel personnel = personnelInCompany(10L);
+        Task existing = Task.builder().idTask(1L).personnel(personnel).build();
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(fileStorageService.store(any(), eq("task_1"), eq(false))).thenReturn("task_1_abc.pdf");
+        when(taskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        MockMultipartFile file = new MockMultipartFile("file", "instructions.pdf", "application/pdf", new byte[]{1});
+        Task result = taskService.uploadAttachment(1L, file);
+
+        assertThat(result.getAttachment()).isEqualTo("task_1_abc.pdf");
     }
 }

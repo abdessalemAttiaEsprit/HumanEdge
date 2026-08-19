@@ -252,6 +252,8 @@ export interface Personnel {
   contract?: Contract;
   absences?: Absence[];
   tasks?: Task[];
+  skills?: Skill[];
+  diplomas?: Diploma[];
   department?: string;
 }
 
@@ -516,6 +518,9 @@ export interface AppNotification {
 }
 
 // GET /api/messages/me — espace de messagerie du dashboard EMPLOYE (message vers l'entreprise).
+/** Set only on an employee-initiated message — never on a company reply (see messagesApi.reply). */
+export type MessageCategory = 'DOCUMENT_REQUEST' | 'WORK_ORGANIZATION' | 'CAREER_DEVELOPMENT' | 'OTHER';
+
 export interface EmployeeMessage {
   id: number;
   content: string;
@@ -523,11 +528,15 @@ export interface EmployeeMessage {
   sender?: User;
   /** Set only on a company reply (see messagesApi.reply) — null/absent for an employee-initiated message. */
   recipient?: User;
+  category?: MessageCategory;
+  /** Stored filename of an attached file, if any — see messagesApi.downloadAttachment. Only ever set on a company reply. */
+  attachment?: string;
 }
 
 // POST /api/messages
 export interface MessageCreateRequest {
   content: string;
+  category?: MessageCategory;
 }
 
 /**
@@ -535,6 +544,7 @@ export interface MessageCreateRequest {
  * are only ever set via taskApi.updateStatus, never through the general task-details update.
  */
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE';
+export type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH';
 
 export interface Task {
   idTask: number;
@@ -543,10 +553,13 @@ export interface Task {
   startDate: string;
   endDate: string;
   status: TaskStatus;
+  priority: TaskPriority;
   // Never populated on read (Task.personnel is a JsonBackReference, same as Absence/Contract) —
   // the assigned employee is looked up from the Personnel list instead (personnel.tasks *is*
   // serialized there).
   personnel?: Personnel;
+  /** Stored filename of an attached file, if any — see tasksApi.uploadAttachment/downloadAttachment. */
+  attachment?: string;
 }
 
 // POST /api/tasks
@@ -555,6 +568,7 @@ export interface TaskCreateRequest {
   description?: string;
   startDate: string;
   endDate: string;
+  priority?: TaskPriority;
   personnel: { idPersonnel: number };
 }
 
@@ -564,6 +578,7 @@ export interface TaskUpdateRequest {
   description?: string;
   startDate: string;
   endDate: string;
+  priority?: TaskPriority;
   personnel?: { idPersonnel: number };
 }
 
@@ -575,4 +590,41 @@ export interface QuotaSnapshot {
   usedJustifiedDaysThisYear: number;
   remainingDays: number;
   asOfDate: string;
+}
+
+export type SkillStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type SkillCategory = 'GENERAL' | 'SPECIFIC';
+
+export interface Skill {
+  idSkill: number;
+  label: string;
+  category: SkillCategory;
+  status: SkillStatus;
+  /** true si ajoutée directement par la COMPANY (auto-approuvée) plutôt qu'auto-déclarée. */
+  addedByCompany: boolean;
+  createdAt: string;
+  // Never populated on read (Skill.personnel is a JsonBackReference, same as Task/Absence) —
+  // the owning employee is looked up from the Personnel list instead.
+  personnel?: Personnel;
+}
+
+// POST /api/skills, POST /api/skills/personnel/{id}
+export interface SkillCreateRequest {
+  label: string;
+  category: SkillCategory;
+}
+
+// GET /api/skills/suggestions
+export interface SkillSuggestions {
+  general: string[];
+  specific: string[];
+}
+
+export interface Diploma {
+  idDiploma: number;
+  name: string;
+  /** Stored filename — build the displayable URL with fileUrl(diploma.image). */
+  image: string;
+  createdAt: string;
+  personnel?: Personnel;
 }

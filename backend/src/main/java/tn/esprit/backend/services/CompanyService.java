@@ -84,6 +84,21 @@ public class CompanyService {
         return companyRepository.save(company);
     }
 
+    /**
+     * Remplace la signature de l'entreprise, embarquée par PdfService dans les documents générés
+     * (fiche de paie, contrat de travail, attestation) - restreinte à une image (PNG/JPEG/GIF)
+     * comme le logo, jamais un PDF/Word : PdfService#resolveUploadPath échouerait silencieusement
+     * à l'embarquer sinon (Image.getInstance ne sait lire qu'une image).
+     */
+    @Transactional
+    public Company uploadSignature(Long id, MultipartFile file) {
+        ownershipGuard.checkCompanyAccess(id);
+        Company company = findCompanyOrThrow(id);
+        String filename = fileStorageService.store(file, "company_" + id + "_signature", true);
+        company.setSignatureFileName(filename);
+        return companyRepository.save(company);
+    }
+
     public void deleteCompany(Long id) {
         if (!companyRepository.existsById(id)) {
             throw new ResourceNotFoundException("Company not found with id: " + id);

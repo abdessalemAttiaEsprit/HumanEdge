@@ -43,7 +43,12 @@ public class FileStorageService {
 
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-    public String store(MultipartFile file, String fileNamePrefix, boolean isLogo) {
+    /**
+     * @param restrictToImages true pour un fichier qui doit rester une image affichable (logo,
+     *                          signature embarquée dans un PDF via PdfService, photo de profil) :
+     *                          restreint à PNG/JPEG/GIF plutôt que d'accepter aussi PDF/Word.
+     */
+    public String store(MultipartFile file, String fileNamePrefix, boolean restrictToImages) {
         if (file == null || file.isEmpty()) {
             return null;
         }
@@ -51,13 +56,13 @@ public class FileStorageService {
         // Vérification du type de fichier
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED_IMAGE_TYPES.contains(contentType)) {
-            if (isLogo) {
-                throw new BadRequestException("The logo must be an image (PNG, JPEG, GIF).");
+            if (restrictToImages) {
+                throw new BadRequestException("The file must be an image (PNG, JPEG, GIF).");
             }
             throw new BadRequestException("The file must be an image, a PDF or a Word document.");
         }
-        if (isLogo && !ALLOWED_LOGO_TYPES.contains(contentType)) {
-            throw new BadRequestException("The logo must be an image (PNG, JPEG, GIF).");
+        if (restrictToImages && !ALLOWED_LOGO_TYPES.contains(contentType)) {
+            throw new BadRequestException("The file must be an image (PNG, JPEG, GIF).");
         }
 
         // Vérification de la taille du fichier

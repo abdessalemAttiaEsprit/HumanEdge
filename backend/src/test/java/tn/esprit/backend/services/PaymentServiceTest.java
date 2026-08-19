@@ -16,6 +16,7 @@ import tn.esprit.backend.exceptions.BadRequestException;
 import tn.esprit.backend.repositories.ContractRepo;
 import tn.esprit.backend.repositories.PaymentRepo;
 import tn.esprit.backend.repositories.PersonnelRepo;
+import tn.esprit.backend.repositories.UserRepository;
 import tn.esprit.backend.security.OwnershipGuard;
 
 import java.time.LocalDate;
@@ -26,8 +27,10 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,16 +48,22 @@ class PaymentServiceTest {
     @Mock private PaymentRepo paymentRepository;
     @Mock private PersonnelRepo personnelRepository;
     @Mock private ContractRepo contractRepository;
+    @Mock private UserRepository userRepository;
     @Mock private OwnershipGuard ownershipGuard;
     @Mock private PaymentEmailNotificationService paymentEmailNotificationService;
+    @Mock private GoogleCalendarSyncService googleCalendarSyncService;
 
     private PaymentService paymentService;
 
     @BeforeEach
     void setUp() {
-        paymentService = new PaymentService(paymentRepository, personnelRepository, contractRepository,
+        paymentService = new PaymentService(paymentRepository, personnelRepository, contractRepository, userRepository,
                 ownershipGuard, paymentEmailNotificationService, new PaymentSuggestionService(),
-                new SalaryCalculationService());
+                new SalaryCalculationService(), googleCalendarSyncService);
+        // Atteint par syncPaymentToGoogleCalendar (validatePayment retombe sur LocalDate.now() si
+        // aucune date de paiement) mais pas par tous les tests - lenient() pour ne pas déclencher
+        // UnnecessaryStubbingException sur ceux qui n'atteignent pas ce chemin.
+        lenient().when(userRepository.findByCompany_IdCompany(anyLong())).thenReturn(List.of());
     }
 
     private Payment paymentWithStatus(String status) {

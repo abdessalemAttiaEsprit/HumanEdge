@@ -21,6 +21,8 @@ import { CandidatesPage } from '@/pages/CandidatesPage';
 import { ApplicationsPage } from '@/pages/ApplicationsPage';
 import { InterviewsPage } from '@/pages/InterviewsPage';
 import { TasksPage } from '@/pages/TasksPage';
+import { SkillsPage } from '@/pages/SkillsPage';
+import { SkillsValidationPage } from '@/pages/SkillsValidationPage';
 import { ReceivedMessagesPage } from '@/pages/ReceivedMessagesPage';
 import { ModulePlaceholderPage } from '@/pages/ModulePlaceholderPage';
 import { UnauthorizedPage } from '@/pages/UnauthorizedPage';
@@ -46,6 +48,8 @@ export function App() {
         '/interviews',
         '/tasks',
         '/messages',
+        '/skills',
+        '/skills/validation',
       ].includes(item.path),
   );
 
@@ -92,6 +96,14 @@ export function App() {
             <Route path="/absences" element={<AbsencesPage />} />
             <Route path="/payments" element={<PayrollPage />} />
             <Route path="/tasks" element={<TasksPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={['EMPLOYE']} />}>
+            <Route path="/skills" element={<SkillsPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={['COMPANY']} />}>
+            <Route path="/skills/validation" element={<SkillsValidationPage />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={['GUEST']} />}>
