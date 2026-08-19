@@ -11,7 +11,7 @@ patchesStrategicMerge:
 images:
 - name: docker.io/CHANGE_ME/hr-backend
   newName: docker.io/abdessalem123/hr-backend
-  newTag: de57c44
+  newTag: dcb789e
 - name: docker.io/CHANGE_ME/hr-frontend
   newName: docker.io/abdessalem123/hr-frontend
   newTag: dcb789e
