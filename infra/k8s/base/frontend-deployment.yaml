@@ -7,6 +7,14 @@ metadata:
     app: hr-frontend
 spec:
   replicas: 1
+  # RollingUpdate (le defaut) essaie de demarrer le nouveau pod avant d'arreter l'ancien, mais le
+  # nœud unique est deja pres de 100% de CPU reservee (backend + ollama + monitoring + ArgoCD) :
+  # meme les 50m du nouveau pod ne trouvent pas de place tant que l'ancien tourne encore, qui
+  # reste donc bloque en Pending indefiniment (jamais de rollout automatique). Recreate evite ce
+  # blocage (accepte une courte coupure a chaque deploiement, ce qui est acceptable ici) - meme
+  # raisonnement que hr-backend (backend-deployment.yaml).
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: hr-frontend
