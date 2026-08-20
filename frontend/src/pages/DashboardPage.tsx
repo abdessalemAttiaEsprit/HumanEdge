@@ -436,8 +436,13 @@ function AdminDashboard({ firstname }: { firstname: string }) {
         )}
       </div>
 
-      <div className="page__header" style={{ marginTop: 32 }}>
+      <div className="page__header page__header--row" style={{ marginTop: 32 }}>
         <h2 style={{ margin: 0 }}>{t.dashboard.admin.companiesTitle}</h2>
+        <div className="page__header-actions">
+          <Link to="/companies" className="btn btn--ghost">
+            {t.dashboard.admin.viewAllCompanies}
+          </Link>
+        </div>
       </div>
 
       {companiesSectionLoading && <TableSkeleton columns={5} />}

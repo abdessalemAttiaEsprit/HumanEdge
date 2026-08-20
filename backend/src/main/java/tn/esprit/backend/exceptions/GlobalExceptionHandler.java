@@ -39,6 +39,13 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.FORBIDDEN, "Accès refusé");
     }
 
+    // Contrairement à AccessDeniedException ci-dessus, ce handler préserve le message précis
+    // (ex: "not yet verified") pour qu'il atteigne le frontend au lieu d'un "Accès refusé" générique.
+    @ExceptionHandler(CompanyNotOperationalException.class)
+    public ResponseEntity<Map<String, Object>> handleCompanyNotOperational(CompanyNotOperationalException ex) {
+        return buildResponse(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
     /**
      * Honors the status/reason carried by the exception itself (e.g. ownership checks that
      * throw 404, or the login/OTP rate limiter's 429) — without this, the generic Exception

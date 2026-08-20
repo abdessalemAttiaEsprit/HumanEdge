@@ -3,8 +3,12 @@ package tn.esprit.backend.services;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import tn.esprit.backend.dto.PublicJobResponse;
+import tn.esprit.backend.entities.Company;
 import tn.esprit.backend.entities.JobPosting;
+import tn.esprit.backend.entities.Subscription;
+import tn.esprit.backend.exceptions.BadRequestException;
 import tn.esprit.backend.repositories.JobPostingRepo;
+import tn.esprit.backend.repositories.SubscriptionRepo;
 import tn.esprit.backend.security.OwnershipGuard;
 import java.util.List;
 
@@ -14,12 +18,27 @@ public class JobPostingService {
 
     private final JobPostingRepo jobPostingRepository;
     private final OwnershipGuard ownershipGuard;
+    private final SubscriptionRepo subscriptionRepo;
+    private final SubscriptionPlanCatalog subscriptionPlanCatalog;
+
+    /** Le recrutement (offres d'emploi) n'est inclus qu'à partir du plan Pro. */
+    private void enforceRecruitmentEnabled(Company company) {
+        Long companyId = company != null ? company.getIdCompany() : null;
+        Subscription subscription = companyId != null ? subscriptionRepo.findByCompany_IdCompany(companyId).orElse(null) : null;
+        SubscriptionPlanCatalog.Plan plan = subscriptionPlanCatalog.resolveEffectivePlan(subscription);
+        if (!plan.recruitmentEnabled()) {
+            throw new BadRequestException("Recruitment tools are not included in your plan (" + plan.label()
+                    + "). Upgrade to Pro or Business to post job openings.");
+        }
+    }
 
     public JobPosting createJobPosting(JobPosting jobPosting) {
         // Une entreprise ne peut créer une offre que pour elle-même : on ignore toute
         // valeur de createdByCompany envoyée par le client et on impose la sienne.
         if (!ownershipGuard.isAdmin()) {
             jobPosting.setCreatedByCompany(ownershipGuard.currentUser().getCompany());
+            ownershipGuard.checkCompanyOperational(jobPosting.getCreatedByCompany());
+            enforceRecruitmentEnabled(jobPosting.getCreatedByCompany());
         }
         jobPosting.setDatePosted(java.time.LocalDateTime.now());
         jobPosting.setStatus("OPEN");

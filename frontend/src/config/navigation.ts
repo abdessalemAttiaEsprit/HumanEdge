@@ -16,14 +16,12 @@ export interface NavItem {
 
 // Single source of truth: feeds both the bottom nav and the module routes.
 //
-// ADMIN est volontairement cantonné au Dashboard pour l'instant (voir App.tsx) : toutes
-// les autres entrées ont perdu 'ADMIN' de leur liste de rôles, y compris Companies qui lui
-// était jusque-là exclusivement réservée (donc plus aucun rôle ne peut l'atteindre tant que
-// ce n'est pas rouvert explicitement). Le Dashboard ADMIN affiche déjà la liste des
-// entreprises en lecture seule, donc la visibilité plateforme reste disponible.
+// ADMIN reste cantonné aux modules plateforme (Dashboard + Companies) : les autres entrées
+// opérationnelles d'une entreprise (Personnel, Contracts, Payroll, ...) n'ont pas 'ADMIN'
+// dans leur liste de rôles.
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', key: 'dashboard', path: '/dashboard', roles: ['ADMIN', 'COMPANY', 'EMPLOYE', 'GUEST'], icon: '🏠', iconSrc: '/assets/nav-icons/dashboard.png' },
-  { label: 'Companies', key: 'companies', path: '/companies', roles: [], icon: '🏢' },
+  { label: 'Companies', key: 'companies', path: '/companies', roles: ['ADMIN'], icon: '🏢' },
   { label: 'Personnel', key: 'personnel', path: '/personnel', roles: ['COMPANY'], icon: '👥', iconSrc: '/assets/nav-icons/personnel.png' },
   { label: 'Contracts', key: 'contracts', path: '/contracts', roles: ['COMPANY'], icon: '📄', iconSrc: '/assets/nav-icons/contracts.png' },
   { label: 'Attendance', key: 'attendance', path: '/attendance', roles: ['COMPANY'], icon: '🕒', iconSrc: '/assets/nav-icons/attendance.png' },

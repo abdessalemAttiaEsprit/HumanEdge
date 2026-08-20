@@ -75,15 +75,14 @@ export function App() {
               tous les rôles y compris ADMIN, même si ADMIN est sinon cantonné au Dashboard. */}
           <Route path="/profile" element={<ProfilePage />} />
 
-          {/* ADMIN cantonné au Dashboard pour l'instant (voir navigation.ts) : chaque groupe
-              ci-dessous a perdu 'ADMIN' de ses allowedRoles, donc un accès direct par URL
-              (ex: /jobs, /companies) redirige ADMIN vers /unauthorized comme n'importe quel
-              rôle non autorisé. */}
+          {/* ADMIN n'a accès qu'aux modules plateforme (Companies ci-dessous) : un accès direct
+              par URL à un module opérationnel d'entreprise (ex: /jobs) redirige ADMIN vers
+              /unauthorized comme n'importe quel rôle non autorisé. */}
           <Route element={<ProtectedRoute allowedRoles={['COMPANY', 'EMPLOYE', 'GUEST']} />}>
             <Route path="/jobs" element={<JobPostingsPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[]} />}>
+          <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
             <Route path="/companies" element={<CompaniesPage />} />
           </Route>
 

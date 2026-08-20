@@ -1337,6 +1337,7 @@ export const fr: Messages = {
       unableToLoadSubscriptions: 'Impossible de charger les abonnements.',
       noActiveSubscriptions: 'Aucun abonnement actif.',
       companiesTitle: 'Entreprises',
+      viewAllCompanies: 'Voir toutes les entreprises →',
       unableToLoadCompanies: 'Impossible de charger les entreprises.',
       noCompaniesYet: 'Aucune entreprise inscrite pour le moment.',
       tableCompany: 'Entreprise',

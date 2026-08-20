@@ -5,9 +5,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import tn.esprit.backend.entities.Candidate;
+import tn.esprit.backend.entities.Company;
 import tn.esprit.backend.entities.Enum.Role;
 import tn.esprit.backend.entities.Personnel;
 import tn.esprit.backend.entities.User;
+import tn.esprit.backend.exceptions.CompanyNotOperationalException;
 
 /**
  * Vérifie qu'un utilisateur authentifié a le droit d'accéder à une ressource précise
@@ -98,5 +100,28 @@ public class OwnershipGuard {
 
     public boolean isGuestRole() {
         return currentUser().getRole() == Role.GUEST;
+    }
+
+    /**
+     * ADMIN : bypass total. Sinon : bloque si l'entreprise appelante est désactivée ou pas
+     * encore vérifiée — appelé explicitement avant toute création de donnée opérationnelle
+     * (Personnel, Contract, JobPosting). Ne gate jamais la lecture ni la gestion du
+     * compte/abonnement (voir CompanyService/SubscriptionService), pour ne pas créer d'impasse.
+     */
+    public void checkCompanyOperational(Company company) {
+        if (isAdmin()) {
+            return;
+        }
+        if (company == null) {
+            throw new AccessDeniedException("Your account is not linked to a company");
+        }
+        if (!Boolean.TRUE.equals(company.getActive())) {
+            throw new CompanyNotOperationalException(
+                    "Your company account has been deactivated. Contact platform support.");
+        }
+        if (!Boolean.TRUE.equals(company.getVerified())) {
+            throw new CompanyNotOperationalException(
+                    "Your company is not yet verified. This action is unavailable until an administrator verifies your account.");
+        }
     }
 }

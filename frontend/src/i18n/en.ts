@@ -1336,6 +1336,7 @@ export const en = {
       unableToLoadSubscriptions: 'Unable to load subscriptions.',
       noActiveSubscriptions: 'No active subscriptions.',
       companiesTitle: 'Companies',
+      viewAllCompanies: 'View all companies →',
       unableToLoadCompanies: 'Unable to load companies.',
       noCompaniesYet: 'No companies registered yet.',
       tableCompany: 'Company',

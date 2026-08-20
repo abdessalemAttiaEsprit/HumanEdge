@@ -60,6 +60,10 @@ public class ContractService {
     @Transactional
     public Contract createContract(Contract contract) {
         Personnel targetPersonnel = resolveTargetPersonnel(contract.getPersonnel());
+        if (targetPersonnel != null) {
+            ownershipGuard.checkCompanyOperational(
+                    targetPersonnel.getUser() != null ? targetPersonnel.getUser().getCompany() : null);
+        }
         requireCategorieEtDateDebut(contract);
 
         // Contract.personnel is the inverse (mappedBy) side and is never persisted from

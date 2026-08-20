@@ -15,9 +15,11 @@ import tn.esprit.backend.entities.Personnel;
 import tn.esprit.backend.entities.User;
 import tn.esprit.backend.exceptions.BadRequestException;
 import tn.esprit.backend.exceptions.ResourceNotFoundException;
+import tn.esprit.backend.entities.Subscription;
 import tn.esprit.backend.repositories.CompanyRepo;
 import tn.esprit.backend.repositories.PaymentRepo;
 import tn.esprit.backend.repositories.PersonnelRepo;
+import tn.esprit.backend.repositories.SubscriptionRepo;
 import tn.esprit.backend.repositories.UserRepository;
 import tn.esprit.backend.security.OwnershipGuard;
 
@@ -35,6 +37,19 @@ public class PersonnelService {
     private final FileStorageService fileStorageService;
     private final PaymentRepo paymentRepo;
     private final AbsenceService absenceService;
+    private final SubscriptionRepo subscriptionRepo;
+    private final SubscriptionPlanCatalog subscriptionPlanCatalog;
+
+    /** Quota d'employés du plan de l'entreprise (voir SubscriptionPlanCatalog#resolveEffectivePlan). */
+    private void enforceEmployeeLimit(Long companyId) {
+        Subscription subscription = subscriptionRepo.findByCompany_IdCompany(companyId).orElse(null);
+        SubscriptionPlanCatalog.Plan plan = subscriptionPlanCatalog.resolveEffectivePlan(subscription);
+        long current = personnelRepository.countByUser_Company_IdCompany(companyId);
+        if (current >= plan.maxEmployees()) {
+            throw new BadRequestException("Your plan (" + plan.label() + ") allows up to " + plan.maxEmployees()
+                    + " employees. Upgrade your subscription to add more.");
+        }
+    }
 
     public List<Personnel> getAllPersonnel() {
         if (ownershipGuard.isAdmin()) {
@@ -87,6 +102,8 @@ public class PersonnelService {
             Personnel probe = new Personnel();
             probe.setUser(targetUser);
             ownershipGuard.checkPersonnelAccess(probe);
+            ownershipGuard.checkCompanyOperational(targetUser.getCompany());
+            enforceEmployeeLimit(targetUser.getCompany() != null ? targetUser.getCompany().getIdCompany() : null);
         }
         return personnelRepository.save(personnel);
     }
@@ -112,6 +129,10 @@ public class PersonnelService {
         }
         Company company = companyRepo.findById(targetCompanyId)
                 .orElseThrow(() -> new ResourceNotFoundException("Company not found with id: " + targetCompanyId));
+        ownershipGuard.checkCompanyOperational(company);
+        if (!ownershipGuard.isAdmin()) {
+            enforceEmployeeLimit(targetCompanyId);
+        }
 
         User user = new User();
         user.setFirstname(request.getFirstname());

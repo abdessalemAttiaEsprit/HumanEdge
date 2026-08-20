@@ -22,6 +22,10 @@ public interface PersonnelRepo extends JpaRepository<Personnel, Long> {
     // Trouver tous les personnels liés à une entreprise via User → Company
     List<Personnel> findByUser_Company_IdCompany(Long companyId);
 
+    // Compte des employés d'une entreprise (quota de plan, voir SubscriptionPlanCatalog) —
+    // évite de charger toute la liste juste pour un .size().
+    long countByUser_Company_IdCompany(Long companyId);
+
     // Retrouver la fiche personnel d'un utilisateur connecté (self-service EMPLOYE)
     Optional<Personnel> findByUser_IdUser(Long userId);
 }
