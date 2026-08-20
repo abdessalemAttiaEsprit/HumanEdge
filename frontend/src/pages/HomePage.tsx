@@ -165,6 +165,7 @@ export function HomePage() {
 
       <footer className="landing-footer">
         <span>{t.home.footer(new Date().getFullYear())}</span>
+        <Link to="/privacy">{t.home.privacyLink}</Link>
       </footer>
     </div>
   );

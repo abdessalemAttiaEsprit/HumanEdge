@@ -27,6 +27,7 @@ import { ReceivedMessagesPage } from '@/pages/ReceivedMessagesPage';
 import { ModulePlaceholderPage } from '@/pages/ModulePlaceholderPage';
 import { UnauthorizedPage } from '@/pages/UnauthorizedPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage';
 import { NAV_ITEMS } from '@/config/navigation';
 
 export function App() {
@@ -64,6 +65,7 @@ export function App() {
       <Route path="/register/company" element={<RegisterCompanyPage />} />
       <Route path="/register/candidate" element={<RegisterCandidatePage />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
 
       {/* Signed-in area (session required) */}
       <Route element={<ProtectedRoute />}>

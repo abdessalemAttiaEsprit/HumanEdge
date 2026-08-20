@@ -235,6 +235,7 @@ export const fr: Messages = {
       "Créez votre espace en quelques minutes et commencez à publier des offres, gérer les contrats et exécuter la paie — tout en un seul endroit.",
     getStartedFree: 'Commencer gratuitement',
     footer: (year: number) => `© ${year} HumanEdge. Tous droits réservés.`,
+    privacyLink: 'Politique de confidentialité',
   },
   profile: {
     roleLabel: {

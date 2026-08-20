@@ -234,6 +234,7 @@ export const en = {
       'Create your workspace in minutes and start posting jobs, managing contracts, and running payroll — all in one place.',
     getStartedFree: 'Get started free',
     footer: (year: number) => `© ${year} HumanEdge. All rights reserved.`,
+    privacyLink: 'Privacy Policy',
   },
   profile: {
     roleLabel: {
