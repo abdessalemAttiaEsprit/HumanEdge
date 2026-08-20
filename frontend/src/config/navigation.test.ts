@@ -2,15 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { navItemsForRole } from './navigation';
 
 /**
- * ADMIN est volontairement cantonné au Dashboard (voir le commentaire dans navigation.ts et
- * App.tsx) : cette restriction est une décision de sécurité/produit facile à casser par
- * inadvertance en ajoutant une nouvelle entrée de nav sans y penser, d'où ce test.
+ * ADMIN n'a accès qu'aux modules plateforme (Dashboard + Companies), jamais aux modules
+ * opérationnels d'une entreprise (Personnel, Contracts, ...) : cette restriction est une
+ * décision de sécurité/produit facile à casser par inadvertance en ajoutant une nouvelle
+ * entrée de nav sans y penser, d'où ce test.
  */
 describe('navItemsForRole', () => {
-  it('restricts ADMIN to the Dashboard only', () => {
+  it('restricts ADMIN to platform-wide modules only', () => {
     const items = navItemsForRole('ADMIN');
 
-    expect(items.map((i) => i.label)).toEqual(['Dashboard']);
+    expect(items.map((i) => i.label)).toEqual(['Dashboard', 'Companies']);
   });
 
   it('gives COMPANY access to the operational modules', () => {
@@ -21,8 +22,9 @@ describe('navItemsForRole', () => {
     );
   });
 
-  it('never exposes Companies to any role (currently unreachable by design)', () => {
-    (['ADMIN', 'COMPANY', 'EMPLOYE', 'GUEST'] as const).forEach((role) => {
+  it('exposes Companies to ADMIN only', () => {
+    expect(navItemsForRole('ADMIN').some((i) => i.path === '/companies')).toBe(true);
+    (['COMPANY', 'EMPLOYE', 'GUEST'] as const).forEach((role) => {
       expect(navItemsForRole(role).some((i) => i.path === '/companies')).toBe(false);
     });
   });
