@@ -53,6 +53,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const clearSubscriptionBlock = useCallback(() => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, subscriptionBlocked: false };
+      authStorage.save(next);
+      return next;
+    });
+  }, []);
+
   const hasRole = useCallback(
     (...roles: Role[]) => (user ? roles.includes(user.role) : false),
     [user],
@@ -69,8 +78,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       hasRole,
       updateAvatar,
+      clearSubscriptionBlock,
     }),
-    [user, login, verifyOtp, resendOtp, register, logout, hasRole, updateAvatar],
+    [user, login, verifyOtp, resendOtp, register, logout, hasRole, updateAvatar, clearSubscriptionBlock],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

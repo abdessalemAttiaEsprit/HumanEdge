@@ -62,6 +62,8 @@ public class SubscriptionService {
         subscription.setTransactionRef(charge.transactionRef());
         subscription.setPaidAt(now);
         subscription.setPeriodEnd(base.plusMonths(1));
+        // Repart de zéro pour le prochain cycle d'expiration (voir SubscriptionExpiryScheduler).
+        subscription.setExpiryNotifiedAt(null);
 
         return subscriptionRepo.save(subscription);
     }

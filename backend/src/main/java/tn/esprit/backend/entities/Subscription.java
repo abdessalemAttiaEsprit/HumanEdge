@@ -42,6 +42,11 @@ public class Subscription {
     private LocalDateTime paidAt;
     private LocalDateTime periodEnd;
 
+    // Horodatage de la notification "abonnement expiré, 24h pour renouveler" (voir
+    // SubscriptionExpiryScheduler) — ancre le délai de grâce ; remis à null à chaque
+    // renouvellement (SubscriptionService.updateSubscription) pour repartir de zéro.
+    private LocalDateTime expiryNotifiedAt;
+
     /**
      * Expose uniquement l'id de l'entreprise (jamais l'objet Company, ignoré ci-dessus pour
      * casser le cycle JSON) — nécessaire pour la vue globale ADMIN (voir SubscriptionController)

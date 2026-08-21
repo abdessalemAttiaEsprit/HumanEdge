@@ -192,6 +192,12 @@ export const en = {
     underConstruction: 'Under construction',
     description: 'Navigation, role-based security, and the API layer are already in place. The management screens will be added here.',
   },
+  subscriptionBlocked: {
+    title: 'Account blocked',
+    message:
+      "Your company's subscription has expired and your account was blocked because it wasn't renewed within the 24-hour grace period. Renew now to regain full access.",
+    cta: 'Renew and unlock my account',
+  },
   contractTypes: {
     CDI: 'Permanent',
     CDD: 'Fixed-term',

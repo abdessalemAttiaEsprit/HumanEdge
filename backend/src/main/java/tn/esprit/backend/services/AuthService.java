@@ -297,11 +297,15 @@ public class AuthService {
         String displayLastname = user.getLastname();
         Long companyId = null;
         String img = user.getImg();
+        boolean subscriptionBlocked = false;
 
         if (user.getRole() == Role.COMPANY && user.getCompany() != null) {
             displayFirstname = user.getCompany().getCompanyName();
             displayLastname = "";
             companyId = user.getCompany().getIdCompany();
+            subscriptionBlocked = subscriptionRepo.findByCompany_IdCompany(companyId)
+                    .map(s -> "BLOCKED".equals(s.getStatus()))
+                    .orElse(false);
         }
 
         return AuthResponse.builder()
@@ -313,6 +317,7 @@ public class AuthService {
                 .role(user.getRole())
                 .companyId(companyId)
                 .img(img)
+                .subscriptionBlocked(subscriptionBlocked)
                 .build();
     }
 

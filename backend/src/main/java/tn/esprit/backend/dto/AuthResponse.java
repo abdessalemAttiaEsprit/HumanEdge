@@ -20,4 +20,8 @@ public class AuthResponse {
     private Role role;
     private Long companyId;  // null for non-company users
     private String img;// URL or filename of user avatar
+    // true only for COMPANY accounts whose subscription is BLOCKED (see
+    // OwnershipGuard.checkCompanyOperational) - the frontend redirects to a forced
+    // renewal page instead of the normal app when this is true.
+    private boolean subscriptionBlocked;
 }

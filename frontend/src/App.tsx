@@ -28,6 +28,7 @@ import { ModulePlaceholderPage } from '@/pages/ModulePlaceholderPage';
 import { UnauthorizedPage } from '@/pages/UnauthorizedPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { PrivacyPolicyPage } from '@/pages/PrivacyPolicyPage';
+import { SubscriptionBlockedPage } from '@/pages/SubscriptionBlockedPage';
 import { NAV_ITEMS } from '@/config/navigation';
 
 export function App() {
@@ -74,6 +75,9 @@ export function App() {
           {/* Profil = self-service de compte (ex: changer son mot de passe), reste ouvert à
               tous les rôles y compris ADMIN, même si ADMIN est sinon cantonné au Dashboard. */}
           <Route path="/profile" element={<ProfilePage />} />
+          {/* Atteint uniquement via la redirection forcée de ProtectedRoute quand
+              user.subscriptionBlocked est true (voir auth/ProtectedRoute.tsx). */}
+          <Route path="/subscription-blocked" element={<SubscriptionBlockedPage />} />
 
           {/* ADMIN n'a accès qu'aux modules plateforme (Companies ci-dessous) : un accès direct
               par URL à un module opérationnel d'entreprise (ex: /jobs) redirige ADMIN vers

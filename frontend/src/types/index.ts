@@ -113,6 +113,8 @@ export interface AuthResponse {
   role: Role;
   companyId: number | null;
   img: string | null;
+  /** true only for COMPANY accounts whose subscription is BLOCKED (unpaid past the 24h grace period). */
+  subscriptionBlocked: boolean;
 }
 
 // Response of POST /api/auth/login. COMPANY/ADMIN accounts require a follow-up

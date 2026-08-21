@@ -1,5 +1,6 @@
 package tn.esprit.backend.security;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -10,6 +11,7 @@ import tn.esprit.backend.entities.Enum.Role;
 import tn.esprit.backend.entities.Personnel;
 import tn.esprit.backend.entities.User;
 import tn.esprit.backend.exceptions.CompanyNotOperationalException;
+import tn.esprit.backend.repositories.SubscriptionRepo;
 
 /**
  * Vérifie qu'un utilisateur authentifié a le droit d'accéder à une ressource précise
@@ -17,7 +19,10 @@ import tn.esprit.backend.exceptions.CompanyNotOperationalException;
  * ne doit voir/modifier que ses propres données, un salarié uniquement les siennes.
  */
 @Component
+@RequiredArgsConstructor
 public class OwnershipGuard {
+
+    private final SubscriptionRepo subscriptionRepo;
 
     public User currentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -123,5 +128,11 @@ public class OwnershipGuard {
             throw new CompanyNotOperationalException(
                     "Your company is not yet verified. This action is unavailable until an administrator verifies your account.");
         }
+        subscriptionRepo.findByCompany_IdCompany(company.getIdCompany())
+                .filter(s -> "BLOCKED".equals(s.getStatus()))
+                .ifPresent(s -> {
+                    throw new CompanyNotOperationalException(
+                            "Your subscription has expired and your account is blocked. Please renew your subscription to continue.");
+                });
     }
 }

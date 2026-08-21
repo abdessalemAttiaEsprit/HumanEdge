@@ -193,6 +193,12 @@ export const fr: Messages = {
     underConstruction: 'En construction',
     description: "La navigation, la sécurité par rôle et la couche API sont déjà en place. Les écrans de gestion seront ajoutés ici.",
   },
+  subscriptionBlocked: {
+    title: 'Compte bloqué',
+    message:
+      "L'abonnement de votre entreprise a expiré et votre compte a été bloqué faute de renouvellement dans le délai de grâce de 24h. Renouvelez maintenant pour retrouver un accès complet.",
+    cta: 'Renouveler et débloquer mon compte',
+  },
   contractTypes: {
     CDI: 'CDI',
     CDD: 'CDD',

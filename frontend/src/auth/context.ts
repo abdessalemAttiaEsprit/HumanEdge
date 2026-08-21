@@ -23,6 +23,8 @@ export interface AuthContextValue {
   hasRole: (...roles: Role[]) => boolean;
   /** Reflects a freshly-uploaded avatar filename into the session immediately (no re-login needed). */
   updateAvatar: (img: string) => void;
+  /** Clears the subscription-blocked flag after a successful renewal from the forced payment page. */
+  clearSubscriptionBlock: () => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);

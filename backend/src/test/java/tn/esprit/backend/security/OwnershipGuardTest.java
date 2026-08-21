@@ -10,9 +10,11 @@ import tn.esprit.backend.entities.Company;
 import tn.esprit.backend.entities.Enum.Role;
 import tn.esprit.backend.entities.Personnel;
 import tn.esprit.backend.entities.User;
+import tn.esprit.backend.repositories.SubscriptionRepo;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 /**
  * Couvre la matrice d'autorisation utilisée par tous les services métier (Payment, Personnel,
@@ -21,7 +23,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class OwnershipGuardTest {
 
-    private final OwnershipGuard guard = new OwnershipGuard();
+    // mock() plutôt que MockitoExtension : aucun test ici n'exerce checkCompanyOperational
+    // (donc jamais réellement appelé), seul un constructeur valide est nécessaire.
+    private final OwnershipGuard guard = new OwnershipGuard(mock(SubscriptionRepo.class));
 
     @AfterEach
     void clearSecurityContext() {
